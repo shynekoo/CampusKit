@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="io.qzxy.lite.preview" android:versionCode="104" android:versionName="1.0.0-readonly">
+    <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="36" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <!-- Android 11+ hides other packages unless they are declared here; without this,
+         getLaunchIntentForPackage() returns null for the pickup-code fallbacks. -->
+    <queries>
+        <package android:name="com.klcxkj.zqxy" />
+        <package android:name="com.cloudora.android" />
+        <package android:name="cn.com.yunma.school.app" />
+        <package android:name="com.cainiao.wireless" />
+        <package android:name="com.taobao.taobao" />
+        <package android:name="com.eg.android.AlipayGphone" />
+    </queries>
+    <application android:label="CampusKit" android:theme="@style/AppTheme" android:usesCleartextTraffic="false"
+        android:icon="@drawable/ic_app" android:allowBackup="false" android:supportsRtl="true">
+        <activity android:name=".TimetableActivity" android:exported="true" android:configChanges="orientation|screenSize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity android:name=".TimetableWebActivity" android:exported="false" android:configChanges="orientation|screenSize" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".QzxyAlipayActivity" android:exported="false" />
+        <activity android:name=".AccountInfoActivity" android:exported="false" />
+        <activity android:name=".AccountActivity" android:exported="false" />
+        <activity android:name=".LifeDeviceActivity" android:exported="false" />
+        <activity android:name=".LifeLoginActivity" android:exported="false" />
+        <activity android:name=".ScanActivity" android:exported="false" />
+
+        <receiver android:name=".ScheduleWidget" android:exported="false" android:label="CampusKit 2×2 课表">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/><action android:name="android.intent.action.DATE_CHANGED"/><action android:name="android.intent.action.TIME_SET"/><action android:name="android.intent.action.TIMEZONE_CHANGED"/></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/schedule_widget"/>
+        </receiver>
+        <receiver android:name=".ScheduleWidgetMedium" android:exported="false" android:label="CampusKit 3×2 课表"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter><meta-data android:name="android.appwidget.provider" android:resource="@xml/schedule_widget_medium"/></receiver>
+        <receiver android:name=".ScheduleWidgetWide" android:exported="false" android:label="CampusKit 4×2 课表"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter><meta-data android:name="android.appwidget.provider" android:resource="@xml/schedule_widget_wide"/></receiver>
+    </application>
+</manifest>

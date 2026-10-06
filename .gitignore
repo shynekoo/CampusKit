@@ -1,0 +1,22 @@
+# Local analysis inputs and generated files
+/inputs/
+/analysis/private/
+/analysis/decoded/
+/tools/
+*.apk
+*.aab
+*.jks
+*.keystore
+*.p12
+*.idsig
+local.properties
+.gradle/
+**/build/
+__pycache__/
+.env
+.env.*
+/tmp/
+/.workbuddy-ai/
+/analysis/
+/delivery/*
+!/delivery/release-1.0.0.md

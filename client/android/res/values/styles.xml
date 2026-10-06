@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:colorAccent">#275DAD</item>
+        <item name="android:colorControlActivated">#275DAD</item>
+        <item name="android:buttonStyle">@style/CampusButton</item>
+        <item name="android:windowBackground">#F6F7F9</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:statusBarColor">#F6F7F9</item>
+        <item name="android:navigationBarColor">#F6F7F9</item>
+        <item name="android:forceDarkAllowed">false</item>
+        <item name="android:windowActionModeOverlay">true</item>
+    </style>
+    <style name="CampusButton" parent="android:style/Widget.Material.Button">
+        <item name="android:background">@drawable/button_surface</item>
+        <item name="android:textColor">@color/button_text</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:minWidth">40dp</item>
+        <item name="android:stateListAnimator">@null</item>
+    </style>
+</resources>

@@ -1,0 +1,9 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/widget_root" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="16dp" android:background="@drawable/widget_background">
+<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+<TextView android:id="@+id/widget_title" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:textSize="18sp" android:textStyle="bold" android:textColor="#243C32"/>
+<TextView android:id="@+id/widget_refresh" android:layout_width="48dp" android:layout_height="48dp" android:gravity="center" android:text="↻" android:contentDescription="刷新课表" android:textSize="20sp" android:textColor="#28745F"/>
+</LinearLayout>
+<TextView android:id="@+id/widget_summary" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingBottom="12dp" android:textSize="14sp" android:textColor="#28745F"/>
+<TextView android:id="@+id/widget_courses" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:textSize="13sp" android:textColor="#53695F" android:ellipsize="end"/>
+<TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="CampusKit · 点击查看全部课程" android:textSize="10sp" android:textColor="#87978F" android:paddingTop="8dp"/>
+</LinearLayout>
