@@ -659,8 +659,8 @@ public final class TimetableActivity extends Activity {
         ScrollView scroll=new ScrollView(this);LinearLayout content=column();scroll.addView(content);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
         LinearLayout card=whiteCard();
         campusEntry(card,"账",AppUi.ACCENT,"趣智校园","浴室、吹风机",()->startActivity(new Intent(this,AccountInfoActivity.class)),true);
-        campusEntry(card,"慧",0xff37668b,"慧生活798","饮水、淋浴",()->startActivity(new Intent(this,AccountInfoActivity.class).putExtra("life798",true)),false);
-        gap(card,10);card.addView(body("CampusKit 1.0.7 · 第三方校园客户端"));content.addView(card);
+        campusEntry(card,"慧",0xff37668b,"慧生活798","饮水",()->startActivity(new Intent(this,AccountInfoActivity.class).putExtra("life798",true)),false);
+        gap(card,10);card.addView(body("CampusKit 1.0.8 · 第三方校园客户端"));content.addView(card);
     }
 
     private void records(LinearLayout parent) {

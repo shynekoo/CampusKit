@@ -231,7 +231,6 @@ public final class ScanActivity extends Activity implements SurfaceHolder.Callba
         else startCamera();
     }
     private void scanFeedback() {
-        status.performHapticFeedback(android.os.Build.VERSION.SDK_INT >= 30 ? android.view.HapticFeedbackConstants.CONFIRM : android.view.HapticFeedbackConstants.VIRTUAL_KEY);
         status.announceForAccessibility("二维码已识别，正在读取设备");
     }
     private void showCode(String raw) {
