@@ -331,6 +331,7 @@ public final class TimetableActivity extends Activity {
         if (day < 0 || day > 6 || first < 1 || last < first || last > 16
                 || from < 1 || to < from || to > 30 || parity < 0 || parity > 2) throw new IllegalArgumentException();
         if (from == to && parity != 0 && from % 2 != (parity == 1 ? 1 : 0)) throw new IllegalArgumentException();
+        CourseWeeks.validate(course);
         // 0 means "pick a colour from the course name"; 1..PALETTE is an explicit choice.
         int color = course.optInt("color", 0);
         if (color < 0 || color > WeekBoard.PALETTE) throw new IllegalArgumentException();
@@ -338,9 +339,7 @@ public final class TimetableActivity extends Activity {
     private boolean appears(JSONObject course) { return appears(course, week); }
     /** Whether a course runs in a given week. Split out because the 今日 tab asks about this week. */
     private static boolean appears(JSONObject course, int targetWeek) {
-        int parity = course.optInt("parity");
-        return targetWeek >= course.optInt("from") && targetWeek <= course.optInt("to")
-            && (parity == 0 || targetWeek % 2 == (parity == 1 ? 1 : 0));
+        return CourseWeeks.includes(course, targetWeek);
     }
     /** Today as a column index: Monday 0 … Sunday 6. */
     private static int todayIndex() { return (Calendar.getInstance().get(Calendar.DAY_OF_WEEK) + 5) % 7; }
@@ -394,11 +393,10 @@ public final class TimetableActivity extends Activity {
 
     private void manage() {
         if(unreadable || importing)return;
-        new AlertDialog.Builder(this).setTitle("我的课表").setItems(new String[]{"从教务系统导入", "开学日期", "添加课程", "全部课程（"+courses.size()+"）", "实践课程与备注", "自定义背景图片", "添加桌面课表组件", "导出备份", "恢复备份"}, (d,index)-> {
+        new AlertDialog.Builder(this).setTitle("我的课表").setItems(new String[]{"从教务系统导入", "开学日期", "添加课程", "全部课程（"+courses.size()+"）", "自定义背景图片", "添加桌面课表组件", "导出备份", "恢复备份"}, (d,index)-> {
             if(index==0)startActivityForResult(new Intent(this,TimetableWebActivity.class),41);
             else if(index==1)semester();else if(index==2)edit(null);else if(index==3)allCourses();
-            else if(index==5)backgroundMenu();else if(index==6)addScheduleWidget();else if(index==7)document(Intent.ACTION_CREATE_DOCUMENT,"application/json",81);else if(index==8)document(Intent.ACTION_OPEN_DOCUMENT,"*/*",82);
-            else new AlertDialog.Builder(this).setTitle("实践课程与备注").setMessage(store.getString("import_notes", "").isEmpty()?"暂无备注":store.getString("import_notes", "")).setPositiveButton("关闭",null).show();
+            else if(index==4)backgroundMenu();else if(index==5)addScheduleWidget();else if(index==6)document(Intent.ACTION_CREATE_DOCUMENT,"application/json",81);else if(index==7)document(Intent.ACTION_OPEN_DOCUMENT,"*/*",82);
         }).setNegativeButton("关闭",null).show();
     }
     /**
@@ -419,11 +417,7 @@ public final class TimetableActivity extends Activity {
         root.announceForAccessibility("第 "+week+" 周");
     }
     private void selectWeek() {
-        String[] values=new String[30];for(int i=0;i<30;i++)values[i]="第 "+(i+1)+" 周";
-        new AlertDialog.Builder(this).setTitle("选择周次").setSingleChoiceItems(values,week-1,(d,index)->{
-            int delta=index+1-week;d.dismiss();
-            if(delta!=0)applyWeek(delta);
-        }).setNegativeButton("取消",null).show();
+        CoursePickers.selectWeek(this,week,selected->{int delta=selected-week;if(delta!=0)applyWeek(delta);});
     }
     private void goCurrentWeek() {
         if(currentWeek()<1 || currentWeek()>30){semester();return;}
@@ -437,7 +431,7 @@ public final class TimetableActivity extends Activity {
             new AlertDialog.Builder(this).setTitle("此时段有重叠课程").setItems(names,(d,n)->showCourses(java.util.Collections.singletonList(group.get(n)))).setNegativeButton("关闭",null).show();return;
         }
         JSONObject c=group.get(0);
-        String detail=DAYS[c.optInt("day")]+"  ·  第 "+c.optInt("first")+"—"+c.optInt("last")+" 节\n\n"+c.optString("room")+"\n"+c.optString("teacher")+"\n\n第 "+c.optInt("from")+"—"+c.optInt("to")+" 周"+new String[]{"", " · 单周", " · 双周"}[c.optInt("parity")];
+        String detail=DAYS[c.optInt("day")]+"  ·  第 "+c.optInt("first")+"—"+c.optInt("last")+" 节\n\n"+c.optString("room")+"\n"+c.optString("teacher")+"\n\n"+CourseWeeks.label(c);
         new AlertDialog.Builder(this).setTitle(c.optString("name")).setMessage(detail).setPositiveButton("编辑课程",(d,w)->edit(c)).setNegativeButton("关闭",null).show();
     }
     private android.graphics.drawable.GradientDrawable rounded(int color,int radius) {
@@ -666,7 +660,7 @@ public final class TimetableActivity extends Activity {
         LinearLayout card=whiteCard();
         campusEntry(card,"账",AppUi.ACCENT,"趣智校园","浴室、吹风机",()->startActivity(new Intent(this,AccountInfoActivity.class)),true);
         campusEntry(card,"慧",0xff37668b,"慧生活798","饮水、淋浴",()->startActivity(new Intent(this,AccountInfoActivity.class).putExtra("life798",true)),false);
-        gap(card,10);card.addView(body("CampusKit 1.0.0 · 第三方校园客户端"));content.addView(card);
+        gap(card,10);card.addView(body("CampusKit 1.0.7 · 第三方校园客户端"));content.addView(card);
     }
 
     private void records(LinearLayout parent) {
@@ -695,22 +689,22 @@ public final class TimetableActivity extends Activity {
         final int[] choice = {selected};
         final List<TextView> marks = new ArrayList<>();
         LinearLayout row = new LinearLayout(this);
-        android.widget.HorizontalScrollView scroller = new android.widget.HorizontalScrollView(this);
-        scroller.setHorizontalScrollBarEnabled(false);
-        int size = dp(44);
+        int columns=Math.max(3,Math.min(6,(getResources().getDisplayMetrics().widthPixels-dp(88))/dp(56)));
+        int size = dp(48);
         for (int index = 0; index <= WeekBoard.PALETTE; index++) {
+            if(index%columns==0){row=new LinearLayout(this);parent.addView(row);}
             final int value = index;
             TextView swatch = new TextView(this);
             swatch.setGravity(android.view.Gravity.CENTER); swatch.setTextSize(13);
             swatch.setTypeface(null, android.graphics.Typeface.BOLD); swatch.setIncludeFontPadding(false);
             swatch.setText(index == 0 ? "自" : "");
-            swatch.setContentDescription(index == 0 ? "自动配色" : "颜色 " + index);
+            swatch.setContentDescription(index == 0 ? "自动配色" : io.qzxy.lite.core.TimetablePalette.name(index));
             swatch.setOnClickListener(v -> { choice[0] = value; paint(marks, value); });
             LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(size, size);
-            params.setMargins(dp(3), dp(4), dp(3), dp(4));
+            params.setMargins(dp(4), dp(4), dp(4), dp(4));
             row.addView(swatch, params); marks.add(swatch);
         }
-        scroller.addView(row); parent.addView(scroller);
+
         paint(marks, selected);
         return choice;
     }
@@ -751,12 +745,15 @@ public final class TimetableActivity extends Activity {
         EditText name = input(form, "课程名称（必填）", old.optString("name"), false);
         EditText room = input(form, "教室（可选）", old.optString("room"), false);
         EditText teacher = input(form, "教师（可选）", old.optString("teacher"), false);
-        form.addView(text("星期", 14)); Spinner day = choices(form, DAYS, old.optInt("day", dayDefault));
-        EditText first = input(form, "开始节次（1–16）", String.valueOf(old.optInt("first", firstDefault)), true);
-        EditText last = input(form, "结束节次", String.valueOf(old.optInt("last", lastDefault)), true);
-        EditText from = input(form, "开始周（1–30）", String.valueOf(old.optInt("from", 1)), true);
-        EditText to = input(form, "结束周", String.valueOf(old.optInt("to", 20)), true);
-        Spinner parity = choices(form, new String[]{"每周", "单周", "双周"}, old.optInt("parity", 0));
+        int[] time = {old.optInt("day", dayDefault), old.optInt("first", firstDefault), old.optInt("last", lastDefault)};
+        boolean[][] selectedWeeks = {CourseWeeks.selection(old)};
+        form.addView(text("上课时间", 14));
+        Button timeButton = CoursePickers.button(this, "", false); form.addView(timeButton);
+        Runnable showTime = () -> timeButton.setText(DAYS[time[0]] + "  " + time[1] + "–" + time[2] + "节（" + (time[2]-time[1]+1) + "节）"); showTime.run();
+        timeButton.setOnClickListener(v -> CoursePickers.time(this,time[0],time[1],time[2],(day,first,last)->{time[0]=day;time[1]=first;time[2]=last;showTime.run();}));
+        form.addView(text("上课周次", 14));
+        Button weeksButton = CoursePickers.button(this, CourseWeeks.label(selectedWeeks[0]), false); form.addView(weeksButton);
+        weeksButton.setOnClickListener(v -> CoursePickers.weeks(this,selectedWeeks[0],value->{selectedWeeks[0]=value;weeksButton.setText(CourseWeeks.label(value));}));
         int[] color = colorPicker(form, old.optInt("color", 0));
         TextView error = text("", 14); error.setTextColor(0xffb3261e); form.addView(error);
         ScrollView scroll = new ScrollView(this); scroll.addView(form);
@@ -767,10 +764,9 @@ public final class TimetableActivity extends Activity {
             try {
                 JSONObject course = new JSONObject();
                 course.put("name", name.getText().toString().trim()); course.put("room", room.getText().toString().trim());
-                course.put("teacher", teacher.getText().toString().trim()); course.put("day", day.getSelectedItemPosition());
-                course.put("first", Integer.parseInt(first.getText().toString())); course.put("last", Integer.parseInt(last.getText().toString()));
-                course.put("from", Integer.parseInt(from.getText().toString())); course.put("to", Integer.parseInt(to.getText().toString()));
-                course.put("parity", parity.getSelectedItemPosition()); course.put("color", color[0]);
+                course.put("teacher", teacher.getText().toString().trim()); course.put("day", time[0]);
+                course.put("first", time[1]); course.put("last", time[2]);
+                CourseWeeks.put(course, selectedWeeks[0]); course.put("color", color[0]);
                 validate(course);
                 List<JSONObject> replacement = new ArrayList<>(courses);
                 if (original == null) replacement.add(course); else replacement.set(courses.indexOf(original), course);
@@ -795,25 +791,26 @@ public final class TimetableActivity extends Activity {
     }
     private void allCourses() {
         if (courses.isEmpty()) { edit(null); return; }
-        // A coloured dot makes the current colour assignment visible without hunting for the block.
         Map<String,Integer> auto = WeekBoard.autoColorsFor(courses);
-        CharSequence[] names = new CharSequence[courses.size()];
-        for (int i = 0; i < names.length; i++) {
-            JSONObject c = courses.get(i);
-            int explicit = c.optInt("color", 0);
-            Integer derived = auto.get(c.optString("name"));
-            int index = explicit >= 1 && explicit <= WeekBoard.PALETTE ? explicit - 1 : (derived == null ? 0 : derived);
-            android.text.SpannableStringBuilder line = new android.text.SpannableStringBuilder("● ");
-            line.setSpan(new android.text.style.ForegroundColorSpan(WeekBoard.ink(index + 1)), 0, 1,
-                android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            line.append(c.optString("name")).append(" · ").append(DAYS[c.optInt("day")])
-                .append(" 第").append(String.valueOf(c.optInt("first"))).append("–").append(String.valueOf(c.optInt("last")))
-                .append("节 · ").append(String.valueOf(c.optInt("from"))).append("–").append(String.valueOf(c.optInt("to")))
-                .append("周").append(new String[]{"", "（单周）", "（双周）"}[c.optInt("parity")]);
-            names[i] = line;
+        List<JSONObject> ordered=new ArrayList<>(courses);
+        ordered.sort((a,b)->{int day=Integer.compare(a.optInt("day"),b.optInt("day"));return day!=0?day:Integer.compare(a.optInt("first"),b.optInt("first"));});
+        LinearLayout list=column();list.setPadding(dp(16),dp(8),dp(16),dp(16));
+        ScrollView scroll=new ScrollView(this);scroll.addView(list);
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("全部课程 · "+courses.size()+" 条").setView(scroll).setNegativeButton("关闭",null).create();
+        int previous=-1;
+        for(JSONObject c:ordered){
+            int day=c.optInt("day");if(day!=previous){TextView heading=text(DAYS[day],14);heading.setTextColor(AppUi.MUTED);list.addView(heading);previous=day;}
+            int explicit=c.optInt("color");Integer derived=auto.get(c.optString("name"));int index=explicit>0?explicit:(derived==null?1:derived+1);
+            LinearLayout row=new LinearLayout(this);row.setGravity(android.view.Gravity.CENTER_VERTICAL);row.setPadding(dp(12),dp(10),dp(12),dp(10));AppUi.press(row,AppUi.BG,12);
+            View stripe=new View(this);stripe.setBackground(AppUi.shape(this,WeekBoard.ink(index),2));row.addView(stripe,new LinearLayout.LayoutParams(dp(4),dp(48)));
+            LinearLayout content=column();LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,-2,1);cp.leftMargin=dp(12);row.addView(content,cp);
+            TextView title=text(c.optString("name"),16);title.setTypeface(null,android.graphics.Typeface.BOLD);title.setPadding(0,0,0,dp(5));content.addView(title);
+            TextView time=text("第 "+c.optInt("first")+"–"+c.optInt("last")+" 节  ·  "+ClassTimes.range(c.optInt("first"),c.optInt("last")),13);time.setTextColor(AppUi.MUTED);time.setPadding(0,0,0,dp(4));content.addView(time);
+            String room=c.optString("room"),teacher=c.optString("teacher");String location=room+(room.isEmpty()||teacher.isEmpty()?"":" · ")+teacher;if(!location.isEmpty()){TextView detail=text(location,13);detail.setTextColor(AppUi.MUTED);detail.setPadding(0,0,0,dp(4));content.addView(detail);}
+            TextView weeks=text(CourseWeeks.label(c),12);weeks.setTextColor(AppUi.MUTED);weeks.setPadding(0,0,0,0);content.addView(weeks);
+            row.setContentDescription(c.optString("name")+"，点击编辑");row.setOnClickListener(v->{dialog.dismiss();edit(c);});LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2);rp.bottomMargin=dp(8);list.addView(row,rp);
         }
-        new AlertDialog.Builder(this).setTitle("全部课程 · 点击编辑").setItems(names, (d, index) -> edit(courses.get(index)))
-            .setNegativeButton("返回", null).show();
+        dialog.show();
     }
     private void semester() {
         LinearLayout form = column(); form.setPadding(dp(20), dp(8), dp(20), dp(8));

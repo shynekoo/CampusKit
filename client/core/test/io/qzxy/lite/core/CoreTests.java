@@ -567,7 +567,7 @@ public final class CoreTests {
         System.out.println("PASS: concurrent start requests yield exactly one accepted transition");
 
         // Timetable colours: different courses must not look the same, and a course must keep its colour.
-        equal(12, TimetablePalette.SIZE);
+        equal(18, TimetablePalette.SIZE);
         equal(0xffeef1ef, TimetablePalette.fill(0)); equal(0xff6b778c, TimetablePalette.ink(0));
         equal(0xffeef1ef, TimetablePalette.fill(-3)); equal(0xff6b778c, TimetablePalette.ink(99));
         for (int i = 1; i <= TimetablePalette.SIZE; i++) {

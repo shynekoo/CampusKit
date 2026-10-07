@@ -16,15 +16,19 @@ import java.util.TreeSet;
  * 1..SIZE.
  */
 public final class TimetablePalette {
-    public static final int SIZE = 12;
+    public static final int SIZE = 18;
     private static final int[] FILLS = {
-        0xffe0eeeb, 0xffe7e5f6, 0xfff8e8d7, 0xffddebf7, 0xfff4dfe7, 0xffe9edcf,
-        0xffdceee2, 0xffeae4f7, 0xfffae3dc, 0xffd9ecf2, 0xfff2e2ee, 0xffe6eccf,
+        0xffdcefe9,0xffe8e1f5,0xfff7e5ce,0xffdce9fa,0xfff5dfe8,0xffe9edcf,
+        0xffddefdb,0xffe0e2f8,0xfff8dfd3,0xffd8eef3,0xfff0dff1,0xffe3ead8,
+        0xffd9eaf0,0xfff6edcf,0xffecdeda,0xfff7e0dc,0xffe2e8ef,0xffd4efef
     };
     private static final int[] INKS = {
-        0xff236d61, 0xff64518c, 0xff916135, 0xff37668b, 0xff914b67, 0xff607134,
-        0xff1f6b45, 0xff5b4a8f, 0xff9c4a30, 0xff1f6274, 0xff8b3f72, 0xff556325,
+        0xff225f50,0xff57417d,0xff795026,0xff315982,0xff803d59,0xff566127,
+        0xff386333,0xff454d86,0xff874328,0xff255d70,0xff754078,0xff4a5f35,
+        0xff35586b,0xff73601e,0xff6f4d43,0xff853e3c,0xff46566c,0xff235f60
     };
+    private static final String[] NAMES={"青瓷","藤紫","杏仁","雾蓝","玫瑰","青柠","豆绿","鸢尾","蜜桃","晴空","藕荷","鼠尾草","湖蓝","麦黄","可可","珊瑚","石板","薄荷"};
+    public static String name(int choice){return choice>=1&&choice<=SIZE?NAMES[choice-1]:"自动";}
     /** Neutral swatch for the "automatic" choice in the editor. */
     public static final int AUTO_FILL = 0xffeef1ef, AUTO_INK = 0xff6b778c;
 

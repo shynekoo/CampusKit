@@ -10,7 +10,7 @@ final class ScheduleInfo {
     static List<JSONObject> today(String json,String monday,String date)throws Exception{
         List<JSONObject> out=new ArrayList<>();int week=week(monday,date);JSONArray all=new JSONArray(json); Calendar day=Calendar.getInstance();day.setTime(new SimpleDateFormat("yyyy-MM-dd",Locale.ROOT).parse(date));
         for(int i=0;i<all.length();i++){JSONObject c=all.getJSONObject(i);int parity=c.optInt("parity");
-            if(c.optInt("day")==(day.get(Calendar.DAY_OF_WEEK)+5)%7&&week>=c.optInt("from")&&week<=c.optInt("to")&&(parity==0||week%2==(parity==1?1:0)))out.add(c);}
+            if(c.optInt("day")==(day.get(Calendar.DAY_OF_WEEK)+5)%7&&CourseWeeks.includes(c,week))out.add(c);}
         out.sort((a,b)->Integer.compare(a.optInt("first"),b.optInt("first")));return out;
     }
     static String status(JSONObject c,int now){

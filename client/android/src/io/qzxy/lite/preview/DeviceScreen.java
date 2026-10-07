@@ -13,16 +13,19 @@ final class DeviceScreen {
     final Activity activity;
     final LinearLayout root,toolbar,card;
     final TextView title;
+    private final ProgressBar progress;
     DeviceScreen(Activity a,String name){
         activity=a;ScrollView scroll=new ScrollView(a);scroll.setFillViewport(true);
         root=new LinearLayout(a);root.setOrientation(1);root.setPadding(dp(20),dp(8),dp(20),dp(24));root.setBackgroundColor(AppUi.BG);scroll.addView(root);a.setContentView(scroll);
         if(Build.VERSION.SDK_INT>=30){a.getWindow().setDecorFitsSystemWindows(false);scroll.setOnApplyWindowInsetsListener((v,i)->{android.graphics.Insets b=i.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());v.setPadding(b.left,b.top,b.right,b.bottom);return i;});}
         toolbar=new LinearLayout(a);toolbar.setGravity(Gravity.CENTER_VERTICAL);root.addView(toolbar,new LinearLayout.LayoutParams(-1,dp(52)));
         icon("‹","返回",()->a.finish());Space spacer=new Space(a);toolbar.addView(spacer,new LinearLayout.LayoutParams(0,1,1));
+        progress=new ProgressBar(a,null,android.R.attr.progressBarStyleHorizontal);progress.setIndeterminate(true);progress.setIndeterminateTintList(ColorStateList.valueOf(AppUi.ACCENT));progress.setVisibility(View.INVISIBLE);progress.setContentDescription("正在加载");root.addView(progress,new LinearLayout.LayoutParams(-1,dp(3)));
         title=text(root,name,22);title.setTypeface(null,Typeface.BOLD);
         card=new LinearLayout(a);card.setOrientation(1);card.setPadding(dp(20),dp(16),dp(20),dp(16));card.setBackground(background(0xffffffff,12));
         LinearLayout.LayoutParams cardParams=new LinearLayout.LayoutParams(-1,-2);cardParams.topMargin=dp(12);cardParams.bottomMargin=dp(20);root.addView(card,cardParams);
     }
+    void loading(boolean value){progress.setVisibility(value?View.VISIBLE:View.INVISIBLE);}
     int dp(int n){return Math.round(n*activity.getResources().getDisplayMetrics().density);}
     private GradientDrawable background(int color,int radius){GradientDrawable g=new GradientDrawable();g.setColor(color);g.setCornerRadius(dp(radius));return g;}
     TextView text(LinearLayout parent,String value,int size){TextView t=new TextView(activity);t.setText(value);t.setTextSize(size);t.setTextColor(AppUi.INK);t.setLineSpacing(dp(5),1);t.setPadding(0,dp(8),0,dp(8));parent.addView(t);return t;}

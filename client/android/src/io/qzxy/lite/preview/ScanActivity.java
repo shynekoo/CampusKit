@@ -230,11 +230,17 @@ public final class ScanActivity extends Activity implements SurfaceHolder.Callba
             requestPermissions(new String[]{Manifest.permission.CAMERA}, CAMERA_PERMISSION);
         else startCamera();
     }
+    private void scanFeedback() {
+        status.performHapticFeedback(android.os.Build.VERSION.SDK_INT >= 30 ? android.view.HapticFeedbackConstants.CONFIRM : android.view.HapticFeedbackConstants.VIRTUAL_KEY);
+        status.announceForAccessibility("二维码已识别，正在读取设备");
+    }
     private void showCode(String raw) {
+        if (!scanning) return;
         if(life798) {
             scanning=false;stopCamera();
             try {
                 final String id=io.qzxy.lite.core.Life798Qr.parse(raw);
+                scanFeedback();
                 status.setText("已识别慧生活设备码，正在打开设备页。");
                 returningFromDevice=true;
                 if(BuildFlags.WATER_CONTROL)startActivity(new Intent().setClassName(this,"io.qzxy.lite.preview.LifeWaterActivity").putExtra("qrId",id));
@@ -245,7 +251,7 @@ public final class ScanActivity extends Activity implements SurfaceHolder.Callba
         scanning = false; stopCamera(); recognized = null; recognizedRaw = null; lookup = null;
         query.setEnabled(false); order.setEnabled(false);
         try {
-            recognized = DeviceQr.parse(raw); recognizedRaw = raw; query.setEnabled(true);
+            recognized = DeviceQr.parse(raw); recognizedRaw = raw; query.setEnabled(true); scanFeedback();
             if(BuildFlags.WATER_CONTROL){returningFromDevice=true;startActivity(new Intent(this,QzxyAlipayActivity.class).putExtra("qr",raw));}
             status.setText("设备二维码已识别。点击“查询设备资料”核对校园、计费方式与可用状态。\n识别二维码不会开启用水。");
         }

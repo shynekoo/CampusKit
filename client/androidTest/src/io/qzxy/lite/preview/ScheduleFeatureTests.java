@@ -26,6 +26,15 @@ final class ScheduleFeatureTests {
         bad=new JSONObject(backup.toString()).put("version",99);rejected=false;try{TimetableBackup.parse(bad.toString().getBytes("UTF-8"));}catch(Exception expected){rejected=true;}check(rejected);
         android.graphics.Bitmap bmp=android.graphics.Bitmap.createBitmap(10,10,android.graphics.Bitmap.Config.ARGB_8888);java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream();bmp.compress(android.graphics.Bitmap.CompressFormat.PNG,100,out);bmp.recycle();String encoded=TimetableBackup.image(out.toByteArray());backup.put("background",encoded);check(TimetableBackup.parse(backup.toString().getBytes("UTF-8")).getString("background").equals(encoded));
         bad=new JSONObject(backup.toString()).put("background","invalid");rejected=false;try{TimetableBackup.parse(bad.toString().getBytes("UTF-8"));}catch(Exception expected){rejected=true;}check(rejected);
+        boolean[] weeks=new boolean[30];weeks[0]=true;weeks[2]=true;weeks[7]=true;CourseWeeks.put(c,weeks);TimetableActivity.validate(c);
+        check(CourseWeeks.includes(c,1));check(!CourseWeeks.includes(c,2));check(CourseWeeks.includes(c,8));check(!CourseWeeks.includes(c,9));
+        check(CourseWeeks.label(c).equals("第 1、3、8 周"));
+        check(ScheduleInfo.today(new JSONArray().put(c).toString(),"2026-08-31","2026-09-07").isEmpty());
+        check(ScheduleInfo.today(new JSONArray().put(c).toString(),"2026-08-31","2026-09-14").size()==1);
+        backup.put("courses",new JSONArray().put(c).toString());check(new JSONArray(TimetableBackup.parse(backup.toString().getBytes("UTF-8")).getString("courses")).getJSONObject(0).getJSONArray("weeks").length()==3);
+        rejected=false;try{CourseWeeks.put(c,new boolean[30]);}catch(Exception expected){rejected=true;}check(rejected);
+        for(String invalid:new String[]{"[]","[0]","[31]","[2,2]","[3,1]","[1.5]","[\"2\"]"}){c.put("weeks",new JSONArray(invalid));rejected=false;try{TimetableActivity.validate(c);}catch(Exception expected){rejected=true;}check(rejected);}
+        c.remove("weeks");c.put("from",1).put("to",16).put("parity",2);check(!CourseWeeks.includes(c,1));check(CourseWeeks.includes(c,2));check(CourseWeeks.selection(c)[15]);
         prefs.edit().clear().commit();return checks;
     }
 }

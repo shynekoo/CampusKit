@@ -17,12 +17,19 @@ public final class QzxyAlipayActivity extends Activity {
   status=screen.note("正在核对设备与登录状态…");screen.note("在支付宝完成开启、结束与结算。");
  }
  private void post(Runnable action){runOnUiThread(()->{if(!closed&&!isFinishing())action.run();});}
- private void working(boolean value){busy=value;refresh.setEnabled(!value);details.setEnabled(!value&&device!=null);open.setEnabled(!value&&(needsLogin||device!=null&&device.alipayReady()));}
+ private void working(boolean value){busy=value;screen.loading(value);refresh.setEnabled(!value);details.setEnabled(!value&&device!=null);open.setEnabled(!value&&(needsLogin||device!=null&&device.alipayReady()));}
  private AccountSession account()throws Exception{AccountSession s=new AccountVault(this).load();if(s==null)throw new HttpForm.SessionExpired();return s;}
  private void failure(Exception e,AccountSession checked){
   if(e instanceof HttpForm.SessionExpired){boolean cleared=false;try{cleared=AccountVault.clearExpired(this,checked);}catch(Exception ignored){}final boolean removed=cleared;
    post(()->{device=null;needsLogin=removed;open.setText(removed?"重新登录":"开启使用");working(false);status.setText(removed?"登录已失效，请重新登录。":"账户状态已变化，请点击右上角刷新。");});
-  }else post(()->{working(false);status.setText("暂时无法更新，请检查网络后点击右上角刷新。");});
+  }else post(()->{working(false);status.setText(failureMessage(e));});
+ }
+ static String failureMessage(Exception e){
+  if(e instanceof java.net.SocketTimeoutException)return "请求超时，请点击右上角刷新重试。";
+  if(e instanceof java.net.UnknownHostException||e instanceof java.net.ConnectException)return "无法连接趣智校园服务器，请检查网络后刷新。";
+  if(e instanceof javax.net.ssl.SSLException)return "安全连接失败，请检查手机时间和网络后刷新。";
+  if(e instanceof org.json.JSONException)return "设备数据格式异常，请稍后刷新重试。";
+  return "设备资料暂时读取失败，请点击右上角刷新；本机登录已保留。";
  }
  private void lookup(){if(busy||qr==null)return;device=null;needsLogin=false;working(true);status.setText("正在核对设备与登录状态…");worker.execute(()->{AccountSession checked=null;try{checked=account();DeviceLookup d=SmsAccountApi.device(checked,qr);post(()->{device=d;info.setText(summary(d));screen.title.setText(d.profile.dsbTypeId()==7?"趣智校园 · 吹风机":"趣智校园 · 用水");open.setText("开启使用");working(false);status.setText(d.alipayReady()?"设备已就绪，点击后进入支付宝。":"设备暂不可用，可在右上角查看详情。");});}catch(Exception e){failure(e,checked);}});}
  static String summary(DeviceLookup d){DeviceProfile p=d.profile;String name=p.deviceName().isEmpty()?"校园设备":p.deviceName();String fee=p.chargeMode()==17?"按使用量计费":p.chargeMode()==0?"按使用时长计费":"资费以设备页面为准";return name+(p.location().isEmpty()?"":"\n"+p.location())+"\n\n"+fee;}

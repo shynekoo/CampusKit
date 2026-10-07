@@ -21,7 +21,6 @@ public final class AccountInfoActivity extends Activity {
         identity=screen.text(screen.card,"正在读取账号…",18);state=screen.text(screen.card,"",14);state.setTextColor(AppUi.MUTED);
         login=screen.primary("登录",()->startActivity(new Intent(this,life?LifeLoginActivity.class:AccountActivity.class).putExtra("returnToAccountInfo",true)));
         logout=button(screen.root,"退出登录",()->signOut());AppUi.press(logout,AppUi.SURFACE,10);
-        if(life&&BuildFlags.WATER_CONTROL){Button recover=button(screen.root,"未完成的用水",()->startActivity(new Intent().setClassName(this,"io.qzxy.lite.preview.LifeWaterActivity")));AppUi.press(recover,AppUi.SURFACE,10);}
         screen.note("登录信息加密保存在此设备。");login.setVisibility(View.GONE);logout.setVisibility(View.GONE);
     }
     private TextView label(LinearLayout root,String text,int size){TextView v=new TextView(this);v.setText(text);v.setTextSize(size);v.setTextColor(AppUi.INK);v.setPadding(0,dp(10),0,dp(10));root.addView(v);return v;}
