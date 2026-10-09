@@ -80,7 +80,7 @@ final class WeekBoard extends android.view.ViewGroup {
 
     WeekBoard(Context context,List<JSONObject> courses,String[] dates,int today,Map<String,Integer> autoColors,Listener listener) {
         super(context);this.dates=dates;this.today=today;this.autoColors=autoColors;this.listener=listener;
-        setWillNotDraw(false);setBackgroundColor(0xfffcfdfd);
+        setWillNotDraw(false);setBackgroundColor(0xffffffff);
         tapSlop=ViewConfiguration.get(context).getScaledTouchSlop();
         int max=10;
         for(JSONObject c:courses)max=Math.max(max,c.optInt("last"));sections=max;
@@ -95,13 +95,13 @@ final class WeekBoard extends android.view.ViewGroup {
         }
         for(Block block:blocks) {
             JSONObject c=block.courses.get(0);int color=colorIndex(c);
-            LinearLayout view=new LinearLayout(context);view.setOrientation(LinearLayout.VERTICAL);block.view=view;view.setPadding(dp(3),dp(7),dp(3),dp(6));
-            TextView title=new TextView(context);block.title=title;title.setTextSize(11);title.setTextColor(INKS[color]);title.setGravity(Gravity.TOP|Gravity.CENTER_HORIZONTAL);
+            LinearLayout view=new LinearLayout(context);view.setOrientation(LinearLayout.VERTICAL);block.view=view;view.setPadding(dp(4),dp(7),dp(4),dp(6));
+            TextView title=new TextView(context);block.title=title;title.setTextSize(12);title.setTextColor(INKS[color]);title.setGravity(Gravity.TOP|Gravity.LEFT);
             title.setTypeface(Typeface.DEFAULT,Typeface.BOLD);title.setIncludeFontPadding(false);title.setText(c.optString("name")+(block.courses.size()>1?" +"+(block.courses.size()-1):""));
             title.setEllipsize(android.text.TextUtils.TruncateAt.END);view.addView(title,new LinearLayout.LayoutParams(-1,0,1));
-            TextView room=new TextView(context);room.setTextSize(10);room.setTextColor(INKS[color]);room.setGravity(Gravity.CENTER);room.setMaxLines(2);room.setIncludeFontPadding(false);
+            TextView room=new TextView(context);room.setTextSize(10);room.setTextColor(INKS[color]);room.setGravity(Gravity.LEFT);room.setMaxLines(2);room.setIncludeFontPadding(false);
             room.setText(c.optString("room").replaceFirst("^([A-Za-z]+[0-9]+)[-－](.+)$","$1\n$2"));room.setEllipsize(android.text.TextUtils.TruncateAt.END);view.addView(room,new LinearLayout.LayoutParams(-1,-2));
-            GradientDrawable bg=new GradientDrawable();bg.setColor(FILLS[color]);bg.setCornerRadius(dp(9));view.setBackground(bg);
+            GradientDrawable bg=new GradientDrawable();bg.setColor(FILLS[color]);bg.setCornerRadius(dp(4));view.setBackground(bg);
             String description="周"+new String[]{"一","二","三","四","五","六","日"}[block.day]+" 第"+block.first+"至"+block.last+"节";
             for(JSONObject course:block.courses)description+="，"+course.optString("name")+"，"+course.optString("room");
             view.setContentDescription(description+"，点击查看详情");view.setOnClickListener(v->listener.open(block.courses));view.setFocusable(true);addView(view);
@@ -110,7 +110,7 @@ final class WeekBoard extends android.view.ViewGroup {
     @Override protected void onMeasure(int widthSpec,int heightSpec) {
         int width=MeasureSpec.getSize(widthSpec),height=Math.max(getMinimumHeight(),dp(56*sections+48));
         if(MeasureSpec.getMode(heightSpec)!=MeasureSpec.UNSPECIFIED)height=Math.max(height,MeasureSpec.getSize(heightSpec));
-        setMeasuredDimension(width,height);axis=dp(43);head=dp(48);row=(height-head)/sections;column=(width-axis)/7;
+        setMeasuredDimension(width,height);axis=dp(46);head=dp(48);row=(height-head)/sections;column=(width-axis)/7;
         for(Block b:blocks) {
             int h=Math.max(1,Math.round(row*(b.last-b.first+1))-dp(4));
             b.title.setMaxLines(Math.max(1,(h-dp(40))/dp(14)));
@@ -156,18 +156,18 @@ final class WeekBoard extends android.view.ViewGroup {
             canvas.drawBitmap(photo,null,new RectF((getWidth()-w)/2,(getHeight()-h)/2,(getWidth()+w)/2,(getHeight()+h)/2),null);
             canvas.drawColor(0xbfffffff);
         }
-        if(today>=0){paint.setColor(photo==null?0xfff0f6f3:0x607bc9a8);canvas.drawRect(axis+today*column,0,axis+(today+1)*column,getHeight(),paint);}
-        paint.setColor(0xffeaf0ed);paint.setStrokeWidth(dp(0.6f));
+        if(today>=0){paint.setColor(photo==null?0xfff3f6fc:0x60e6edfa);canvas.drawRect(axis+today*column,0,axis+(today+1)*column,getHeight(),paint);}
+        paint.setColor(0xffedf0f4);paint.setStrokeWidth(dp(0.6f));
         for(int n=0;n<=sections;n++)canvas.drawLine(axis,head+n*row,getWidth(),head+n*row,paint);
         for(int n=0;n<=7;n++)canvas.drawLine(axis+n*column,head,axis+n*column,getHeight(),paint);
-        label(canvas,"节",axis/2,dp(28),10,0xff8b9792,false);
-        for(int n=0;n<7;n++) {float x=axis+(n+.5f)*column;label(canvas,"周"+new String[]{"一","二","三","四","五","六","日"}[n],x,dp(20),11,n==today?0xff237561:0xff53695f,true);
-            label(canvas,dates[n],x,dp(37),10,n==today?0xff237561:0xff98a59f,false);}
+        label(canvas,"节",axis/2,dp(28),10,AppUi.MUTED,false);
+        for(int n=0;n<7;n++) {float x=axis+(n+.5f)*column;label(canvas,"周"+new String[]{"一","二","三","四","五","六","日"}[n],x,dp(20),11,n==today?AppUi.ACCENT:AppUi.INK,true);
+            label(canvas,dates[n],x,dp(37),10,n==today?AppUi.ACCENT:AppUi.MUTED,false);}
         for(int n=1;n<=sections;n++) {
             float center=head+(n-.5f)*row;
-            label(canvas,String.valueOf(n),axis/2,center-dp(10),12,0xff53695f,true);
-            label(canvas,ClassTimes.start(n),axis/2,center+dp(5),9,0xff7d8d85,false);
-            label(canvas,ClassTimes.end(n),axis/2,center+dp(18),9,0xff98a59f,false);
+            label(canvas,String.valueOf(n),axis/2,center-dp(10),12,AppUi.INK,true);
+            label(canvas,ClassTimes.start(n),axis/2,center+dp(5),10,AppUi.MUTED,false);
+            label(canvas,ClassTimes.end(n),axis/2,center+dp(18),10,AppUi.MUTED,false);
         }
     }
 

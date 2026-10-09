@@ -109,7 +109,7 @@ public final class AccountActivity extends Activity {
         acknowledged.setTextSize(13); acknowledged.setTextColor(MUTED); add(panel, acknowledged); gap(panel, 16);
         login = button("登录", this::signIn); add(panel, login); gap(panel, 20);
         status = text("验证码只用于本次登录；登录凭据加密保存在本机。", 14, MUTED); add(panel, status); gap(panel, 26);
-        add(panel, text("CampusKit 1.0.8", 13, MUTED));
+        add(panel, text("CampusKit 1.0.9", 13, MUTED));
     }
     private void setBusy(boolean value) {
         busy = value;

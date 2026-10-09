@@ -449,7 +449,6 @@ public final class TimetableActivity extends Activity {
         android.widget.ImageView mark=new android.widget.ImageView(this);mark.setImageDrawable(AppUi.icon(this,"user",AppUi.ACCENT,24));mark.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);line.addView(mark,new LinearLayout.LayoutParams(dp(32),dp(32)));AppUi.press(line,0xffffffff,8);
         LinearLayout labels=column();labels.setPadding(dp(14),0,0,0);
         labels.addView(bold(title,16));
-        if(tab==1&&currentWeek()>=1&&currentWeek()<=30)subtitle+=" · "+(week==currentWeek()?"本周":week>currentWeek()?"本周后 "+(week-currentWeek())+" 周":"本周前 "+(currentWeek()-week)+" 周");
         TextView caption=text(subtitle,12);caption.setTextColor(AppUi.MUTED);caption.setPadding(0,dp(2),0,0);labels.addView(caption);
         line.addView(labels,new LinearLayout.LayoutParams(0,-2,1));
         TextView chevron=text("›",20);chevron.setTextColor(0xffb9c4bd);line.addView(chevron);
@@ -478,16 +477,15 @@ public final class TimetableActivity extends Activity {
         // One header shape for all three tabs, so 今日 / 课表 / 趣智校园 read as views of the same app.
         LinearLayout header=new LinearLayout(this);header.setGravity(android.view.Gravity.CENTER_VERTICAL);header.setPadding(dp(8),0,dp(8),0);
         LinearLayout heading=column();
-        heading.addView(bold(tab==0?"今日":tab==1?"课表":"账号",24));
+        heading.addView(bold(tab==0?"今日":tab==1?"课表":"账号",tab==1?20:24));
         String subtitle;
         if(tab==0)subtitle=DAYS[todayIndex()]+" · "+todayIso()+(currentWeek()>=1&&currentWeek()<=30?" · 第 "+currentWeek()+" 周":"");
-        else if(tab==1)subtitle=monday.isEmpty()?"设置开学日期，自动定位本周":"CampusKit  /  "+(dayDate(0).replace(" · ",""))+" — "+dayDate(6).replace(" · ","");
+        else if(tab==1)subtitle=monday.isEmpty()?"设置开学日期，自动定位本周":(dayDate(0).replace(" · ",""))+" — "+dayDate(6).replace(" · ","");
         else subtitle="校园服务账号";
-        if(tab==1&&currentWeek()>=1&&currentWeek()<=30)subtitle+=" · "+(week==currentWeek()?"本周":week>currentWeek()?"本周后 "+(week-currentWeek())+" 周":"本周前 "+(currentWeek()-week)+" 周");
         TextView caption=text(subtitle,12);caption.setTextColor(AppUi.MUTED);caption.setPadding(0,0,0,dp(6));heading.addView(caption);
         if(tab==1&&monday.isEmpty()&&!unreadable)caption.setOnClickListener(v->semester());
         header.addView(heading,new LinearLayout.LayoutParams(0,-2,1));
-        if(tab==1){Button settings=button(importing?"识别中…":"管理",this::manage);settings.setEnabled(!unreadable&&!importing);header.addView(settings,new LinearLayout.LayoutParams(dp(76),dp(48)));}
+        if(tab==1){Button settings=weekAction(importing?"识别中…":"管理",this::manage);settings.setEnabled(!unreadable&&!importing);header.addView(settings,new LinearLayout.LayoutParams(dp(76),dp(48)));}
         else if(tab==2&&campusView==1){TextView back=text("‹ 返回",14);back.setTextColor(AppUi.ACCENT);back.setPadding(dp(10),dp(10),0,dp(10));back.setOnClickListener(v->{campusView=0;render();});header.addView(back);}
         root.addView(header);
         if(tab==0)todayContent();else if(tab==1)timetableContent();else campusContent();
@@ -608,14 +606,21 @@ public final class TimetableActivity extends Activity {
         TextView hint=text(subtitle,12);hint.setTextColor(AppUi.MUTED);hint.setGravity(android.view.Gravity.CENTER);tile.addView(hint);tile.setContentDescription(title+"，"+subtitle);return tile;
     }
 
+    private Button weekAction(String label,Runnable action) {
+        Button view=button(label,action);view.setTextColor(AppUi.INK);view.setTextSize(14);
+        view.setMinWidth(0);view.setMinimumWidth(0);view.setPadding(dp(8),0,dp(8),0);
+        AppUi.press(view,0x00ffffff,8);return view;
+    }
     private void timetableContent() {
-        LinearLayout navigation=new LinearLayout(this);navigation.setGravity(android.view.Gravity.CENTER_VERTICAL);navigation.setPadding(dp(6),dp(6),dp(6),dp(10));
-        Button previous=button("‹",()->shiftWeek(-1));previous.setContentDescription("上一周");previous.setEnabled(week>1);
-        Button next=button("›",()->shiftWeek(1));next.setContentDescription("下一周");next.setEnabled(week<30);
+        LinearLayout navigation=new LinearLayout(this);navigation.setGravity(android.view.Gravity.CENTER_VERTICAL);navigation.setPadding(dp(4),0,dp(4),dp(4));
+        Button selected=weekAction("第 "+week+" 周  ▾",this::selectWeek);selected.setTextSize(18);selected.setGravity(android.view.Gravity.LEFT|android.view.Gravity.CENTER_VERTICAL);selected.setContentDescription("选择周次，当前第"+week+"周");
+        navigation.addView(selected,new LinearLayout.LayoutParams(0,dp(48),1));
+        Button previous=weekAction("‹",()->shiftWeek(-1));previous.setTextSize(26);previous.setContentDescription("上一周");previous.setEnabled(week>1);
+        Button next=weekAction("›",()->shiftWeek(1));next.setTextSize(26);next.setContentDescription("下一周");next.setEnabled(week<30);
         navigation.addView(previous,new LinearLayout.LayoutParams(dp(48),dp(48)));
-        navigation.addView(button("第 "+week+" 周  ▾",this::selectWeek),new LinearLayout.LayoutParams(0,dp(48),1));
         navigation.addView(next,new LinearLayout.LayoutParams(dp(48),dp(48)));
-        navigation.addView(button("本周",this::goCurrentWeek),new LinearLayout.LayoutParams(dp(65),dp(48)));for(int i=0;i<navigation.getChildCount();i++){LinearLayout.LayoutParams lp=(LinearLayout.LayoutParams)navigation.getChildAt(i).getLayoutParams();lp.setMargins(dp(2),0,dp(2),0);}root.addView(navigation);
+        if(week!=currentWeek()&&currentWeek()>=1&&currentWeek()<=30)navigation.addView(weekAction("回本周",this::goCurrentWeek),new LinearLayout.LayoutParams(dp(76),dp(48)));
+        root.addView(navigation);
         List<JSONObject> visible=new ArrayList<>();for(JSONObject c:courses)if(appears(c))visible.add(c);
         WeekBoard.Listener listener=new WeekBoard.Listener(){
             public void open(List<JSONObject> group){showCourses(group);}
@@ -660,7 +665,7 @@ public final class TimetableActivity extends Activity {
         LinearLayout card=whiteCard();
         campusEntry(card,"账",AppUi.ACCENT,"趣智校园","浴室、吹风机",()->startActivity(new Intent(this,AccountInfoActivity.class)),true);
         campusEntry(card,"慧",0xff37668b,"慧生活798","饮水",()->startActivity(new Intent(this,AccountInfoActivity.class).putExtra("life798",true)),false);
-        gap(card,10);card.addView(body("CampusKit 1.0.8 · 第三方校园客户端"));content.addView(card);
+        gap(card,10);card.addView(body("CampusKit 1.0.9 · 第三方校园客户端"));content.addView(card);
     }
 
     private void records(LinearLayout parent) {

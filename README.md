@@ -1,6 +1,6 @@
 # CampusKit（趣智校园第三方安卓客户端）
 
-当前版本：[CampusKit 1.0.8 安装包](https://github.com/shynekoo/CampusKit/releases/tag/v1.0.8) · [更新说明](delivery/release-1.0.8.md)。移除慧生活账户入口的“淋浴”文字与扫码震动。
+当前版本：[CampusKit 1.0.9 安装包](https://github.com/shynekoo/CampusKit/releases/tag/v1.0.9) · [更新说明](delivery/release-1.0.9.md)。课表页布局优化，已通过 USB 覆盖安装并核对版本。
 
 2026-10-07：1.0.5 将课程配色更新为 18 组，颜色选择改为多行色板；管理菜单移除“实践课程与备注”，全部课程改为按星期分组的信息卡片。644 项核心断言和 14 项模拟器 UI 断言通过，列表截图检查通过。安装包为 delivery/CampusKit-1.0.5.apk；本次未检测到 USB 手机，尚未安装。
 
