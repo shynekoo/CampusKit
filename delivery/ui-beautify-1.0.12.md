@@ -20,6 +20,6 @@
 - 644 项核心断言通过。
 - 构建、v2/v3 签名验证通过；APK 内确认含 `res/drawable/dialog_background.xml`，dex 含 `AppUi.outlined`，无易校园支付类残留。
 - 安装包：`delivery/CampusKit-1.0.12.apk`。
-- 用户明确表示不需要模拟器验证、不需要安装到手机；本版只交付到 APK，未做视觉验收。
+- 用户已覆盖安装到手机并确认可用；未做模拟器截图验收。
 
 SHA256：`4920cc4c9c84af10e148f7d80a7bf0aacca49d23d3efc1730574a0132a5e6f58`。
