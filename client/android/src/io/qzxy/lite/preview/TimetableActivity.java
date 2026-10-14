@@ -446,22 +446,22 @@ public final class TimetableActivity extends Activity {
         LinearLayout line=new LinearLayout(this);line.setGravity(android.view.Gravity.CENTER_VERTICAL);
         line.setPadding(dp(16),dp(14),dp(14),dp(14));
         line.setOnClickListener(v->action.run());line.setFocusable(true);
-        android.widget.ImageView mark=new android.widget.ImageView(this);mark.setImageDrawable(AppUi.icon(this,"user",AppUi.ACCENT,24));mark.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);line.addView(mark,new LinearLayout.LayoutParams(dp(32),dp(32)));AppUi.press(line,0xffffffff,8);
+        android.widget.ImageView mark=new android.widget.ImageView(this);mark.setImageDrawable(AppUi.icon(this,badge.equals("慧")?"water":"user",tint,24));mark.setBackground(AppUi.shape(this,AppUi.SOFT,12));mark.setPadding(dp(8),dp(8),dp(8),dp(8));mark.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);line.addView(mark,new LinearLayout.LayoutParams(dp(40),dp(40)));AppUi.press(line,0xffffffff,8);
         LinearLayout labels=column();labels.setPadding(dp(14),0,0,0);
         labels.addView(bold(title,16));
         TextView caption=text(subtitle,12);caption.setTextColor(AppUi.MUTED);caption.setPadding(0,dp(2),0,0);labels.addView(caption);
         line.addView(labels,new LinearLayout.LayoutParams(0,-2,1));
-        TextView chevron=text("›",20);chevron.setTextColor(0xffb9c4bd);line.addView(chevron);
+        TextView chevron=text("›",20);chevron.setTextColor(0xffb3bcc9);line.addView(chevron);
         line.setContentDescription(title+"，"+subtitle);
         parent.addView(line,new LinearLayout.LayoutParams(-1,-2));
-        if(divider){View rule=new View(this);rule.setBackgroundColor(0xffeef2ef);
+        if(divider){View rule=new View(this);rule.setBackgroundColor(AppUi.LINE);
             LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,Math.max(1,dp(1)));
-            params.setMargins(dp(68),0,0,0);parent.addView(rule,params);}
+            params.setMargins(dp(70),0,0,0);parent.addView(rule,params);}
     }
     private TextView tabItem(String label,boolean selected,Runnable action) {
         TextView item=bold(label,12);
         item.setTextColor(selected?AppUi.ACCENT:AppUi.MUTED);
-        item.setGravity(android.view.Gravity.CENTER);item.setSelected(selected);item.setCompoundDrawables(null,AppUi.icon(this,label.equals("今日")?"today":label.equals("课表")?"calendar":"user",selected?AppUi.ACCENT:AppUi.MUTED,22),null,null);item.setCompoundDrawablePadding(dp(4));item.setPadding(0,dp(6),0,dp(6));AppUi.press(item,0xffffffff,0);
+        item.setGravity(android.view.Gravity.CENTER);item.setSelected(selected);item.setCompoundDrawables(null,AppUi.icon(this,label.equals("今日")?"today":label.equals("课表")?"calendar":"user",selected?AppUi.ACCENT:AppUi.MUTED,22),null,null);item.setCompoundDrawablePadding(dp(4));item.setPadding(0,dp(6),0,dp(6));AppUi.press(item,selected?AppUi.SOFT:0x00ffffff,18);
         
         item.setOnClickListener(v->action.run());
         item.setContentDescription(selected?label+"，已选中":label);
@@ -477,7 +477,7 @@ public final class TimetableActivity extends Activity {
         // One header shape for all three tabs, so 今日 / 课表 / 趣智校园 read as views of the same app.
         LinearLayout header=new LinearLayout(this);header.setGravity(android.view.Gravity.CENTER_VERTICAL);header.setPadding(dp(8),0,dp(8),0);
         LinearLayout heading=column();
-        heading.addView(bold(tab==0?"今日":tab==1?"课表":"账号",tab==1?20:24));
+        heading.addView(bold(tab==0?"今日":tab==1?"课表":"账号",tab==1?20:28));
         String subtitle;
         if(tab==0)subtitle=DAYS[todayIndex()]+" · "+todayIso()+(currentWeek()>=1&&currentWeek()<=30?" · 第 "+currentWeek()+" 周":"");
         else if(tab==1)subtitle=monday.isEmpty()?"设置开学日期，自动定位本周":(dayDate(0).replace(" · ",""))+" — "+dayDate(6).replace(" · ","");
@@ -490,7 +490,7 @@ public final class TimetableActivity extends Activity {
         root.addView(header);
         if(tab==0)todayContent();else if(tab==1)timetableContent();else campusContent();
         LinearLayout holder=column();holder.setPadding(dp(8),dp(2),dp(8),dp(8));
-        LinearLayout bar=new LinearLayout(this);bar.setBackground(rounded(0xffffffff,16));bar.setPadding(dp(5),dp(5),dp(5),dp(5));
+        LinearLayout bar=new LinearLayout(this);bar.setBackground(AppUi.outlined(this,0xffffffff,24,AppUi.LINE));bar.setElevation(dp(3));bar.setPadding(dp(5),dp(5),dp(5),dp(5));
         bar.addView(tabItem("今日",tab==0,()->{if(tab!=0){tab=0;campusView=0;render();}}),new LinearLayout.LayoutParams(0,dp(60),1));
         bar.addView(tabItem("课表",tab==1,()->{if(tab!=1){tab=1;campusView=0;render();}}),new LinearLayout.LayoutParams(0,dp(60),1));
         bar.addView(tabItem("账号",tab==2,()->{if(tab!=2){tab=2;render();}}),new LinearLayout.LayoutParams(0,dp(60),1));
@@ -499,7 +499,7 @@ public final class TimetableActivity extends Activity {
     }
 
     private TextView cardTitle(String value){return bold(value,16);}
-    private LinearLayout whiteCard(){LinearLayout card=column();card.setBackground(rounded(0xffffffff,14));card.setPadding(dp(16),dp(14),dp(16),dp(14));return card;}
+    private LinearLayout whiteCard(){LinearLayout card=column();card.setBackground(AppUi.outlined(this,0xffffffff,18,AppUi.LINE));card.setPadding(dp(18),dp(16),dp(18),dp(16));return card;}
     private TextView cardAction(String label,Runnable action) {
         TextView view=text(label,13);view.setTextColor(AppUi.ACCENT);view.setPadding(dp(10),dp(6),0,dp(6));
         view.setMinHeight(dp(48));view.setGravity(android.view.Gravity.CENTER_VERTICAL);AppUi.press(view,0x00ffffff,8);view.setOnClickListener(v->action.run());return view;
@@ -572,17 +572,17 @@ public final class TimetableActivity extends Activity {
     /** One class on the 今日 tab: name plus section range, room and teacher, tinted with its own colour. */
     private View courseRow(JSONObject course,Map<String,Integer> auto) {
         int index=WeekBoard.colorIndexOf(course,auto),ink=io.qzxy.lite.core.TimetablePalette.ink(index+1);
-        LinearLayout row=new LinearLayout(this);row.setGravity(android.view.Gravity.TOP);row.setPadding(0,dp(12),0,dp(12));
+        LinearLayout row=new LinearLayout(this);row.setGravity(android.view.Gravity.TOP);row.setPadding(dp(14),dp(12),dp(14),dp(12));row.setBackground(AppUi.shape(this,WeekBoard.FILLS[index],14));
         String status=ScheduleInfo.status(course,ScheduleInfo.minutes());boolean ended=status.equals("已结束");
         String time=ClassTimes.range(course.optInt("first"),course.optInt("last"));String[] span=time.split("[–—-]");
         LinearLayout times=column();TextView first=bold(span.length>0?span[0]:"",14);times.addView(first);
         if(span.length>1){TextView last=text(span[1],12);last.setTextColor(AppUi.MUTED);times.addView(last);}
-        row.addView(times,new LinearLayout.LayoutParams(dp(64),-2));
-        View marker=new View(this);marker.setBackgroundColor(ink);LinearLayout.LayoutParams ml=new LinearLayout.LayoutParams(dp(3),dp(40));ml.setMargins(0,dp(2),dp(12),0);row.addView(marker,ml);
-        LinearLayout labels=column();TextView name=bold(course.optString("name"),16);if(ended)name.setPaintFlags(name.getPaintFlags()|android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);labels.addView(name);
-        String detail=course.optString("room")+" · 第 "+course.optInt("first")+"–"+course.optInt("last")+" 节";TextView room=text(detail,12);room.setTextColor(AppUi.MUTED);labels.addView(room);
-        if(!ended&&status.equals("正在上课")){TextView current=text("正在上课",12);current.setTextColor(AppUi.ACCENT);labels.addView(current);}
-        row.addView(labels,new LinearLayout.LayoutParams(0,-2,1));row.setContentDescription(course.optString("name")+"，"+time+"，"+detail+(ended?"，已结束":""));return row;
+        row.addView(times,new LinearLayout.LayoutParams(dp(56),-2));
+        View marker=new View(this);marker.setBackground(AppUi.shape(this,ink,2));LinearLayout.LayoutParams ml=new LinearLayout.LayoutParams(dp(3),dp(40));ml.setMargins(0,dp(2),dp(12),0);row.addView(marker,ml);
+        LinearLayout labels=column();TextView name=bold(course.optString("name"),16);name.setTextColor(ink);if(ended)name.setPaintFlags(name.getPaintFlags()|android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);labels.addView(name);
+        String detail=course.optString("room")+" · 第 "+course.optInt("first")+"–"+course.optInt("last")+" 节";TextView room=text(detail,12);room.setTextColor(ink);room.setAlpha(.8f);room.setPadding(0,dp(2),0,0);labels.addView(room);
+        if(!ended&&status.equals("正在上课")){TextView current=bold("● 正在上课",12);current.setTextColor(ink);current.setPadding(0,dp(4),0,0);labels.addView(current);}
+        row.addView(labels,new LinearLayout.LayoutParams(0,-2,1));if(ended)row.setAlpha(.55f);row.setContentDescription(course.optString("name")+"，"+time+"，"+detail+(ended?"，已结束":""));return row;
     }
 
     private TextView body(String value) {
@@ -600,8 +600,8 @@ public final class TimetableActivity extends Activity {
         card.addView(row);parent.addView(card,new LinearLayout.LayoutParams(-1,-2));
     }
     private View shortcutTile(String icon,String title,String subtitle,Runnable action) {
-        LinearLayout tile=column();tile.setGravity(android.view.Gravity.CENTER);tile.setPadding(dp(4),dp(10),dp(4),dp(10));tile.setMinimumHeight(dp(84));AppUi.press(tile,0xffffffff,10);tile.setOnClickListener(v->action.run());
-        android.widget.ImageView mark=new android.widget.ImageView(this);mark.setImageDrawable(AppUi.icon(this,icon,AppUi.ACCENT,24));mark.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);tile.addView(mark,new LinearLayout.LayoutParams(dp(24),dp(24)));
+        LinearLayout tile=column();tile.setGravity(android.view.Gravity.CENTER);tile.setPadding(dp(4),dp(10),dp(4),dp(10));tile.setMinimumHeight(dp(96));AppUi.press(tile,0xffffffff,10);tile.setOnClickListener(v->action.run());
+        android.widget.ImageView mark=new android.widget.ImageView(this);mark.setImageDrawable(AppUi.icon(this,icon,AppUi.ACCENT,24));mark.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);mark.setBackground(AppUi.shape(this,AppUi.SOFT,22));mark.setPadding(dp(10),dp(10),dp(10),dp(10));tile.addView(mark,new LinearLayout.LayoutParams(dp(44),dp(44)));
         TextView name=bold(title,13);name.setGravity(android.view.Gravity.CENTER);name.setPadding(0,dp(8),0,0);tile.addView(name);
         TextView hint=text(subtitle,12);hint.setTextColor(AppUi.MUTED);hint.setGravity(android.view.Gravity.CENTER);tile.addView(hint);tile.setContentDescription(title+"，"+subtitle);return tile;
     }

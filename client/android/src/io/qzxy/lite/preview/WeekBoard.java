@@ -95,13 +95,13 @@ final class WeekBoard extends android.view.ViewGroup {
         }
         for(Block block:blocks) {
             JSONObject c=block.courses.get(0);int color=colorIndex(c);
-            LinearLayout view=new LinearLayout(context);view.setOrientation(LinearLayout.VERTICAL);block.view=view;view.setPadding(dp(4),dp(7),dp(4),dp(6));
+            LinearLayout view=new LinearLayout(context);view.setOrientation(LinearLayout.VERTICAL);block.view=view;view.setPadding(dp(6),dp(7),dp(5),dp(6));
             TextView title=new TextView(context);block.title=title;title.setTextSize(12);title.setTextColor(INKS[color]);title.setGravity(Gravity.TOP|Gravity.LEFT);
             title.setTypeface(Typeface.DEFAULT,Typeface.BOLD);title.setIncludeFontPadding(false);title.setText(c.optString("name")+(block.courses.size()>1?" +"+(block.courses.size()-1):""));
             title.setEllipsize(android.text.TextUtils.TruncateAt.END);view.addView(title,new LinearLayout.LayoutParams(-1,0,1));
             TextView room=new TextView(context);room.setTextSize(10);room.setTextColor(INKS[color]);room.setGravity(Gravity.LEFT);room.setMaxLines(2);room.setIncludeFontPadding(false);
             room.setText(c.optString("room").replaceFirst("^([A-Za-z]+[0-9]+)[-－](.+)$","$1\n$2"));room.setEllipsize(android.text.TextUtils.TruncateAt.END);view.addView(room,new LinearLayout.LayoutParams(-1,-2));
-            GradientDrawable bg=new GradientDrawable();bg.setColor(FILLS[color]);bg.setCornerRadius(dp(4));view.setBackground(bg);
+            GradientDrawable bg=new GradientDrawable();bg.setColor(FILLS[color]);bg.setCornerRadius(dp(8));view.setBackground(bg);
             String description="周"+new String[]{"一","二","三","四","五","六","日"}[block.day]+" 第"+block.first+"至"+block.last+"节";
             for(JSONObject course:block.courses)description+="，"+course.optString("name")+"，"+course.optString("room");
             view.setContentDescription(description+"，点击查看详情");view.setOnClickListener(v->listener.open(block.courses));view.setFocusable(true);addView(view);
@@ -156,13 +156,12 @@ final class WeekBoard extends android.view.ViewGroup {
             canvas.drawBitmap(photo,null,new RectF((getWidth()-w)/2,(getHeight()-h)/2,(getWidth()+w)/2,(getHeight()+h)/2),null);
             canvas.drawColor(0xbfffffff);
         }
-        if(today>=0){paint.setColor(photo==null?0xfff3f6fc:0x60e6edfa);canvas.drawRect(axis+today*column,0,axis+(today+1)*column,getHeight(),paint);}
-        paint.setColor(0xffedf0f4);paint.setStrokeWidth(dp(0.6f));
+        if(today>=0){paint.setColor(photo==null?0xfff5f8fd:0x60e6edfa);canvas.drawRect(axis+today*column,head,axis+(today+1)*column,getHeight(),paint);paint.setColor(AppUi.ACCENT);canvas.drawRoundRect(axis+today*column+dp(3),dp(4),axis+(today+1)*column-dp(3),dp(43),dp(10),dp(10),paint);}
+        paint.setColor(0xffeff2f6);paint.setStrokeWidth(dp(0.6f));
         for(int n=0;n<=sections;n++)canvas.drawLine(axis,head+n*row,getWidth(),head+n*row,paint);
-        for(int n=0;n<=7;n++)canvas.drawLine(axis+n*column,head,axis+n*column,getHeight(),paint);
         label(canvas,"节",axis/2,dp(28),10,AppUi.MUTED,false);
-        for(int n=0;n<7;n++) {float x=axis+(n+.5f)*column;label(canvas,"周"+new String[]{"一","二","三","四","五","六","日"}[n],x,dp(20),11,n==today?AppUi.ACCENT:AppUi.INK,true);
-            label(canvas,dates[n],x,dp(37),10,n==today?AppUi.ACCENT:AppUi.MUTED,false);}
+        for(int n=0;n<7;n++) {float x=axis+(n+.5f)*column;label(canvas,"周"+new String[]{"一","二","三","四","五","六","日"}[n],x,dp(20),11,n==today?0xffffffff:AppUi.INK,true);
+            label(canvas,dates[n],x,dp(37),10,n==today?0xe6ffffff:AppUi.MUTED,false);}
         for(int n=1;n<=sections;n++) {
             float center=head+(n-.5f)*row;
             label(canvas,String.valueOf(n),axis/2,center-dp(10),12,AppUi.INK,true);

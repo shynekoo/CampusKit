@@ -10,6 +10,7 @@ final class AppUi {
  static final int BG=0xfff6f7f9,SURFACE=0xffffffff,INK=0xff202735,MUTED=0xff596575,ACCENT=0xff275dad,LINE=0xffe3e7ed,SOFT=0xffedf2f9;
  static int dp(Context c,int n){return Math.round(n*c.getResources().getDisplayMetrics().density);}
  static GradientDrawable shape(Context c,int color,int radius){GradientDrawable g=new GradientDrawable();g.setColor(color);g.setCornerRadius(dp(c,radius));return g;}
+ static GradientDrawable outlined(Context c,int fill,int radius,int stroke){GradientDrawable g=shape(c,fill,radius);g.setStroke(Math.max(1,dp(c,1)),stroke);return g;}
  static void press(View v,int fill,int radius){v.setBackground(new RippleDrawable(ColorStateList.valueOf(0x1f275dad),shape(v.getContext(),fill,radius),null));v.setFocusable(true);}
  static Drawable icon(Context c,String name,int color,int size){Icon d=new Icon(name,color);d.setBounds(0,0,dp(c,size),dp(c,size));return d;}
  static final class Icon extends Drawable {

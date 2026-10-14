@@ -19,6 +19,11 @@
         <item name="android:navigationBarColor">#F6F7F9</item>
         <item name="android:forceDarkAllowed">false</item>
         <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:alertDialogTheme">@style/AppDialog</item>
+    </style>
+    <style name="AppDialog" parent="android:style/Theme.Material.Light.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/dialog_background</item>
+        <item name="android:colorAccent">#275DAD</item>
     </style>
     <style name="CampusButton" parent="android:style/Widget.Material.Button">
         <item name="android:background">@drawable/button_surface</item>
