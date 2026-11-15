@@ -24,11 +24,15 @@ import java.util.concurrent.Executors;
  * buildings, its period times and its real week calendar, then queries with the week, weekday and
  * periods the user picked. Changing any filter re-queries by itself. Everything is read-only.</p>
  *
- * <p>The saved account is used to sign in for the query and the session is closed when this screen
- * goes away, so the account is not left signed in on the school's side.</p>
+ * <p>The saved account is used to sign in for the query. Leaving the screen does not end the
+ * session at once: a sign-out is queued for five minutes later and dropped if the account is used
+ * again, so walking back and forth between the timetable and the grades costs one sign-in rather
+ * than one per visit — and the account is still not left open in the background.</p>
  */
 public final class AcademicActivity extends Activity {
     private static final String[] WEEKDAYS = {"星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"};
+    /** How long a session survives leaving the screen, dropped as soon as it is used again. */
+    private static final long GRACE = 5 * 60 * 1000L;
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private final Map<String, String> pick = new LinkedHashMap<>();
@@ -86,7 +90,7 @@ public final class AcademicActivity extends Activity {
         screen.root.addView(loginBar);
 
         results = paper();
-        screen.note("账号密码只加密存在这台设备。每次查询时临时登录教务系统，离开这个页面就自动退出。")
+        screen.note("账号密码只加密存在这台设备。查询时临时登录教务系统，离开这个页面后 5 分钟内没有再查看就自动退出。")
             .setOnClickListener(v -> startActivity(new Intent(this, EduQueryActivity.class).putExtra("mode", mode)));
         load();
     }
@@ -215,6 +219,7 @@ public final class AcademicActivity extends Activity {
         super.onResume();
         if (loggedOut) {
             loggedOut = false;
+            EduClient.cancelSignOut();
             EduClient.reopen();
             EduClient.capture();
         }
@@ -239,12 +244,11 @@ public final class AcademicActivity extends Activity {
         ensure("weekday", Integer.toString(today()));
         ensure("section", defaultSection());
         ensure("building", "");
-        ensure("type", "");
+        ensure("type", defaultType());
 
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
-        addCell(row, "周次", weekLabel(pick.get("week")), () ->
-            ask("周次", weekLabels(), weekValues(), "week"));
+        addCell(row, "周次", weekLabel(pick.get("week")), this::openWeek);
         addCell(row, "星期", weekdayLabel(pick.get("weekday")), () ->
             ask("星期", WEEKDAYS, weekdayValues(), "weekday"));
         fields.addView(row);
@@ -317,34 +321,48 @@ public final class AcademicActivity extends Activity {
             .show();
     }
 
-    /** Periods are checkboxes, not a range: 1-2 and 5-6 in one search is a normal ask. */
+    /**
+     * Week choice with the same sheet the timetable uses: numbered cells, the current selection
+     * filled in, and 本周 marked. Only weeks the school's calendar actually has are selectable.
+     */
+    private void openWeek() {
+        List<Integer> weeks = new ArrayList<>();
+        if (campus != null) weeks.addAll(campus.weeks);
+        CoursePickers.selectWeek(this, number(pick.get("week"), 1), weeks, EduClient.currentWeek(campus),
+            week -> {
+                String next = Integer.toString(week);
+                if (next.equals(pick.get("week"))) return;
+                pick.put("week", next);
+                buildFields();
+                query();
+            });
+    }
+
+    /**
+     * Periods are offered as whole classes — 1-2 is one class, 3-4 the next — because that is how
+     * they are timetabled here; picking single periods only ever produced half a class. Several
+     * classes can still be searched at once.
+     */
     private void openSections() {
         if (campus == null || campus.periods.isEmpty()) return;
-        final java.util.List<Integer> all = campus.periods;
-        int[] chosen = periods();
-        String[] labels = new String[all.size()];
-        final boolean[] checked = new boolean[all.size()];
-        for (int i = 0; i < all.size(); i++) {
-            int number = all.get(i);
-            String time = time(number);
-            labels[i] = "第 " + number + " 节" + (time.isEmpty() ? "" : "  " + time);
-            for (int value : chosen) if (value == number) checked[i] = true;
+        final List<int[]> pairs = io.qzxy.lite.core.EduSite.pairs(campus.periods);
+        final boolean[] checked = io.qzxy.lite.core.EduSite.chosenPairs(pairs, periods());
+        String[] labels = new String[pairs.size()];
+        for (int i = 0; i < pairs.size(); i++) {
+            int[] pair = pairs.get(i);
+            String time = times(pair[0], pair[pair.length - 1]);
+            labels[i] = "第 " + io.qzxy.lite.core.EduSite.pairText(pair) + " 节" + (time.isEmpty() ? "" : "  " + time);
         }
         new AlertDialog.Builder(this)
             .setTitle("节次（可多选）")
             .setMultiChoiceItems(labels, checked, (dialog, which, isChecked) -> checked[which] = isChecked)
             .setPositiveButton("确定", (dialog, which) -> {
-                StringBuilder value = new StringBuilder();
-                for (int i = 0; i < all.size(); i++) {
-                    if (!checked[i]) continue;
-                    if (value.length() > 0) value.append(',');
-                    value.append(all.get(i));
-                }
-                if (value.length() == 0) { status.setText("至少要选一节课。"); return; }
+                String value = io.qzxy.lite.core.EduSite.pairValue(pairs, checked);
+                if (value.isEmpty()) { status.setText("至少要选一节课。"); return; }
                 String previous = pick.get("section");
-                pick.put("section", value.toString());
+                pick.put("section", value);
                 buildFields();
-                if (previous == null || !previous.equals(value.toString())) query();
+                if (previous == null || !previous.equals(value)) query();
             })
             .setNegativeButton("取消", null)
             .show();
@@ -552,29 +570,54 @@ public final class AcademicActivity extends Activity {
         return campus == null || campus.weeks.isEmpty() ? "1" : Integer.toString(campus.weeks.get(0));
     }
 
+    /**
+     * The class in progress when the screen opens, so the first search is usually the useful one.
+     * The school's own period times decide it; outside every class the nearest sensible class is
+     * used instead of guessing from the hour alone.
+     */
     private String defaultSection() {
-        if (campus == null) return "1,2";
+        if (campus == null) return "1-2";
         List<int[]> pairs = io.qzxy.lite.core.EduSite.pairs(campus.periods);
-        if (pairs.isEmpty()) return "1,2";
-        int hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
-        if (hour >= 18) return join(pairs.get(pairs.size() - 1));
-        if (hour >= 12) return pairs.size() > 2 ? join(pairs.get(2)) : join(pairs.get(pairs.size() - 1));
-        return join(pairs.get(0));
+        if (pairs.isEmpty()) return "1-2";
+        int now = minutesNow();
+        for (int[] pair : pairs) {
+            int[] span = span(pair);
+            if (span != null && now >= span[0] && now < span[1]) return io.qzxy.lite.core.EduSite.pairText(pair);
+        }
+        int hour = now / 60;
+        if (hour >= 18) return io.qzxy.lite.core.EduSite.pairText(pairs.get(pairs.size() - 1));
+        if (hour >= 12) return io.qzxy.lite.core.EduSite.pairText(pairs.size() > 2 ? pairs.get(2) : pairs.get(pairs.size() - 1));
+        return io.qzxy.lite.core.EduSite.pairText(pairs.get(0));
     }
 
-    private static String join(int[] pair) { return pair[0] + "," + pair[1]; }
+    /** Start and end of a class in minutes since midnight, or null when the school gave no times. */
+    private int[] span(int[] pair) {
+        int from = clock(time(pair[0]), false);
+        int to = clock(time(pair[pair.length - 1]), true);
+        return from < 0 || to <= from ? null : new int[]{from, to};
+    }
+
+    /** First ({@code 08:00}) or last ({@code 09:35}) clock time in a period's own time text. */
+    private static int clock(String text, boolean last) {
+        java.util.regex.Matcher found = java.util.regex.Pattern
+            .compile("(\\d{1,2}):(\\d{2})").matcher(text == null ? "" : text);
+        int value = -1;
+        while (found.find()) {
+            int moment = Integer.parseInt(found.group(1)) * 60 + Integer.parseInt(found.group(2));
+            if (!last) return moment;
+            value = moment;
+        }
+        return value;
+    }
+
+    private static int minutesNow() {
+        Calendar now = Calendar.getInstance();
+        return now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE);
+    }
 
     private String weekLabel(String value) {
         int week = number(value, 1);
         return "第 " + week + " 周" + (week == EduClient.currentWeek(campus) ? "（本周）" : "");
-    }
-
-    private String[] weekLabels() {
-        List<String> out = new ArrayList<>();
-        if (campus != null) for (Integer week : campus.weeks) {
-            out.add("第 " + week + " 周" + (week == EduClient.currentWeek(campus) ? "（本周）" : ""));
-        }
-        return out.toArray(new String[0]);
     }
 
     private String weekdayLabel(String value) {
@@ -586,12 +629,6 @@ public final class AcademicActivity extends Activity {
         String[] out = new String[7];
         for (int i = 0; i < out.length; i++) out[i] = Integer.toString(i + 1);
         return out;
-    }
-
-    private String[] weekValues() {
-        List<String> out = new ArrayList<>();
-        if (campus != null) for (Integer week : campus.weeks) out.add(Integer.toString(week));
-        return out.toArray(new String[0]);
     }
 
     private int[] periods() { return io.qzxy.lite.core.EduSite.sections(pick.get("section")); }
@@ -606,11 +643,15 @@ public final class AcademicActivity extends Activity {
         return times.isEmpty() ? label : label + " " + times;
     }
 
+    /** "08:00-09:35" for a class, whatever shape the school's own period time text has. */
     private String times(int from, int to) {
-        if (campus == null) return "";
-        String first = time(from), last = time(to);
-        if (first.isEmpty() && last.isEmpty()) return "";
-        return from == to ? first : first + "-" + last;
+        int start = clock(time(from), false), end = clock(time(to), true);
+        if (start < 0 || end < 0) return "";
+        return clockText(start) + (from == to ? "" : "-" + clockText(end));
+    }
+
+    private static String clockText(int minutes) {
+        return String.format(java.util.Locale.ROOT, "%02d:%02d", minutes / 60, minutes % 60);
     }
 
     private String time(int section) {
@@ -643,11 +684,16 @@ public final class AcademicActivity extends Activity {
         return out.toArray(new String[0]);
     }
 
-    /** An empty value means the school searches every room type, which is the default here. */
+    /** An empty value means the school searches every room type, which is the fallback here. */
     private String typeLabel(String value) {
         if (value == null || value.isEmpty()) return "全部教室";
         if (page != null) for (String[] option : page.types) if (option[0].equals(value)) return option[1];
         return value;
+    }
+
+    /** 多媒体教室一 is where these classes are held, so that is what the screen opens on. */
+    private String defaultType() {
+        return page == null ? "" : io.qzxy.lite.core.EduSite.defaultType(page.types);
     }
 
     private String[] typeLabels() {
@@ -708,13 +754,15 @@ public final class AcademicActivity extends Activity {
     }
 
     /**
-     * Leaving the screen ends the school session: the account is only signed in for the query, not
-     * left open in the background where a shared phone or a long idle session could pick it up.
+     * Leaving the screen queues the sign-out five minutes out instead of ending the session here:
+     * a quick look at the timetable and back keeps one session — fewer logins, and a school's
+     * lockout counter only counts logins. Coming back cancels the queued sign-out; 退出登录 still
+     * ends the session immediately.
      */
     @Override protected void onStop() {
         super.onStop();
         if (handoff) { handoff = false; return; }
-        EduClient.signOutLater();
+        EduClient.signOutAfter(GRACE);
         loggedOut = true;
     }
 

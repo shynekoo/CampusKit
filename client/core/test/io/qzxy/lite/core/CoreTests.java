@@ -725,7 +725,46 @@ public final class CoreTests {
         equal("/cjcx/cjcx_cxXsgrcj.html?gnmkdm=N305005", EduSite.gradeLink(menu));
         equal("", EduSite.gradeLink("<a href=\"/xsxk/xk.html\">选课</a>"));
         equal("", EduSite.gradeLink(null));
+        // 正方 builds its own menu in script; the anchor-only parse missed it and the app then fell
+        // back to a compiled-in route this school answers with its 404 page.
+        String scriptMenu = "<script>openTab('成绩查询','/cjcx/cjcx_cxXsgrcj.html?gnmkdm=N305005','N305005');</script>";
+        equal("/cjcx/cjcx_cxXsgrcj.html?gnmkdm=N305005", EduSite.gradeLink(scriptMenu));
+        // The function code is what marks the grade module, even in a folder of its own.
+        equal("/xscjgl/xscjgl_cxXs.html?gnmkdm=N305021", EduSite.gradeLink(
+            "<script>openTab('学生成绩','/xscjgl/xscjgl_cxXs.html?gnmkdm=N305021','N305021')</script>"));
+        equal("", EduSite.gradeLink("<script>openTab('选课','/xsxk/xk.html?gnmkdm=N253508')</script>"));
+        equal("/cjcx/cjcx_cxXsgrcj.html", EduSite.gradeLink("<script>openTab('X','/cjcx/cjcx_cxXsgrcj.html')</script>"));
         System.out.println("PASS: academic page values and empty-room query masks");
+
+        // Room type the screen opens on: 多媒体教室一, then any 多媒体 room, else every room.
+        java.util.List<String[]> types = Arrays.asList(
+            new String[]{"", "全部"},
+            new String[]{"01", "普通教室"},
+            new String[]{"02", "多媒体教室二"},
+            new String[]{"03", "多媒体教室一"});
+        equal("03", EduSite.defaultType(types));
+        equal("02", EduSite.defaultType(java.util.Collections.singletonList(new String[]{"02", "多媒体教室二"})));
+        equal("", EduSite.defaultType(java.util.Collections.singletonList(new String[]{"01", "普通教室"})));
+        equal("", EduSite.defaultType(new ArrayList<String[]>()));
+        equal("", EduSite.defaultType(null));
+        // A class is two periods here: the picker offers 1-2, 3-4 and stores the whole classes chosen.
+        java.util.List<int[]> classes = EduSite.pairs(Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8));
+        equal("1-2", EduSite.pairText(classes.get(0)));
+        equal("7-8", EduSite.pairText(classes.get(3)));
+        equal("7", EduSite.pairText(new int[]{7, 7}));      // a lone period is not written as a range
+        equal("", EduSite.pairText(null));
+        boolean[] chosen = EduSite.chosenPairs(classes, EduSite.sections("1-2,5-6"));
+        equal(true, chosen[0]);
+        equal(false, chosen[1]);
+        equal(true, chosen[2]);                             // any period of a class selects it
+        equal(false, chosen[3]);
+        equal("1-2,5-6", EduSite.pairValue(classes, chosen));
+        equal("", EduSite.pairValue(classes, new boolean[classes.size()]));
+        equal("", EduSite.pairValue(null, chosen));
+        equal(4, EduSite.periodsOf(classes, new boolean[]{true, false, true, false}).length);
+        equal(5, EduSite.periodsOf(classes, new boolean[]{true, false, true, false})[2]);
+        equal("51", EduSite.periodMask(EduSite.periodsOf(classes, new boolean[]{true, false, true, false})));
+        equal(0, EduSite.periodsOf(classes, new boolean[0]).length);
 
         // ---- 正方 login form: csrf token, hidden fields, RSA password ----
         String form = "'<form action=\"/xtgl/login_slogin.html\" method=\"post\">"

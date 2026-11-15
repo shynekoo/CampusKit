@@ -48,10 +48,32 @@ final class CoursePickers {
 
  interface SingleWeekResult {void accept(int week);}
  static Dialog selectWeek(Activity a,int current,SingleWeekResult result){
+  return selectWeek(a,current,null,0,result);
+ }
+ /**
+  * The timetable's week sheet, also used by the empty-classroom screen so both read the same way:
+  * numbered cells, the chosen one filled in, 本周 offered as one tap. Weeks the school's calendar
+  * does not have stay visible but cannot be picked, which is clearer than hiding them.
+  */
+ static Dialog selectWeek(Activity a,int current,java.util.List<Integer> allowed,int thisWeek,SingleWeekResult result){
   LinearLayout body=column(a);int columns=Math.max(3,Math.min(6,(a.getResources().getDisplayMetrics().widthPixels-dp(a,64))/dp(a,56)));
   AlertDialog dialog=new AlertDialog.Builder(a).setTitle("选择周次").setView(body).setNegativeButton("取消",null).create();
   body.setPadding(dp(a,12),dp(a,8),dp(a,12),dp(a,8));
-  for(int start=1;start<=30;start+=columns){LinearLayout row=new LinearLayout(a);body.addView(row);for(int col=0;col<columns;col++){final int week=start+col;LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(a,48),1);p.setMargins(dp(a,4),dp(a,4),dp(a,4),dp(a,4));if(week>30){row.addView(new View(a),p);continue;}Button b=button(a,String.valueOf(week),week==current);b.setMinWidth(0);b.setPadding(0,0,0,0);b.setSelected(week==current);b.setContentDescription("第"+week+"周"+(week==current?"，当前选择":""));row.addView(b,p);b.setOnClickListener(v->{dialog.dismiss();result.accept(week);});}}
+  int last=Math.max(1,Math.max(current,thisWeek));
+  if(allowed!=null&&!allowed.isEmpty())for(int week:allowed)last=Math.max(last,week);
+  else last=Math.max(last,30);
+  boolean bounded=allowed!=null&&!allowed.isEmpty();
+  for(int start=1;start<=last;start+=columns){LinearLayout row=new LinearLayout(a);body.addView(row);for(int col=0;col<columns;col++){final int week=start+col;LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(a,48),1);p.setMargins(dp(a,4),dp(a,4),dp(a,4),dp(a,4));if(week>last){row.addView(new View(a),p);continue;}
+    boolean open=!bounded||allowed.contains(week);
+    Button b=button(a,String.valueOf(week),week==current);b.setMinWidth(0);b.setPadding(0,0,0,0);b.setSelected(week==current);
+    if(!open)b.setEnabled(false);
+    else if(week==thisWeek&&week!=current)b.setTextColor(AppUi.ACCENT);
+    b.setContentDescription("第"+week+"周"+(week==current?"，当前选择":week==thisWeek?"，本周":open?"":"，学校校历没有这一周"));
+    row.addView(b,p);
+    if(open)b.setOnClickListener(v->{dialog.dismiss();result.accept(week);});}}
+  if(bounded&&thisWeek>=1&&thisWeek!=current&&allowed.contains(thisWeek)){
+   Button back=button(a,"回本周（第 "+thisWeek+" 周）",false);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,dp(a,48));p.topMargin=dp(a,12);body.addView(back,p);
+   back.setOnClickListener(v->{dialog.dismiss();result.accept(thisWeek);});}
   ScrollView scroll=new ScrollView(a);scroll.addView(body);dialog.setView(scroll);dialog.getWindow().setWindowAnimations(a.getResources().getIdentifier("InstantWeekPopup","style",a.getPackageName()));dialog.show();return dialog;
  }
  static NumberPicker wheel(Activity a,LinearLayout row,String label,int min,int max,int value,String[] names){

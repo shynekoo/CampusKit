@@ -23,6 +23,11 @@ public final class EduSite {
     private static final Pattern ANCHOR = Pattern.compile("<a\\b([^>]*)>(.*?)</a>",
         Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
     private static final Pattern INPUT = Pattern.compile("<input\\b[^>]*>", Pattern.CASE_INSENSITIVE);
+    /** A menu entry as a script writes it: '/cjcx/cjcx_cxXsgrcj.html?gnmkdm=N305005'. */
+    private static final Pattern MENU_PATH = Pattern.compile(
+        "/[A-Za-z]{3,}/[A-Za-z0-9_]+\\.html(?:\\?[^\"'<>\\s)]*)?");
+    /** The school's own function code for the grade group, which survives a folder rename. */
+    private static final Pattern GRADE_CODE = Pattern.compile("gnmkdm=N305\\d{3}", Pattern.CASE_INSENSITIVE);
 
     private EduSite() { }
 
@@ -152,7 +157,30 @@ public final class EduSite {
             if (text.contains("成绩查询")) return path;
             if (fallback.isEmpty()) fallback = path;
         }
-        return fallback;
+        if (!fallback.isEmpty()) return fallback;
+        return menuPath(html);
+    }
+
+    /**
+     * A menu entry written by script rather than an anchor — the shape 正方's own home page uses, e.g.
+     * {@code openTab('成绩查询','/cjcx/cjcx_cxXsgrcj.html?gnmkdm=N305005','N305005')}. Links carrying
+     * the grade function code win over a plain {@code /cjcx/} page, because the code is what identifies
+     * the module; the caller still opens the page and checks it reads as a grade form.
+     */
+    private static String menuPath(String html) {
+        String cjcx = "", coded = "";
+        Matcher path = MENU_PATH.matcher(html);
+        while (path.find()) {
+            String found = path.group();
+            boolean grade = GRADE_CODE.matcher(found).find() || found.contains("Xsgr");
+            if (found.contains("/cjcx/")) {
+                if (grade) return found;
+                if (cjcx.isEmpty()) cjcx = found;
+            } else if (grade && coded.isEmpty()) {
+                coded = found;
+            }
+        }
+        return cjcx.isEmpty() ? coded : cjcx;
     }
 
     private static String toPath(String target) {
@@ -212,6 +240,71 @@ public final class EduSite {
             else { pairs.add(new int[]{first, first}); index++; }
         }
         return pairs;
+    }
+
+    /** {@code 1-2}, or {@code 7} for a period that is timetabled on its own. */
+    public static String pairText(int[] pair) {
+        if (pair == null || pair.length == 0) return "";
+        return pair.length == 1 || pair[0] == pair[1] ? Integer.toString(pair[0]) : pair[0] + "-" + pair[1];
+    }
+
+    /** Which pairs the stored selection covers, so the picker opens on what is already searched. */
+    public static boolean[] chosenPairs(List<int[]> pairs, int[] sections) {
+        boolean[] chosen = new boolean[pairs == null ? 0 : pairs.size()];
+        if (pairs == null || sections == null) return chosen;
+        for (int index = 0; index < pairs.size(); index++) {
+            for (int section : sections) if (contains(pairs.get(index), section)) { chosen[index] = true; break; }
+        }
+        return chosen;
+    }
+
+    /** Every period of the chosen pairs, in timetable order: {@code 1-2,5-6} becomes 1,2,5,6. */
+    public static int[] periodsOf(List<int[]> pairs, boolean[] chosen) {
+        List<Integer> found = new ArrayList<>();
+        if (pairs != null && chosen != null) {
+            for (int index = 0; index < pairs.size() && index < chosen.length; index++) {
+                if (!chosen[index]) continue;
+                for (int section : pairs.get(index)) if (!found.contains(section)) found.add(section);
+            }
+        }
+        int[] out = new int[found.size()];
+        for (int index = 0; index < out.length; index++) out[index] = found.get(index);
+        return out;
+    }
+
+    /** The stored selection for the chosen pairs, e.g. {@code 1-2,5-6}. */
+    public static String pairValue(List<int[]> pairs, boolean[] chosen) {
+        StringBuilder out = new StringBuilder();
+        if (pairs == null || chosen == null) return "";
+        for (int index = 0; index < pairs.size() && index < chosen.length; index++) {
+            if (!chosen[index]) continue;
+            if (out.length() > 0) out.append(',');
+            out.append(pairText(pairs.get(index)));
+        }
+        return out.toString();
+    }
+
+    private static boolean contains(int[] pair, int section) {
+        for (int value : pair) if (value == section) return true;
+        return false;
+    }
+
+    /**
+     * Room type the empty-classroom screen starts on: 多媒体教室一 when the school lists it, because
+     * that is the room these classes are actually taught in. Any other 多媒体 room is second best;
+     * an empty string means every room type, which is the school's own "all" option.
+     */
+    public static String defaultType(List<String[]> types) {
+        if (types == null) return "";
+        for (String[] option : types)
+            if (squeeze(option[1]).equals("多媒体教室一")) return option[0];
+        for (String[] option : types)
+            if (option[1].contains("多媒体")) return option[0];
+        return "";
+    }
+
+    private static String squeeze(String text) {
+        return text == null ? "" : text.replaceAll("\\s+", "");
     }
 
     private static String[] option(String attributes, String label) {

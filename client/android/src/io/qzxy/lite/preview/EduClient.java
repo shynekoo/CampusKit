@@ -41,7 +41,16 @@ final class EduClient {
     private static final String ROOMS_META = "/cdjy/cdjy_cxXqjc.html?gnmkdm=N2155";
     private static final String ROOMS_TERM = "/cdjy/cdjy_cxQtlb.html?gnmkdm=N2155";
     private static final String GRADES_PAGE = "/cjcx/cjcx_cxXsgrcj.html?gnmkdm=N305005&layout=default";
-    private static final String GRADES_QUERY = "/cjcx/cjcx_cxXsgrcj.html?gnmkdm=N305005&doType=query";
+    /**
+     * Grade pages to try when the menu has no usable link. Deployments differ in whether they accept
+     * the {@code layout} parameter at all — this school answers 404 to the compiled-in route — so a
+     * page is now only accepted after it has actually been opened and read.
+     */
+    private static final String[] GRADES_TRIES = {
+        "/cjcx/cjcx_cxXsgrcj.html?gnmkdm=N305005",
+        "/cjcx/cjcx_cxXsgrcj.html",
+        GRADES_PAGE,
+    };
     private static final String LOGIN = "/xtgl/login_slogin.html";
     private static final String PUBLIC_KEY = "/xtgl/login_getPublicKey.html";
     private static final String MENU = "/xtgl/index_initMenu.html";
@@ -123,8 +132,15 @@ final class EduClient {
     private static volatile boolean rejected;
     /** True after leaving a query screen: a late response must not sign in again behind the user. */
     private static volatile boolean closed;
+    /** A sign-out queued for when the screen was left; cancelled as soon as the account is used. */
+    private static volatile java.util.concurrent.ScheduledFuture<?> pending;
     /** Grade page found in the school's own menu, so a renamed module needs no release. */
     private static volatile String gradesPage = "";
+    /**
+     * A grade page the menu just named, allowed through the read-only path check while it is being
+     * opened — this is the only way a query can leave the two folders compiled into the app.
+     */
+    private static volatile String discovery = "";
 
     private EduClient() { }
 
@@ -146,6 +162,7 @@ final class EduClient {
      *                it — the school locks accounts after a handful of failures.
      */
     static void remember(String name, String secret, boolean refused) {
+        cancelSignOut();
         String nextUser = name == null ? "" : name;
         String nextSecret = secret == null ? "" : secret;
         boolean same = nextUser.equals(user) && nextSecret.equals(password);
@@ -175,6 +192,28 @@ final class EduClient {
     }
 
     /**
+     * Signs out this session after {@code delayMillis}, unless the account is used again in between.
+     *
+     * <p>Leaving the screen used to end the school session at once, which meant every glance at the
+     * grades cost a fresh sign-in — and a fresh sign-in is what a school's lockout counter counts.
+     * A short grace period keeps a back-and-forth visit on one session while still not leaving the
+     * account open in the background; a manual 退出登录 still ends it immediately.</p>
+     */
+    static void signOutAfter(long delayMillis) {
+        cancelSignOut();
+        final String cookie = session;
+        pending = EXIT.schedule(() -> signOut(cookie), Math.max(0, delayMillis),
+            java.util.concurrent.TimeUnit.MILLISECONDS);
+    }
+
+    /** Back on screen in time: the queued sign-out is dropped and the session carries on. */
+    static void cancelSignOut() {
+        java.util.concurrent.ScheduledFuture<?> queued = pending;
+        pending = null;
+        if (queued != null) queued.cancel(false);
+    }
+
+    /**
      * @param cookie the session this request was queued for. A sign-in that happened meanwhile wins,
      *               so a quick return to the screen does not log the fresh session out.
      */
@@ -185,6 +224,7 @@ final class EduClient {
         session = "";
         webCookies = "";
         gradesPage = "";
+        discovery = "";
         if (held.isEmpty()) return;
         try {
             Map<String, String> jar = new LinkedHashMap<>();
@@ -195,11 +235,14 @@ final class EduClient {
         }
     }
 
-    /** Back on screen: a late automatic sign-in is allowed again. */
-    static void reopen() { closed = false; }
+    /** Back on screen: a late automatic sign-in is allowed again, and a queued sign-out is dropped. */
+    static void reopen() {
+        cancelSignOut();
+        closed = false;
+    }
 
-    private static final java.util.concurrent.ExecutorService EXIT =
-        java.util.concurrent.Executors.newSingleThreadExecutor(task -> {
+    private static final java.util.concurrent.ScheduledExecutorService EXIT =
+        java.util.concurrent.Executors.newSingleThreadScheduledExecutor(task -> {
             Thread thread = new Thread(task, "edu-signout");
             thread.setDaemon(true);
             return thread;
@@ -287,15 +330,7 @@ final class EduClient {
     }
 
     static Semester semesters() throws IOException {
-        String entry = gradesEntry();
-        String html;
-        try {
-            html = fetch(entry, null);
-        } catch (HttpFailure refused) {
-            if (entry.equals(GRADES_PAGE)) throw refused;
-            gradesPage = GRADES_PAGE;
-            html = fetch(GRADES_PAGE, null);
-        }
+        String html = fetch(gradesEntry(), null);
         Semester semester = new Semester();
         semester.year = EduSite.field(html, "xnm");
         semester.term = EduSite.field(html, "xqm");
@@ -307,19 +342,66 @@ final class EduClient {
     }
 
     /**
-     * The grade page the school itself links in its menu. Falls back to the compiled-in route when
-     * the menu cannot be read, so an unreachable menu never blocks the query.
+     * The grade page, opened once to prove it is really there.
+     *
+     * <p>The compiled-in route is not trusted on its own: this school answers 404 to it with its own
+     * "page not found" screen, so a wrong guess used to surface as "系统维护页面" on the user's phone.
+     * The menu's own link is tried first, then the common routes, and a page only counts when it
+     * actually carries the term selectors — a renamed, missing or disabled module is reported as
+     * such instead of looking like a network failure.</p>
      */
-    private static String gradesEntry() {
+    private static String gradesEntry() throws IOException {
         if (!gradesPage.isEmpty()) return gradesPage;
-        try {
-            String menu = request(ORIGIN + MENU, "GET", null, jar(), ORIGIN + "/xtgl/index_initMenu.html");
-            String link = EduSite.gradeLink(menu);
-            if (link.startsWith("/cjcx/")) gradesPage = link;
-        } catch (Exception unavailable) {
-            // Menu missing or renamed: the route below still answers on most deployments.
+        List<String> candidates = new ArrayList<>();
+        String discovered = menuGradeLink();
+        if (!discovered.isEmpty()) candidates.add(discovered);
+        for (String path : GRADES_TRIES) if (!candidates.contains(path)) candidates.add(path);
+        StringBuilder tried = new StringBuilder();
+        HttpFailure last = null;
+        for (String path : candidates) {
+            discovery = path;
+            try {
+                if (looksLikeGrades(fetch(path, null))) { gradesPage = path; discovery = ""; return path; }
+                tried.append(tried.length() == 0 ? "" : "、").append("页面不对 ").append(shortPath(path));
+            } catch (HttpFailure refused) {
+                last = refused;
+                tried.append(tried.length() == 0 ? "" : "、").append(refused.status).append(' ')
+                    .append(shortPath(path));
+            }
         }
-        return gradesPage.isEmpty() ? GRADES_PAGE : gradesPage;
+        discovery = "";
+        if (last != null && candidates.size() == 1) throw last;
+        throw new IOException("教务系统的成绩页打不开（试过 " + candidates.size() + " 个地址："
+            + clip(tried.toString(), 110) + "）。" + (discovered.isEmpty()
+            ? "学校菜单里也没找到成绩入口，可能这个学期关闭了网页成绩查询。"
+            : "菜单里的成绩地址也打不开，模块可能被学校停用了。"));
+    }
+
+    /** The grade page carries the term selectors the query then reads; nothing else does. */
+    private static boolean looksLikeGrades(String html) {
+        return html != null && html.contains("xnm") && html.contains("xqm");
+    }
+
+    /**
+     * The grade entry the school's own menu links. Read on every first query rather than compiled in,
+     * so a module that moved or was renamed still opens — and silently returning "" lets the caller
+     * fall back to the common routes. The home page is read as a second source because some
+     * deployments serve the menu inline there instead of on the menu page.
+     */
+    private static String menuGradeLink() {
+        for (String page : new String[]{MENU, "/"}) {
+            try {
+                String link = EduSite.gradeLink(request(ORIGIN + page, "GET", null, jar(), ORIGIN + page));
+                if (link.contains(".html")) return link;
+            } catch (Exception unavailable) {
+                // Next source; a menu that cannot be read is not an error on its own.
+            }
+        }
+        return "";
+    }
+
+    private static String clip(String text, int limit) {
+        return text.length() <= limit ? text : text.substring(0, limit) + "…";
     }
 
     /** Same page, in its query form: the school's script appends {@code doType=query} and posts. */
@@ -422,6 +504,7 @@ final class EduClient {
 
     private static String fetch(String path, Map<String, String> form) throws IOException {
         checkPath(path);
+        cancelSignOut();
         String method = form == null ? "GET" : "POST";
         String referer = ORIGIN + (path.startsWith("/cdjy/") ? ROOMS_PAGE : pageOf(path));
         try {
@@ -536,7 +619,7 @@ final class EduClient {
             connection.setInstanceFollowRedirects(false);
             connection.setUseCaches(false);
             connection.setRequestMethod(method);
-            connection.setRequestProperty("User-Agent", "CampusKit/1.3 (Android)");
+            connection.setRequestProperty("User-Agent", "CampusKit/1.4 (Android)");
             connection.setRequestProperty("Accept", "application/json, text/html;q=0.9,*/*;q=0.8");
             connection.setRequestProperty("Referer", referer);
             if (!jar.isEmpty()) {
@@ -653,8 +736,11 @@ final class EduClient {
     }
 
     private static void checkPath(String path) throws IOException {
-        if (!path.startsWith("/cdjy/") && !path.startsWith("/cjcx/"))
-            throw new IOException("拒绝访问未授权的教务页面。");
+        if (path.startsWith("/cdjy/") || path.startsWith("/cjcx/")) return;
+        // A grade module the school moved out of /cjcx/: allowed only once its own menu named it.
+        String named = gradesPage.isEmpty() ? discovery : gradesPage;
+        if (!named.isEmpty() && path.startsWith(named)) return;
+        throw new IOException("拒绝访问未授权的教务页面。");
     }
 
     private static String encode(String value) {
