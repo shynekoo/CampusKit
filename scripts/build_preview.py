@@ -28,7 +28,7 @@ CONTROL_ROUTES = (
     "/api/v1/dev/start",
     "/api/v1/dev/end",
 )
-FIELD_VERSION_NAME = "1.1.0"
+FIELD_VERSION_NAME = "1.2.1"
 FIELD_LABEL = "CampusKit"
 
 # Classes that only exist in the field-test source root. The check uses their dex type descriptors,

@@ -40,9 +40,20 @@ jadx --single-class com.klcxkj.zqxy.response.RechargeAliPayResponse
 金额：自填框 `Integer.valueOf` 后限制 300–1000；套餐金额来自 `wallet/recharge/package` 的
 `package_account` 字符串。本版只做整数元，1–1000，由 `RechargeApi.normalize` 收口。
 
-响应：`RechargeAliPayResponse.data` 是字符串，即交给支付宝的订单串。原版用
-`sj.b.a().d(ctx, data, true, cb)`（支付宝 SDK `PayTask`）。本版改为
-`alipays://platformapi/startapp?appId=20000067&url=<订单串>`，不引入 SDK。
+响应：`RechargeAliPayResponse.data` 是字符串，即交给支付宝的 APP 支付订单串。原版用
+`sj.b.a().d(ctx, data, true, cb)`，即 `new PayTask(activity).payV2(orderInfo, true)`。
+
+2026-11-15 修正：1.1.0 用 `alipays://platformapi/startapp?appId=20000067&url=<订单串>` 是错误的——
+该 `url` 参数要的是网页地址，订单串是 `app_id=…&biz_content=…&sign=…` 的键值串，支付宝打开后
+无法识别，表现为「跳不过去」。1.2.0 改为直接绑定支付宝客户端支付服务（`AlipayHandoff`）：
+service action `com.eg.android.AlipayGphone.IAlixPay`，descriptor `com.alipay.android.app.IAlixPay`，
+取版本号后 `registerCallback03`（版本 ≥3）并 `r03("pay","bind_pay")`、`pay02(orderInfo, map)`
+（版本 ≥2，否则 `Pay`）；同时向支付宝注册 `IRemoteServiceCallback` 的 Binder 桩，支付宝通过其
+`startActivity(pkg, cls, pid, bundle)` 事务拉起自己的收银台。付款结果从返回串的
+`resultStatus={9000}` 解析，余额随后重读。全部 Parcel 序号抄自 alipaySdk 15.8.42 的反编译
+`IAlixPay` / `IRemoteServiceCallback`，未引入 SDK jar。
+
+仍未确认：订单是开给趣智官方 app_id 的，第三方包代发是否被支付宝接受只能实机验证。
 
 ## 签名
 
