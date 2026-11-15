@@ -37,6 +37,16 @@ final class RechargeApi {
 
     private RechargeApi() { }
 
+    /**
+     * A refusal worded for the screen. The recharge channel rejecting the request is not the same as
+     * the account being signed out — the balance right above it was just read with the same session —
+     * so it must not be dressed up as "登录已失效".
+     */
+    static final class Rejected extends IOException {
+        private static final long serialVersionUID = 1L;
+        Rejected(String message) { super(message); }
+    }
+
     static String normalize(String raw) {
         String value = raw == null ? "" : raw.trim();
         if (!AMOUNT.matcher(value).matches())
@@ -49,6 +59,12 @@ final class RechargeApi {
     /**
      * Creates an Alipay order and returns the signed order string. The caller must not treat this as
      * payment: only Alipay's own result confirms the recharge.
+     *
+     * <p>Which route family a campus uses comes from the server, never from a guess. But a refusal
+     * creates no order, so when the first family answers with an error the other one is tried once:
+     * a wrong family shows up as exactly the symptom this screen had — "登录已失效" while the account
+     * is fine — and costs the user the whole feature. A request that may have succeeded (network
+     * failure, unparsable success) is never repeated.</p>
      */
     static String alipayOrder(AccountSession session, AccountProfile profile, String amount, boolean migrated)
             throws IOException, JSONException {
@@ -56,26 +72,82 @@ final class RechargeApi {
         if (!profile.hasAccount()) throw new IOException("当前账号没有返回校园账户，暂不能充值");
         if (profile.projectId.isEmpty() || profile.projectId.equals("0"))
             throw new IOException("登录信息缺少校园编号，请重新登录");
-        for (int attempt = 0; attempt < 2; attempt++) {
-            java.util.Map<String, String> fields = new java.util.LinkedHashMap<>();
-            fields.put("phoneSystem", "android");
-            fields.put("version", "6.5.28");
-            fields.put("projectId", profile.projectId);
-            fields.put("accountId", profile.accountId);
-            fields.put("loginCode", session.loginCode());
-            if (!profile.telephone.isEmpty()) {
-                fields.put("telephone", profile.telephone);
-                fields.put("telPhone", profile.telephone);
+        Refusal first = null;
+        for (boolean settlement : new boolean[]{migrated, !migrated}) {
+            try {
+                return order(session, profile, yuan, settlement);
+            } catch (HttpForm.SessionExpired refused) {
+                if (first == null) first = new Refusal(settlement, refused);
+                else throw mismatch(first, settlement, refused);
+            } catch (HttpForm.ResponseFailure refused) {
+                if (first == null) first = new Refusal(settlement, refused);
+                else throw mismatch(first, settlement, refused);
             }
+        }
+        throw new IOException("充值通道拒绝了这次请求（" + first.where() + "：" + first.reason() + "），未发起支付");
+    }
+
+    /** Which family was tried and what it answered, kept so the message can name both. */
+    private static final class Refusal {
+        final boolean settlement;
+        final IOException failure;
+        Refusal(boolean settlement, IOException failure) { this.settlement = settlement; this.failure = failure; }
+        String where() { return settlement ? "支付宝直连通道" : "旧版钱包通道"; }
+        String reason() {
+            if (failure instanceof HttpForm.SessionExpired) {
+                HttpForm.SessionExpired expired = (HttpForm.SessionExpired) failure;
+                StringBuilder out = new StringBuilder();
+                if (expired.code != 0) out.append("错误码 ").append(expired.code).append(' ');
+                out.append(expired.detail.isEmpty() ? "登录校验未通过" : expired.detail);
+                return out.toString().trim();
+            }
+            String message = failure.getMessage();
+            return message == null || message.isEmpty() ? "未说明原因" : message;
+        }
+    }
+
+    /**
+     * Both families refused. Wording matters here: the balance was just read with the same session,
+     * so this is the payment channel refusing the request, not the account expiring, and saying
+     * "登录已失效" would send the user off to log in again for nothing.
+     */
+    private static IOException mismatch(Refusal first, boolean settlement, IOException second) {
+        Refusal other = new Refusal(settlement, second);
+        return new Rejected("两条充值通道都没接受这笔订单。"
+            + first.where() + "：" + first.reason() + "；"
+            + other.where() + "：" + other.reason()
+            + "。余额刚才是用同一个登录状态查出来的，所以账号没有失效。把这句话发给我，我按错误码继续对。");
+    }
+
+    /** One route family, with the one signature retry the original salt allows. */
+    private static String order(AccountSession session, AccountProfile profile, String yuan, boolean settlement)
+            throws IOException, JSONException {
+        for (int attempt = 0; attempt < 2; attempt++) {
+            String signature = attempt == 0
+                ? RechargeSignature.alipay(session.loginCode(), yuan, profile.telephone)
+                : RechargeSignature.alipayFallback(session.loginCode(), yuan, profile.telephone);
+            // Field set mirrors BaseNetActivity.t0 exactly: userId and telephone belong to the
+            // settlement family only, accountId is dropped when the campus has none, and the
+            // signature covers the same four fields the original signs before t0 runs.
+            java.util.Map<String, String> fields = new java.util.LinkedHashMap<>();
             fields.put("payWay", "2");
             fields.put("rechargeMoney", yuan);
-            fields.put("signature", attempt == 0
-                ? RechargeSignature.alipay(session.loginCode(), yuan, profile.telephone)
-                : RechargeSignature.alipayFallback(session.loginCode(), yuan, profile.telephone));
+            fields.put("signature", signature);
+            fields.put("projectId", profile.projectId);
+            if (!profile.accountId.isEmpty() && !profile.accountId.equals("0"))
+                fields.put("accountId", profile.accountId);
+            if (settlement) fields.put("userId", session.userId());
+            if (!profile.telephone.isEmpty()) {
+                fields.put("telPhone", profile.telephone);
+                if (settlement) fields.put("telephone", profile.telephone);
+            }
+            fields.put("loginCode", session.loginCode());
+            fields.put("phoneSystem", "android");
+            fields.put("version", "6.5.28");
 
-            String path = migrated ? MIGRATED_PATH : LEGACY_PATH;
+            String path = settlement ? MIGRATED_PATH : LEGACY_PATH;
             if (!ROUTES.contains(path)) throw new IllegalArgumentException("Unknown recharge route");
-            String origin = migrated ? MIGRATED_ORIGIN : LEGACY_ORIGIN;
+            String origin = settlement ? MIGRATED_ORIGIN : LEGACY_ORIGIN;
             JSONObject reply = HttpForm.request(origin, path, SmsLoginProtocol.form(fields), true);
             int code = HttpForm.responseCode(reply);
             if (code == 0 && !(reply.has("success") && !reply.optBoolean("success", true))) {

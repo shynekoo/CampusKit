@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="io.qzxy.lite.preview" android:versionCode="135" android:versionName="1.4.1-readonly">
+    package="io.qzxy.lite.preview" android:versionCode="136" android:versionName="1.4.2-readonly">
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="36" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CAMERA" />

@@ -82,19 +82,14 @@ final class SmsAccountApi {
     }
 
     /**
-     * Original RechargeActivity reads ProjectInfo.getIsMigrated before choosing between the legacy
-     * wallet routes and the settlement routes. The same project/info/triple reply answers it here.
+     * Original RechargeActivity reads {@code MyApp.e} before choosing between the legacy wallet
+     * routes and the settlement routes, and that flag is set from {@code UserInfo.isMigrated} on
+     * login and on every user/info refresh. Reading it from the profile we already fetched keeps the
+     * recharge path at two requests instead of three — and keeps the decision on the same reply the
+     * account fields came from, so the two can never disagree.
      */
-    static boolean migrated(AccountSession session, AccountProfile profile) throws IOException, JSONException {
-        if (!profile.hasAccount()) throw new IOException("当前账号没有返回校园账户，暂不能充值");
-        java.util.Map<String, String> fields = authenticated(session);
-        fields.put("projectId", profile.projectId);
-        fields.put("accountId", profile.accountId);
-        if (!profile.telephone.isEmpty()) { fields.put("telephone", profile.telephone); fields.put("telPhone", profile.telephone); }
-        JSONObject project = HttpForm.successfulData(request("project/info/triple", SmsLoginProtocol.form(fields), false));
-        if (!profile.projectId.equals(AccountProfile.identifier(project, "projectId")))
-            throw new IOException("校园资料不匹配，已停止");
-        return "1".equals(migrationFlag(project));
+    static boolean migrated(AccountProfile profile) {
+        return profile.migrated;
     }
 
     /** Original ScanCodeActivity.c2 / ui.f.m read-only project route. */

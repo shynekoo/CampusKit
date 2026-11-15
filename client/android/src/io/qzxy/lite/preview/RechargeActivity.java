@@ -183,11 +183,16 @@ public final class RechargeActivity extends Activity {
                 AccountSession session = new AccountVault(this).load();
                 if (session == null) throw new HttpForm.SessionExpired();
                 AccountProfile profile = SmsAccountApi.profile(session);
-                boolean migrated = SmsAccountApi.migrated(session, profile);
+                boolean migrated = SmsAccountApi.migrated(profile);
                 String order = RechargeApi.alipayOrder(session, profile, value, migrated);
                 post(ticket, () -> { busy(false); pay(order); });
+            } catch (RechargeApi.Rejected rejected) {
+                post(ticket, () -> { busy(false); hint.setText(rejected.getMessage()); });
             } catch (HttpForm.SessionExpired expired) {
-                post(ticket, () -> { busy(false); hint.setText("登录已失效，请重新登录后再试。"); });
+                String detail = expired.code == 0 ? "" : "（错误码 " + expired.code
+                    + (expired.detail.isEmpty() ? "" : "：" + expired.detail) + "）";
+                post(ticket, () -> { busy(false); hint.setText("读取账号资料这一步，服务器说登录失效" + detail
+                    + "。余额刚才是能查的，说明账号没失效，请再点一次；如果一直这样，把这句话发给我。"); });
             } catch (Exception failure) {
                 String message = failure.getMessage();
                 post(ticket, () -> { busy(false); hint.setText(message == null || message.isEmpty() ? "订单创建失败，未发起支付。" : "未能创建订单：" + message); });

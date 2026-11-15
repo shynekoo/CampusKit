@@ -8,8 +8,15 @@ import org.json.JSONException;
 /** Selected user/account fields only; no raw response persistence. */
 final class AccountProfile {
     final String projectId, accountId, projectName, telephone;
-    private AccountProfile(String projectId, String accountId, String projectName, String telephone) {
-        this.projectId = projectId; this.accountId = accountId; this.projectName = projectName; this.telephone = telephone;
+    /**
+     * {@code UserInfo.isMigrated} from the user/info reply: 1 means this campus pays through the
+     * settlement (v3) routes, 0 through the legacy wallet routes. It is a plain int in the model, so
+     * a missing field means 0 exactly as it does for the original client — never "unknown".
+     */
+    final boolean migrated;
+    private AccountProfile(String projectId, String accountId, String projectName, String telephone, boolean migrated) {
+        this.projectId = projectId; this.accountId = accountId; this.projectName = projectName;
+        this.telephone = telephone; this.migrated = migrated;
     }
     static String identifier(JSONObject object, String key) throws JSONException {
         if (!object.has(key) || object.isNull(key)) return "";
@@ -28,8 +35,12 @@ final class AccountProfile {
         if (account == null) account = data;
         String phone = text(data, "telephone").isEmpty() ? text(data, "telPhone") : text(data, "telephone");
         if (!phone.matches("1[0-9]{10}")) phone = "";
+        JSONObject flag = null;
+        if (data.has("isMigrated") && !data.isNull("isMigrated")) flag = data;
+        else if (account.has("isMigrated") && !account.isNull("isMigrated")) flag = account;
+        boolean migrated = flag != null && "1".equals(identifier(flag, "isMigrated"));
         return new AccountProfile(identifier(account, "projectId"), identifier(account, "accountId"),
-            text(account, "projectName"), phone);
+            text(account, "projectName"), phone, migrated);
     }
     boolean hasAccount() { return !projectId.isEmpty() && !projectId.equals("0") && !accountId.isEmpty() && !accountId.equals("0"); }
     String description() {

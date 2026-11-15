@@ -432,6 +432,18 @@ public final class CoreTests {
         equal("5", SmsLoginProtocol.loginFields("13800000000", "012345").get("type"));
         equal("012345", SmsLoginProtocol.loginFields("13800000000", "012345").get("smsCode"));
         equal("a%26b=%2B+%3D", SmsLoginProtocol.form(java.util.Collections.singletonMap("a&b", "+ =")));
+        // The Config-Project header is taken from the body, so only a whole projectId field counts:
+        // a number that happens to sit inside another value must never become the campus.
+        equal("9", SmsLoginProtocol.projectIdIn("loginCode=x&projectId=9&version=6.5.28"));
+        equal("9", SmsLoginProtocol.projectIdIn("projectId=9"));
+        equal("", SmsLoginProtocol.projectIdIn(null));
+        equal("", SmsLoginProtocol.projectIdIn(""));
+        equal("", SmsLoginProtocol.projectIdIn("projectId="));
+        equal("", SmsLoginProtocol.projectIdIn("projectId=0"));
+        equal("", SmsLoginProtocol.projectIdIn("myprojectId=9"));
+        equal("", SmsLoginProtocol.projectIdIn("projectId=9a"));
+        equal("", SmsLoginProtocol.projectIdIn("telephone=projectId%3D9"));
+        equal("12", SmsLoginProtocol.projectIdIn("signature=abc&projectId=12&accountId=3"));
         for (String invalid : new String[]{null, "", "1380000000", "23800000000", "1380000000a"})
             rejects(() -> SmsLoginProtocol.sendFields(invalid));
         for (String invalid : new String[]{null, "", "123", "123456789", "12a4"})
@@ -644,6 +656,12 @@ public final class CoreTests {
         equal(true, RechargeSignature.alipay("abc123", "50", "13800138000").matches("[0-9a-f]{32}"));
         rejects(() -> RechargeSignature.sign(new java.util.LinkedHashMap<String, String>(), "sign-kailu="));
         rejects(() -> RechargeSignature.sign(null, "sign-kailu="));
+        // Vector checked against the live charge route: sending this digest with a deliberately bogus
+        // loginCode moved the reply from 参数错误 (rejected at validation) to 登录失效 (rejected only
+        // at the session check), which is as far as an unauthenticated request can go. If the sort
+        // order or the salt ever drifts, every real order starts failing again.
+        equal("51edfe981729391720d2fe3ca22d358d",
+            RechargeSignature.alipay("probe", "1", "13800000000"));
         System.out.println("PASS: recharge signature is deterministic and salt-scoped");
 
         // Grade columns: identified by label, never by position, and 学分 must not be read as 成绩.

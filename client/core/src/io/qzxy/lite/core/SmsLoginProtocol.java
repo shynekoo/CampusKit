@@ -63,4 +63,27 @@ public final class SmsLoginProtocol {
         } catch (UnsupportedEncodingException impossible) { throw new IllegalStateException(impossible); }
         return result.toString();
     }
+
+    /**
+     * The campus a form body is about, taken from the {@code projectId} field only when it is a whole
+     * field of its own. The original client puts that same value into the {@code Config-Project}
+     * request header on every call, so a body without a campus must not borrow a number that merely
+     * appears inside some other value.
+     */
+    public static String projectIdIn(String form) {
+        if (form == null) return "";
+        String key = "projectId=";
+        int at = 0;
+        while (at + key.length() <= form.length()) {
+            int found = form.indexOf(key, at);
+            if (found < 0) return "";
+            boolean ownField = found == 0 || form.charAt(found - 1) == '&';
+            int start = found + key.length(), stop = start;
+            while (stop < form.length() && form.charAt(stop) != '&') stop++;
+            String value = form.substring(start, stop);
+            if (ownField && value.matches("[1-9][0-9]{0,19}")) return value;
+            at = start;
+        }
+        return "";
+    }
 }
