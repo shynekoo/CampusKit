@@ -679,18 +679,20 @@ public final class TimetableActivity extends Activity {
         row.addView(shortcutTile("user","教务系统","自动登录",()->startActivity(new Intent(this,EduPortalActivity.class))),new LinearLayout.LayoutParams(0,-2,1));
         card.addView(row);
         LinearLayout sites=new LinearLayout(this);
-        sites.addView(shortcutTile("web","大学官网","hebeu.edu.cn",()->openSchoolSite("https://www.hebeu.edu.cn/")),new LinearLayout.LayoutParams(0,-2,1));
-        sites.addView(shortcutTile("web","科信官网","kexin.hebeu.edu.cn",()->openSchoolSite("https://kexin.hebeu.edu.cn/")),new LinearLayout.LayoutParams(0,-2,1));
+        sites.addView(shortcutTile("web","大学官网","hebeu.edu.cn",()->openSchoolSite("河北工程大学官网","https://www.hebeu.edu.cn/")),new LinearLayout.LayoutParams(0,-2,1));
+        sites.addView(shortcutTile("web","科信官网","kexin.hebeu.edu.cn",()->openSchoolSite("科信学院官网","https://kexin.hebeu.edu.cn/")),new LinearLayout.LayoutParams(0,-2,1));
         card.addView(sites);parent.addView(card,new LinearLayout.LayoutParams(-1,-2));
     }
     private void openEdu(String mode){
         try{startActivity(new Intent(this,AcademicActivity.class).putExtra("mode",mode));}
         catch(RuntimeException unavailable){notice("无法打开教务页面。");}
     }
-    /** Official sites open in the user's browser; only the two school HTTPS hosts are used here. */
-    private void openSchoolSite(String url){
-        try{startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(url)));}
-        catch(RuntimeException unavailable){notice("没有可以打开网页的应用。");}
+    /** Official sites stay inside the app; the page itself offers a hand-off to the browser. */
+    private void openSchoolSite(String title,String url){
+        try{startActivity(new Intent(this,SchoolSiteActivity.class)
+            .putExtra(SchoolSiteActivity.EXTRA_URL,url)
+            .putExtra(SchoolSiteActivity.EXTRA_TITLE,title));}
+        catch(RuntimeException unavailable){notice("无法打开学校网站。");}
     }
     private View shortcutTile(String icon,String title,String subtitle,Runnable action) {        LinearLayout tile=column();tile.setGravity(android.view.Gravity.CENTER);tile.setPadding(dp(4),dp(10),dp(4),dp(10));tile.setMinimumHeight(dp(96));AppUi.press(tile,0xffffffff,10);tile.setOnClickListener(v->action.run());
         android.widget.ImageView mark=new android.widget.ImageView(this);mark.setImageDrawable(AppUi.icon(this,icon,AppUi.ACCENT,24));mark.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);mark.setBackground(AppUi.shape(this,AppUi.SOFT,22));mark.setPadding(dp(10),dp(10),dp(10),dp(10));tile.addView(mark,new LinearLayout.LayoutParams(dp(44),dp(44)));
