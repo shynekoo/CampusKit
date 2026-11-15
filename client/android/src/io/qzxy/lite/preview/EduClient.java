@@ -1,6 +1,7 @@
 package io.qzxy.lite.preview;
 
 import android.webkit.CookieManager;
+import io.qzxy.lite.core.EduLoginProtocol;
 import io.qzxy.lite.core.EduSite;
 import io.qzxy.lite.core.SmsLoginProtocol;
 import java.io.ByteArrayOutputStream;
@@ -22,10 +23,12 @@ import org.json.JSONObject;
 /**
  * Read-only client for the school's academic system.
  *
- * <p>The session belongs to the embedded login page: this client only borrows the cookies the user
- * already obtained there and never sees a password. Every request is pinned to the school's HTTPS
- * host and to a short list of read-only paths — the same three pages the school's own empty-classroom
- * screen uses — so a feature here cannot quietly start touching course selection or account data.</p>
+ * <p>Signing in happens here when the user has saved an account: the same csrf token, RSA-encrypted
+ * password and form post the school's own page uses, so no browser is involved. Without a saved
+ * account the cookies of the embedded login page are borrowed instead. Every request is pinned to
+ * the school's HTTPS host and to a short list of read-only paths — the same three pages the school's
+ * own empty-classroom screen uses — so a feature here cannot quietly start touching course selection
+ * or account data.</p>
  *
  * <p>Both the current term and the week calendar come from the school on every search; no academic
  * year is compiled in, so September does not need a new release.</p>
@@ -39,11 +42,26 @@ final class EduClient {
     private static final String ROOMS_TERM = "/cdjy/cdjy_cxQtlb.html?gnmkdm=N2155";
     private static final String GRADES_PAGE = "/cjcx/cjcx_cxXsgrcj.html?gnmkdm=N305005&layout=default";
     private static final String GRADES_QUERY = "/cjcx/cjcx_cxXsgrcj.html?gnmkdm=N305005&doType=query";
+    private static final String LOGIN = "/xtgl/login_slogin.html";
+    private static final String PUBLIC_KEY = "/xtgl/login_getPublicKey.html";
     private static final int TIMEOUT = 15000, MAX_BYTES = 2_000_000, MAX_PAGES = 30;
 
     static final class NotSignedIn extends IOException {
         private static final long serialVersionUID = 1L;
         NotSignedIn() { super("需要先登录教务系统"); }
+    }
+
+    /** The school refused the saved password; retrying would only walk towards a lockout. */
+    static final class BadPassword extends IOException {
+        private static final long serialVersionUID = 1L;
+        BadPassword() { super("教务账号或密码不对，请修改后再试。"); }
+        BadPassword(String message) { super(message); }
+    }
+
+    /** The school wants a human-typed code, which only its own page can show. */
+    static final class CaptchaNeeded extends IOException {
+        private static final long serialVersionUID = 1L;
+        CaptchaNeeded() { super("学校要求输入验证码，请改用网页登录一次。"); }
     }
 
     /** Everything the school page says about the current term, plus its own filter options. */
@@ -83,19 +101,53 @@ final class EduClient {
         final List<String[]> terms = new ArrayList<>();
     }
 
-    /** Cookie header captured on the UI thread; WebView cookies are not read off it. */
+    /** Session obtained by the built-in login; empty while signed out. */
     private static volatile String session = "";
+    /** Cookies held by the embedded browser; only used when no account is saved. */
+    private static volatile String webCookies = "";
+    /** The saved account, kept in this process only — the vault owns the durable copy. */
+    private static volatile String user = "", password = "";
+    /** Set once the school rejects the saved password, so it is never retried into a lockout. */
+    private static volatile boolean rejected;
 
     private EduClient() { }
 
-    /** Call on the UI thread before any query: the session lives in the embedded browser. */
+    /** Call on the UI thread before any query: WebView cookies are read there. */
     static void capture() {
         try {
             String cookie = CookieManager.getInstance().getCookie(ORIGIN);
-            session = cookie == null ? "" : cookie;
+            webCookies = cookie == null ? "" : cookie;
         } catch (RuntimeException unavailable) {
-            session = "";
+            webCookies = "";
         }
+    }
+
+    /** Hands the saved account over. Empty values simply mean "no automatic sign-in". */
+    static void remember(String name, String secret) {
+        String nextUser = name == null ? "" : name;
+        String nextSecret = secret == null ? "" : secret;
+        // Same account with a live session: no need to sign in again.
+        if (nextUser.equals(user) && nextSecret.equals(password) && !session.isEmpty()) return;
+        user = nextUser;
+        password = nextSecret;
+        rejected = false;
+        session = "";
+    }
+
+    static boolean signedIn() { return !session.isEmpty(); }
+
+    static boolean hasCredentials() { return !user.isEmpty() && !password.isEmpty(); }
+
+    /** Turns transport failures into something a person can act on. */
+    static String describe(Throwable failure) {
+        if (failure instanceof java.net.UnknownHostException)
+            return "连不上教务系统：域名解析失败，请检查网络（校外可能需要校园网或 VPN）。";
+        if (failure instanceof java.net.SocketTimeoutException)
+            return "教务系统响应超时，请稍后重试。";
+        if (failure instanceof javax.net.ssl.SSLException)
+            return "与教务系统的安全连接失败，请稍后重试。";
+        String text = failure == null ? null : failure.getMessage();
+        return text == null || text.isEmpty() ? "读取失败，请稍后重试。" : text;
     }
 
     // ---- pages ---------------------------------------------------------------------------
@@ -260,16 +312,93 @@ final class EduClient {
 
     private static String fetch(String path, Map<String, String> form) throws IOException {
         checkPath(path);
-        Map<String, String> jar = new LinkedHashMap<>();
-        String seeded = session;
-        if (seeded != null) {
-            for (String part : seeded.split(";")) {
-                int split = part.indexOf('=');
-                if (split > 0) jar.put(part.substring(0, split).trim(), part.substring(split + 1).trim());
-            }
-        }
-        String url = ORIGIN + path;
         String method = form == null ? "GET" : "POST";
+        String referer = ORIGIN + (path.startsWith("/cdjy/") ? ROOMS_PAGE : GRADES_PAGE);
+        try {
+            return checked(request(ORIGIN + path, method, form, jar(), referer));
+        } catch (NotSignedIn expired) {
+            if (!hasCredentials() || rejected) throw expired;
+            signIn();
+            return checked(request(ORIGIN + path, method, form, jar(), referer));
+        }
+    }
+
+    /** A 200 response that is the login form means the session died between two requests. */
+    private static String checked(String text) throws NotSignedIn {
+        if (EduLoginProtocol.isLoginForm(text)) throw new NotSignedIn();
+        return text;
+    }
+
+    /**
+     * Signs in with the saved account the way the school's own page does: read the csrf token,
+     * fetch the RSA key, post the encrypted password. A rejected password is never retried, because
+     * the school locks accounts after repeated failures.
+     */
+    static synchronized void signIn() throws IOException {
+        if (!hasCredentials()) throw new NotSignedIn();
+        Map<String, String> jar = new LinkedHashMap<>();
+        String html = request(ORIGIN + LOGIN, "GET", null, jar, ORIGIN + "/");
+        if (EduLoginProtocol.csrf(html).isEmpty())
+            throw new IOException("没有读到登录页的令牌，学校页面可能改版了。");
+        String key = request(ORIGIN + PUBLIC_KEY + "?time=" + System.currentTimeMillis(), "GET", null, jar,
+            ORIGIN + LOGIN);
+        String modulus = EduLoginProtocol.jsonValue(key, "modulus");
+        String exponent = EduLoginProtocol.jsonValue(key, "exponent");
+        if (modulus.isEmpty() || exponent.isEmpty()) throw new IOException("没有读到学校的登录公钥。");
+        Map<String, String> form = EduLoginProtocol.fields(html);
+        form.put(EduLoginProtocol.USER, user);
+        try {
+            form.put(EduLoginProtocol.PASSWORD, EduLoginProtocol.encryptPassword(modulus, exponent, password));
+        } catch (java.security.GeneralSecurityException failure) {
+            throw new IOException("密码加密失败，请重试。");
+        }
+        String reply = request(ORIGIN + LOGIN + "?time=" + System.currentTimeMillis(), "POST", form, jar,
+            ORIGIN + LOGIN);
+        if (EduLoginProtocol.wrongPassword(reply)) {
+            rejected = true;
+            throw new BadPassword();
+        }
+        if (EduLoginProtocol.captchaRequired(reply)) {
+            rejected = true;
+            throw new CaptchaNeeded();
+        }
+        if (EduLoginProtocol.isLoginForm(reply)) {
+            rejected = true;
+            throw new BadPassword("登录没有成功，请核对账号密码。");
+        }
+        String cookies = cookies(jar);
+        if (cookies.isEmpty()) throw new IOException("登录后没有拿到会话，请重试。");
+        session = cookies;
+    }
+
+    /** Cookies for the next request: the built-in session first, the embedded browser second. */
+    private static Map<String, String> jar() {
+        Map<String, String> jar = new LinkedHashMap<>();
+        seed(jar, session);
+        if (jar.isEmpty()) seed(jar, webCookies);
+        return jar;
+    }
+
+    private static void seed(Map<String, String> jar, String header) {
+        if (header == null) return;
+        for (String part : header.split(";")) {
+            int split = part.indexOf('=');
+            if (split > 0) jar.put(part.substring(0, split).trim(), part.substring(split + 1).trim());
+        }
+    }
+
+    private static String cookies(Map<String, String> jar) {
+        StringBuilder out = new StringBuilder();
+        for (Map.Entry<String, String> entry : jar.entrySet()) {
+            if (out.length() > 0) out.append("; ");
+            out.append(entry.getKey()).append('=').append(entry.getValue());
+        }
+        return out.toString();
+    }
+
+    /** School-host HTTPS with redirects followed by hand, so a jump to the login page stays visible. */
+    private static String request(String url, String method, Map<String, String> form,
+                                  Map<String, String> jar, String referer) throws IOException {
         String body = form == null ? null : SmsLoginProtocol.form(form);
         for (int redirect = 0; redirect < 6; redirect++) {
             URL target = new URL(url);
@@ -281,9 +410,9 @@ final class EduClient {
             connection.setInstanceFollowRedirects(false);
             connection.setUseCaches(false);
             connection.setRequestMethod(method);
-            connection.setRequestProperty("User-Agent", "CampusKit/1.2 (Android)");
+            connection.setRequestProperty("User-Agent", "CampusKit/1.3 (Android)");
             connection.setRequestProperty("Accept", "application/json, text/html;q=0.9,*/*;q=0.8");
-            connection.setRequestProperty("Referer", ORIGIN + (path.startsWith("/cdjy/") ? ROOMS_PAGE : GRADES_PAGE));
+            connection.setRequestProperty("Referer", referer);
             if (!jar.isEmpty()) {
                 StringBuilder cookie = new StringBuilder();
                 for (Map.Entry<String, String> entry : jar.entrySet()) {
@@ -305,16 +434,13 @@ final class EduClient {
                 if (status >= 300 && status < 400) {
                     String location = connection.getHeaderField("Location");
                     if (location == null) throw new IOException("学校返回了无效跳转。");
-                    if (location.contains("login_slogin")) throw new NotSignedIn();
                     url = new URL(target, location).toString();
                     if (status != 307 && status != 308) { method = "GET"; body = null; }
                     continue;
                 }
                 if (status == 401 || status == 403) throw new NotSignedIn();
                 if (status != 200) throw new IOException("教务系统暂时无法响应（HTTP " + status + "）。");
-                String text = read(connection);
-                if (loginForm(text)) throw new NotSignedIn();
-                return text;
+                return read(connection);
             } finally {
                 connection.disconnect();
             }
@@ -365,15 +491,8 @@ final class EduClient {
         }
     }
 
-    /**
-     * The school's login form is the only page carrying a 用户名 input, so a session that silently
-     * expired inside a 200 response is still recognised instead of being parsed as data.
-     */
-    private static boolean loginForm(String text) {
-        return text.contains("id=\"yhm\"") || text.contains("name=\"yhm\"");
-    }
-
-    private static void checkPath(String path) throws IOException {        if (!path.startsWith("/cdjy/") && !path.startsWith("/cjcx/"))
+    private static void checkPath(String path) throws IOException {
+        if (!path.startsWith("/cdjy/") && !path.startsWith("/cjcx/"))
             throw new IOException("拒绝访问未授权的教务页面。");
     }
 

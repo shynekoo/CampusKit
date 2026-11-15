@@ -40,7 +40,7 @@ public final class AcademicActivity extends Activity {
     private EduClient.Campus campus;
     private EduClient.Semester semester;
     private int generation;
-    private boolean busy, needsLogin, afterLogin;
+    private boolean busy, needsLogin, afterLogin, afterAccount;
     private final android.os.Handler watchdog = new android.os.Handler(android.os.Looper.getMainLooper());
 
     /** Nothing should be able to leave the progress bar running forever. */
@@ -74,13 +74,16 @@ public final class AcademicActivity extends Activity {
 
         LinearLayout loginBar = new LinearLayout(this);
         loginBar.setOrientation(LinearLayout.HORIZONTAL);
-        TextView loginAction = action("登录教务系统", this::openLogin);
-        loginAction.setContentDescription("打开教务系统登录页，在学校的网页里输入账号密码");
-        loginBar.addView(loginAction, new LinearLayout.LayoutParams(0, -2, 1));
+        TextView account = action("教务账号", this::openAccount);
+        account.setContentDescription("输入并保存教务系统学号和密码，之后自动登录");
+        loginBar.addView(account, new LinearLayout.LayoutParams(0, -2, 1));
+        TextView webLogin = action("网页登录", this::openLogin);
+        webLogin.setContentDescription("打开教务系统登录页，手动登录一次");
+        loginBar.addView(webLogin, new LinearLayout.LayoutParams(0, -2, 1));
         screen.root.addView(loginBar);
 
         results = paper();
-        screen.note("数据来自学校教务系统。登录状态由校内网页保存，本应用不保存教务密码。")
+        screen.note("数据来自学校教务系统。账号密码只加密保存在这台设备，仅用于登录；不想保存也可以用网页登录。")
             .setOnClickListener(v -> startActivity(new Intent(this, EduQueryActivity.class).putExtra("mode", mode)));
         load();
     }
@@ -115,6 +118,9 @@ public final class AcademicActivity extends Activity {
         watch(ticket);
         worker.execute(() -> {
             try {
+                EduVault.Credential credential = new EduVault(getApplicationContext()).load();
+                EduClient.remember(credential == null ? "" : credential.user,
+                    credential == null ? "" : credential.password);
                 if ("grades".equals(mode)) {
                     EduClient.Semester loaded = EduClient.semesters();
                     post(ticket, () -> { busy = false; semester = loaded; buildFields(); query(); });
@@ -133,6 +139,10 @@ public final class AcademicActivity extends Activity {
                 }
             } catch (EduClient.NotSignedIn expired) {
                 post(ticket, this::askLogin);
+            } catch (EduClient.BadPassword wrong) {
+                post(ticket, () -> fail(wrong.getMessage()));
+            } catch (EduClient.CaptchaNeeded captcha) {
+                post(ticket, () -> fail(captcha.getMessage()));
             } catch (Exception failure) {
                 post(ticket, () -> fail(message(failure)));
             }
@@ -148,7 +158,7 @@ public final class AcademicActivity extends Activity {
         busy = false;
         needsLogin = true;
         screen.loading(false);
-        status.setText("还没登录教务系统。点上面的“登录教务系统”，在学校自己的页面里输入账号密码，登录后自动继续。");
+        status.setText("还没登录教务系统。点上面的「教务账号」把学号和密码存一次，以后会自动登录；也可以点「网页登录」手动登一次。");
         results.removeAllViews();
         fields.removeAllViews();
     }
@@ -156,6 +166,11 @@ public final class AcademicActivity extends Activity {
     private void openLogin() {
         afterLogin = true;
         startActivity(new Intent(this, EduLoginActivity.class));
+    }
+
+    private void openAccount() {
+        afterAccount = true;
+        startActivity(new Intent(this, EduAccountActivity.class));
     }
 
     private void fail(String text) {
@@ -167,16 +182,15 @@ public final class AcademicActivity extends Activity {
     }
 
     private static String message(Exception failure) {
-        String text = failure.getMessage();
-        if (text == null || text.isEmpty()) return "读取失败，请稍后重试。";
-        return text;
+        return EduClient.describe(failure);
     }
 
     @Override protected void onResume() {
         super.onResume();
-        if (needsLogin || afterLogin) {
+        if (needsLogin || afterLogin || afterAccount) {
             needsLogin = false;
             afterLogin = false;
+            afterAccount = false;
             busy = false;
             reload();
         }
@@ -293,6 +307,10 @@ public final class AcademicActivity extends Activity {
                     buildFields();
                     query();
                 });
+            } catch (EduClient.BadPassword wrong) {
+                post(ticket, () -> fail(wrong.getMessage()));
+            } catch (EduClient.CaptchaNeeded captcha) {
+                post(ticket, () -> fail(captcha.getMessage()));
             } catch (Exception failure) {
                 post(ticket, () -> fail(message(failure)));
             }
@@ -317,6 +335,10 @@ public final class AcademicActivity extends Activity {
                     post(ticket, () -> showGrades(courses));
                 } catch (EduClient.NotSignedIn expired) {
                     post(ticket, this::askLogin);
+                } catch (EduClient.BadPassword wrong) {
+                    post(ticket, () -> fail(wrong.getMessage()));
+                } catch (EduClient.CaptchaNeeded captcha) {
+                    post(ticket, () -> fail(captcha.getMessage()));
                 } catch (Exception failure) {
                     post(ticket, () -> fail(message(failure)));
                 }

@@ -664,6 +664,105 @@ public final class CoreTests {
         equal(false, EduTableColumns.usable(EduTableColumns.grade(new ArrayList<String>())));
         equal(false, EduTableColumns.usable(null));
         System.out.println("PASS: grade columns are matched by label and refuse ambiguous tables");
+
+        // Academic page values and query masks: read from the school's own markup, never hard-coded.
+        String page = "<input type=\"hidden\" name=\"xnm\" value=\"2026\" id=\"xnm\">"
+            + "<input type=\"hidden\" name=\"xqm\" value=\"3\" id=\"xqm\">"
+            + "<select name=\"xqh_id\" id=\"xqh_id\" class=\"form-control\">"
+            + "<option value=\"103\" selected=\"selected\">丛台校区(临床医学院)</option>"
+            + "<option value=\"108\">新校区</option><option value=\"106\">东校区(科信学院)</option></select>";
+        equal("2026", EduSite.field(page, "xnm"));
+        equal("3", EduSite.field(page, "xqm"));
+        equal("103", EduSite.field(page, "xqh_id"));
+        equal(3, EduSite.options(page, "xqh_id").size());
+        equal("106", EduSite.options(page, "xqh_id").get(2)[0]);
+        equal("东校区(科信学院)", EduSite.options(page, "xqh_id").get(2)[1]);
+        equal("", EduSite.field(page, "yhm"));
+        equal(0, EduSite.options(page, "yhm").size());
+        equal("1", EduSite.weekMask(1));
+        equal("2", EduSite.weekMask(2));
+        equal("256", EduSite.weekMask(9));
+        rejects(() -> EduSite.weekMask(0));
+        rejects(() -> EduSite.weekMask(63));
+        rejects(() -> EduSite.periodMask(3, 2));
+        equal("3", EduSite.periodMask(1, 2));
+        equal("12", EduSite.periodMask(3, 4));
+        equal(1, EduSite.weekOn("2026-08-31", "2026-08-31"));
+        equal(3, EduSite.weekOn("2026-08-31", "2026-09-14"));
+        equal(0, EduSite.weekOn("2026-08-31", "2026-08-30"));
+        equal(0, EduSite.weekOn("", "2026-08-31"));
+        equal(0, EduSite.weekOn("2026-13-01", "2026-08-31"));
+        java.util.List<int[]> pairs = EduSite.pairs(Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 9, 10));
+        equal(5, pairs.size());
+        equal(3, pairs.get(1)[0]);
+        equal(4, pairs.get(1)[1]);
+        java.util.List<int[]> odd = EduSite.pairs(Arrays.asList(1, 2, 3));
+        equal(2, odd.size());
+        equal(3, odd.get(1)[1]);   // A lone period stays alone; it is never widened.
+        equal(0, EduSite.pairs(null).size());
+        System.out.println("PASS: academic page values and empty-room query masks");
+
+        // ---- 正方 login form: csrf token, hidden fields, RSA password ----
+        String form = "'<form action=\"/xtgl/login_slogin.html\" method=\"post\">"
+            + "<input type=\"hidden\" id=\"csrftoken\" name=\"csrftoken\" value=\"65095068-185b,65095068185b\"/>"
+            + "<input type=\"hidden\" id=\"language\" name=\"language\" value=\"zh_CN\"/>"
+            + "<input type=\"hidden\" name=\"xxdm\" id=\"xxdm\" value= 10076>"
+            + "<input type=\"hidden\" name=\"ydType\" id=\"ydType\" value= >"
+            + "<input type=\"text\" class=\"form-control\" name=\"yhm\" id=\"yhm\" value=\"\">"
+            + "<input type=\"text\" name=\"mm\" id=\"mm\" value=\"\">"
+            + "</form>'";
+        java.util.Map<String, String> loginFields = EduLoginProtocol.fields(form.replace("'", ""));
+        equal(6, loginFields.size());
+        equal("65095068-185b,65095068185b", EduLoginProtocol.csrf(form));
+        equal("zh_CN", loginFields.get("language"));
+        equal("10076", loginFields.get("xxdm"));
+        equal("", loginFields.get("ydType"));
+        equal(true, EduLoginProtocol.isLoginForm(form));
+        equal(false, EduLoginProtocol.isLoginForm("{\"items\":[],\"totalPage\":1}"));
+        equal(false, EduLoginProtocol.csrf("<html></html>").length() > 0);
+        equal(true, EduLoginProtocol.wrongPassword("<div id=\"tips\">用户名或密码不正确，请重新输入！</div>"));
+        equal(false, EduLoginProtocol.wrongPassword("{\"items\":[{\"kcmc\":\"高等数学\"}]}"));
+        // A hidden modal that merely mentions 验证码 must not be mistaken for a captcha demand.
+        equal(false, EduLoginProtocol.captchaRequired("<div id=\"yzmModal\" style=\"display:none\">验证码登录</div>"));
+        equal(true, EduLoginProtocol.captchaRequired("<input type=\"text\" name=\"yzm\" id=\"yzm\"/>"));
+        equal("MIIBIjAN", EduLoginProtocol.jsonValue("{\"modulus\":\"MIIBIjAN\",\"exponent\":\"AQAB\"}", "modulus"));
+        equal("AQAB", EduLoginProtocol.jsonValue("{\"modulus\":\"MIIBIjAN\",\"exponent\":\"AQAB\"}", "exponent"));
+        equal("", EduLoginProtocol.jsonValue("{\"modulus\":\"x\"}", "exponent"));
+        equal("YWJj", EduLoginProtocol.base64Encode("abc".getBytes("UTF-8")));
+        equal("YWI=", EduLoginProtocol.base64Encode("ab".getBytes("UTF-8")));
+        equal("YQ==", EduLoginProtocol.base64Encode("a".getBytes("UTF-8")));
+        equal("AQAB", EduLoginProtocol.base64Encode(new byte[]{1, 0, 1}));
+        equal(3, EduLoginProtocol.base64Decode("AQAB").length);
+        equal(1, (int) EduLoginProtocol.base64Decode("AQAB")[0]);
+        equal(0, (int) EduLoginProtocol.base64Decode("AQAB")[1]);
+        equal("", new String(EduLoginProtocol.base64Decode(""), "UTF-8"));
+        equal("abc", new String(EduLoginProtocol.base64Decode("YWJj"), "UTF-8"));
+
+        java.security.KeyPairGenerator generator = java.security.KeyPairGenerator.getInstance("RSA");
+        generator.initialize(1024);
+        java.security.KeyPair pair = generator.generateKeyPair();
+        java.security.interfaces.RSAPublicKey publicKey = (java.security.interfaces.RSAPublicKey) pair.getPublic();
+        String modulus = EduLoginProtocol.base64Encode(unsigned(publicKey.getModulus()));
+        String exponent = EduLoginProtocol.base64Encode(unsigned(publicKey.getPublicExponent()));
+        equal("AQAB", exponent);
+        String cipherText = EduLoginProtocol.encryptPassword(modulus, exponent, "s3cret密码");
+        javax.crypto.Cipher cipher = javax.crypto.Cipher.getInstance("RSA/ECB/PKCS1Padding");
+        cipher.init(javax.crypto.Cipher.DECRYPT_MODE, pair.getPrivate());
+        equal("s3cret密码", new String(cipher.doFinal(EduLoginProtocol.base64Decode(cipherText)), "UTF-8"));
+        equal(128, EduLoginProtocol.base64Decode(cipherText).length);
+        rejects(() -> {
+            try { EduLoginProtocol.encryptPassword("AAAA", "AQAB", "x"); }
+            catch (java.security.GeneralSecurityException expected) { throw new IllegalStateException(expected); }
+        });
+        System.out.println("PASS: school login form fields and RSA password");
+
         System.out.println("All " + assertions + " assertions passed. Live API/Bluetooth compatibility is not tested here.");
+    }
+
+    /** BigInteger.toByteArray adds a sign byte; the base64 in the school's JSON has none. */
+    private static byte[] unsigned(java.math.BigInteger value) {
+        byte[] raw = value.toByteArray();
+        if (raw.length > 1 && raw[0] == 0) return Arrays.copyOfRange(raw, 1, raw.length);
+        return raw;
     }
 }
