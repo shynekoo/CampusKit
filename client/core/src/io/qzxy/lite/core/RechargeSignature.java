@@ -28,6 +28,32 @@ public final class RechargeSignature {
 
     private RechargeSignature() { }
 
+    /**
+     * The money text that goes into both the signed fields and the request body.
+     *
+     * <p>The server publishes its own recharge tiers as JSON numbers ({@code 50.0}, {@code 0.01}).
+     * Gson hands the original client that number as a String, and the original sends that exact
+     * String as {@code rechargeMoney}. Rewriting it to a bare integer ({@code 50}) is not harmless:
+     * the settlement service compares the submitted amount against the campus tiers and answers
+     * 157 "充值金额错误" for a value it does not recognise. So the spelling is preserved verbatim,
+     * including a trailing {@code .0}. Only shape and range are checked here.</p>
+     */
+    public static String normalizeAmount(String raw) {
+        String value = raw == null ? "" : raw.trim();
+        if (!value.matches("[0-9]{1,4}(\\.[0-9]{1,2})?")) throw new IllegalArgumentException("请输入 0.01–1000 之间的金额（元）");
+        java.math.BigDecimal yuan = new java.math.BigDecimal(value);
+        if (yuan.compareTo(new java.math.BigDecimal("1000")) > 0
+            || yuan.compareTo(new java.math.BigDecimal("0.01")) < 0)
+            throw new IllegalArgumentException("请输入 0.01–1000 之间的金额（元）");
+        return value;
+    }
+
+    /** Tier label for the screen; the order itself keeps the untrimmed server spelling. */
+    public static String displayAmount(String value) {
+        if (value == null) return "";
+        return value.endsWith(".0") ? value.substring(0, value.length() - 2) : value;
+    }
+
     /** Alipay order: payWay 2, signed over loginCode / payWay / rechargeMoney / telPhone. */
     public static String alipay(String loginCode, String amount, String telephone) {
         java.util.Map<String, String> fields = new java.util.LinkedHashMap<>();

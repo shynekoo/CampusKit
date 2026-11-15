@@ -9,9 +9,12 @@ import org.json.JSONException;
 final class AccountProfile {
     final String projectId, accountId, projectName, telephone;
     /**
-     * {@code UserInfo.isMigrated} from the user/info reply: 1 means this campus pays through the
-     * settlement (v3) routes, 0 through the legacy wallet routes. It is a plain int in the model, so
-     * a missing field means 0 exactly as it does for the original client — never "unknown".
+     * Whether this campus pays through the settlement (v3) routes. The original client hard-codes
+     * {@code MyApp.f = true}, so {@code y0.n(int)} is always true and {@code MyApp.e} always ends up
+     * true; {@code ProjectInfo.getIsMigrated()} also returns 1 when migrateDTO is missing. That is
+     * why a missing flag means v3 here, not legacy: only an explicit 0 / false switches families.
+     * Guessing "legacy" from an absent field is what sent a valid v3 session to the old wallet
+     * server, which answered 8 "登录失效" while the balance was being read fine.
      */
     final boolean migrated;
     private AccountProfile(String projectId, String accountId, String projectName, String telephone, boolean migrated) {
@@ -38,7 +41,11 @@ final class AccountProfile {
         JSONObject flag = null;
         if (data.has("isMigrated") && !data.isNull("isMigrated")) flag = data;
         else if (account.has("isMigrated") && !account.isNull("isMigrated")) flag = account;
-        boolean migrated = flag != null && "1".equals(identifier(flag, "isMigrated"));
+        boolean migrated = true;
+        if (flag != null) {
+            String value = String.valueOf(flag.get("isMigrated")).trim();
+            migrated = !(value.equals("0") || value.equalsIgnoreCase("false"));
+        }
         return new AccountProfile(identifier(account, "projectId"), identifier(account, "accountId"),
             text(account, "projectName"), phone, migrated);
     }

@@ -4,9 +4,12 @@ import io.qzxy.lite.core.AccountSession;
 import io.qzxy.lite.core.RechargeSignature;
 import io.qzxy.lite.core.SmsLoginProtocol;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.regex.Pattern;
+import java.util.Map;
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -14,17 +17,18 @@ import org.json.JSONObject;
  * Alipay recharge order creation, reconstructed from 6.5.28 {@code RechargeActivity.U2} and
  * {@code ui.h.n()}.
  *
- * <p>Two route families exist because the server was migrated per campus: the legacy
- * {@code wallet/recharge/aliPay} on wfwapi and the newer {@code settlement/alipay/recharge/balance}
- * on v3-api. Which one applies comes from {@code project/info/triple}, exactly as the original
- * {@code MyApp.e} flag does — it is never guessed.</p>
+ * <p>Two route families exist: the legacy {@code wallet/recharge/aliPay} on wfwapi and the newer
+ * {@code settlement/alipay/recharge/balance} on v3-api. The original client's {@code MyApp.f} is
+ * hard-coded true, so {@code y0.n(int)} always returns true and {@code MyApp.e} is always true —
+ * a genuine 6.5.28 client always uses the settlement family. The legacy family is kept only as a
+ * fallback when the settlement family answers with a genuine session refusal.</p>
  *
  * <p>Only Alipay is implemented. WeChat app-pay binds the order to the merchant's signing
  * certificate, and UnionPay/cmb/juhe all need their own SDK, so this class cannot create those
  * orders; the screen tells the user to finish those in the official app.</p>
  *
- * <p>Nothing here is retried automatically. An order string is only produced for a request the
- * server accepted, and paying it still requires an explicit confirmation inside Alipay.</p>
+ * <p>An order string is only produced for a request the server accepted, and paying it still
+ * requires an explicit confirmation inside Alipay.</p>
  */
 final class RechargeApi {
     private static final String LEGACY_ORIGIN = "https://wfwapi.china-qzxy.cn/";
@@ -32,39 +36,78 @@ final class RechargeApi {
     private static final String LEGACY_PATH = "wallet/recharge/aliPay";
     private static final String MIGRATED_PATH = "settlement/alipay/recharge/balance";
     private static final List<String> ROUTES = Arrays.asList(LEGACY_PATH, MIGRATED_PATH);
-    /** Integer yuan only: the original custom-amount box parses Integer.valueOf. */
-    private static final Pattern AMOUNT = Pattern.compile("[1-9][0-9]{0,3}");
+    /** GET tier lists; the campus configures the amounts the settlement service will accept. */
+    private static final String LEGACY_TIERS = "wallet/recharge/package";
+    private static final String MIGRATED_TIERS = "settlement/recharge/package/list";
+    private static final List<String> TIER_ROUTES = Arrays.asList(LEGACY_TIERS, MIGRATED_TIERS);
+    private static final int MAX_TIERS = 8;
 
     private RechargeApi() { }
 
     /**
-     * A refusal worded for the screen. The recharge channel rejecting the request is not the same as
-     * the account being signed out — the balance right above it was just read with the same session —
-     * so it must not be dressed up as "登录已失效".
+     * A refusal worded for the screen. A payment channel rejecting an order is not the same as the
+     * account being signed out — the balance right above it was just read with the same session.
      */
     static final class Rejected extends IOException {
         private static final long serialVersionUID = 1L;
         Rejected(String message) { super(message); }
     }
 
-    static String normalize(String raw) {
-        String value = raw == null ? "" : raw.trim();
-        if (!AMOUNT.matcher(value).matches())
-            throw new IllegalArgumentException("请输入 1–1000 之间的整数金额（元）");
-        int yuan = Integer.parseInt(value);
-        if (yuan < 1 || yuan > 1000) throw new IllegalArgumentException("请输入 1–1000 之间的整数金额（元）");
-        return String.valueOf(yuan);
+    /** Keeps the server's own spelling: {@code 50.0} must not reach the order as {@code 50}. */
+    static String normalize(String raw) { return RechargeSignature.normalizeAmount(raw); }
+
+    /**
+     * The amounts this campus has configured, in the exact text the server publishes ({@code 50.0}).
+     * The settlement service rejects a submitted amount that is not one of these with 157
+     * "充值金额错误", so the screen offers these instead of a made-up set of round numbers.
+     * A campus with no configured tiers answers 158; the caller then keeps the built-in amounts.
+     */
+    static List<String> amounts(AccountSession session, AccountProfile profile, boolean settlement)
+            throws IOException, JSONException {
+        String path = settlement ? MIGRATED_TIERS : LEGACY_TIERS;
+        if (!TIER_ROUTES.contains(path)) throw new IllegalArgumentException("Unknown recharge tier route");
+        String origin = settlement ? MIGRATED_ORIGIN : LEGACY_ORIGIN;
+        JSONObject reply = HttpForm.request(origin, path,
+            SmsLoginProtocol.form(common(session, profile, settlement)), false);
+        int code = HttpForm.responseCode(reply);
+        if (HttpForm.failed(reply, code)) throw HttpForm.rejection(reply, code);
+        JSONArray data = reply.optJSONArray("data");
+        List<String> tiers = new ArrayList<>();
+        if (data == null) return tiers;
+        for (int i = 0; i < data.length() && tiers.size() < MAX_TIERS; i++) {
+            JSONObject item = data.optJSONObject(i);
+            if (item == null || item.isNull("amount")) continue;
+            Object amount = item.get("amount");
+            if (!(amount instanceof Number) && !(amount instanceof String)) continue;
+            String text;
+            try { text = RechargeSignature.normalizeAmount(String.valueOf(amount)); }
+            catch (IllegalArgumentException odd) { continue; }
+            if (!tiers.contains(text)) tiers.add(text);
+        }
+        return tiers;
+    }
+
+    /** The session fields {@code BaseNetActivity.t0} appends to every form. */
+    private static Map<String, String> common(AccountSession session, AccountProfile profile, boolean settlement) {
+        Map<String, String> fields = new LinkedHashMap<>();
+        fields.put("projectId", profile.projectId);
+        if (!profile.accountId.isEmpty() && !profile.accountId.equals("0"))
+            fields.put("accountId", profile.accountId);
+        if (settlement) fields.put("userId", session.userId());
+        if (!profile.telephone.isEmpty()) {
+            fields.put("telPhone", profile.telephone);
+            if (settlement) fields.put("telephone", profile.telephone);
+        }
+        fields.put("loginCode", session.loginCode());
+        fields.put("phoneSystem", "android");
+        fields.put("version", "6.5.28");
+        return fields;
     }
 
     /**
-     * Creates an Alipay order and returns the signed order string. The caller must not treat this as
-     * payment: only Alipay's own result confirms the recharge.
-     *
-     * <p>Which route family a campus uses comes from the server, never from a guess. But a refusal
-     * creates no order, so when the first family answers with an error the other one is tried once:
-     * a wrong family shows up as exactly the symptom this screen had — "登录已失效" while the account
-     * is fine — and costs the user the whole feature. A request that may have succeeded (network
-     * failure, unparsable success) is never repeated.</p>
+     * Creates the order. A business refusal (157 and friends) is a real answer from the correct
+     * route: trying the other family only produces a misleading "登录失效" from a server this
+     * account does not belong to, so only a session refusal triggers the fallback.
      */
     static String alipayOrder(AccountSession session, AccountProfile profile, String amount, boolean migrated)
             throws IOException, JSONException {
@@ -72,19 +115,23 @@ final class RechargeApi {
         if (!profile.hasAccount()) throw new IOException("当前账号没有返回校园账户，暂不能充值");
         if (profile.projectId.isEmpty() || profile.projectId.equals("0"))
             throw new IOException("登录信息缺少校园编号，请重新登录");
-        Refusal first = null;
-        for (boolean settlement : new boolean[]{migrated, !migrated}) {
-            try {
-                return order(session, profile, yuan, settlement);
-            } catch (HttpForm.SessionExpired refused) {
-                if (first == null) first = new Refusal(settlement, refused);
-                else throw mismatch(first, settlement, refused);
-            } catch (HttpForm.ResponseFailure refused) {
-                if (first == null) first = new Refusal(settlement, refused);
-                else throw mismatch(first, settlement, refused);
-            }
+        boolean first = migrated;
+        IOException refused;
+        try {
+            return order(session, profile, yuan, first);
+        } catch (IOException failure) {
+            refused = failure;
         }
-        throw new IOException("充值通道拒绝了这次请求（" + first.where() + "：" + first.reason() + "），未发起支付");
+        if (!(refused instanceof HttpForm.SessionExpired)) {
+            if (refused instanceof HttpForm.ResponseFailure) throw actionable(refused, first, yuan);
+            throw refused;
+        }
+        boolean other = !first;
+        try {
+            return order(session, profile, yuan, other);
+        } catch (IOException second) {
+            throw mismatch(new Refusal(first, refused), other, second);
+        }
     }
 
     /** Which family was tried and what it answered, kept so the message can name both. */
@@ -106,17 +153,24 @@ final class RechargeApi {
         }
     }
 
-    /**
-     * Both families refused. Wording matters here: the balance was just read with the same session,
-     * so this is the payment channel refusing the request, not the account expiring, and saying
-     * "登录已失效" would send the user off to log in again for nothing.
-     */
+    /** Both families refused with a session error; never dress this up as the account expiring. */
     private static IOException mismatch(Refusal first, boolean settlement, IOException second) {
         Refusal other = new Refusal(settlement, second);
         return new Rejected("两条充值通道都没接受这笔订单。"
             + first.where() + "：" + first.reason() + "；"
             + other.where() + "：" + other.reason()
-            + "。余额刚才是用同一个登录状态查出来的，所以账号没有失效。把这句话发给我，我按错误码继续对。");
+            + "。余额刚才是用同一个登录状态查出来的，所以账号没有失效，这是下单通道各自的拒绝，不用重新登录。");
+    }
+
+    /** A real business answer from the right route: say what to change, not "登录已失效". */
+    private static IOException actionable(IOException refused, boolean settlement, String yuan) {
+        String message = refused.getMessage() == null ? "" : refused.getMessage();
+        String where = settlement ? "支付宝直连通道" : "旧版钱包通道";
+        if (message.contains("157") || message.contains("充值金额"))
+            return new Rejected("服务器没有接受 ¥" + yuan + " 这个充值金额（错误码 157）。"
+                + "请回到充值页选学校配置里列出的金额，或换一个金额再试；"
+                + "这笔订单没有创建，也没有扣款。");
+        return new Rejected(where + "拒绝了这次下单：" + message + "。没有创建订单，也没有扣款。");
     }
 
     /** One route family, with the one signature retry the original salt allows. */
@@ -126,24 +180,10 @@ final class RechargeApi {
             String signature = attempt == 0
                 ? RechargeSignature.alipay(session.loginCode(), yuan, profile.telephone)
                 : RechargeSignature.alipayFallback(session.loginCode(), yuan, profile.telephone);
-            // Field set mirrors BaseNetActivity.t0 exactly: userId and telephone belong to the
-            // settlement family only, accountId is dropped when the campus has none, and the
-            // signature covers the same four fields the original signs before t0 runs.
-            java.util.Map<String, String> fields = new java.util.LinkedHashMap<>();
+            Map<String, String> fields = common(session, profile, settlement);
             fields.put("payWay", "2");
             fields.put("rechargeMoney", yuan);
             fields.put("signature", signature);
-            fields.put("projectId", profile.projectId);
-            if (!profile.accountId.isEmpty() && !profile.accountId.equals("0"))
-                fields.put("accountId", profile.accountId);
-            if (settlement) fields.put("userId", session.userId());
-            if (!profile.telephone.isEmpty()) {
-                fields.put("telPhone", profile.telephone);
-                if (settlement) fields.put("telephone", profile.telephone);
-            }
-            fields.put("loginCode", session.loginCode());
-            fields.put("phoneSystem", "android");
-            fields.put("version", "6.5.28");
 
             String path = settlement ? MIGRATED_PATH : LEGACY_PATH;
             if (!ROUTES.contains(path)) throw new IllegalArgumentException("Unknown recharge route");
@@ -156,11 +196,11 @@ final class RechargeApi {
                     throw new IOException("服务器没有返回支付订单，未发起支付");
                 return (String) data;
             }
-            String message = reply.optString("errorMessage", reply.optString("message", ""));
-            // A rejected signature creates no order, so trying the other native salt once is safe.
-            if (attempt == 0 && (message.contains("签名") || message.toLowerCase(java.util.Locale.ROOT).contains("sign")))
-                continue;
-            throw HttpForm.rejection(reply, code);
+            IOException rejection = HttpForm.rejection(reply, code);
+            // A rejected signature creates no order. Any business refusal — not just one whose
+            // wording happens to say "签名" — is worth one attempt with the other native salt.
+            if (attempt == 0 && rejection instanceof HttpForm.ResponseFailure) continue;
+            throw rejection;
         }
         throw new IOException("支付订单创建失败，未发起支付");
     }

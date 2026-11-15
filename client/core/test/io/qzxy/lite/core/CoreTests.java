@@ -664,6 +664,25 @@ public final class CoreTests {
             RechargeSignature.alipay("probe", "1", "13800000000"));
         System.out.println("PASS: recharge signature is deterministic and salt-scoped");
 
+        // Settlement tiers are JSON numbers: the original client hands Gson's "50.0" straight to
+        // the order. Rewriting it to "50" changes both the signed digest and the amount the server
+        // compares against its configured tiers, which is what 157 充值金额错误 looks like.
+        equal("50.0", RechargeSignature.normalizeAmount("50.0"));
+        equal("0.01", RechargeSignature.normalizeAmount("0.01"));
+        equal("1000", RechargeSignature.normalizeAmount("1000"));
+        equal("50", RechargeSignature.normalizeAmount(" 50 "));
+        equal("50", RechargeSignature.displayAmount("50.0"));
+        equal("0.01", RechargeSignature.displayAmount("0.01"));
+        equal("300", RechargeSignature.displayAmount("300"));
+        equal(true, !RechargeSignature.alipay("abc123", "50.0", "13800138000")
+            .equals(RechargeSignature.alipay("abc123", "50", "13800138000")));
+        equal(RechargeSignature.alipay("abc123", "50.0", "13800138000"),
+            RechargeSignature.sign(fields("telPhone", "13800138000", "rechargeMoney", "50.0",
+                "payWay", "2", "loginCode", "abc123"), "sign-kailu="));
+        for (String bad : new String[]{null, "", "0", "0.00", "1001", "50.123", "50.", "-50", "1e3", "abc", "１２"})
+            rejects(() -> RechargeSignature.normalizeAmount(bad));
+        System.out.println("PASS: recharge amounts keep the server tier spelling and stay in range");
+
         // Grade columns: identified by label, never by position, and 学分 must not be read as 成绩.
         int[] graded = EduTableColumns.grade(Arrays.asList("序号", "课程名称", "学分", "成绩", "绩点"));
         equal(1, graded[EduTableColumns.NAME]);

@@ -86,7 +86,8 @@ final class SmsAccountApi {
      * routes and the settlement routes, and that flag is set from {@code UserInfo.isMigrated} on
      * login and on every user/info refresh. Reading it from the profile we already fetched keeps the
      * recharge path at two requests instead of three — and keeps the decision on the same reply the
-     * account fields came from, so the two can never disagree.
+     * account fields came from, so the two can never disagree. The original client hard-codes
+     * {@code MyApp.f = true}, so an absent flag also means v3 — see {@link AccountProfile#migrated}.
      */
     static boolean migrated(AccountProfile profile) {
         return profile.migrated;

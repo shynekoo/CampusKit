@@ -13,6 +13,9 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import io.qzxy.lite.core.AccountSession;
+import io.qzxy.lite.core.RechargeSignature;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -25,7 +28,8 @@ import java.util.concurrent.Executors;
  * because an intent was launched.</p>
  */
 public final class RechargeActivity extends Activity {
-    private static final String[] PRESETS = {"20", "50", "100", "300"};
+    /** Used only until the campus' own configured amounts arrive from the server. */
+    private static final List<String> FALLBACK_TIERS = Arrays.asList("20.0", "50.0", "100.0", "300.0");
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private DeviceScreen screen;
@@ -33,7 +37,8 @@ public final class RechargeActivity extends Activity {
     private EditText custom;
     private Button pay, login;
     private LinearLayout presets;
-    private String amount = PRESETS[1];
+    private List<String> tiers = FALLBACK_TIERS;
+    private String amount = FALLBACK_TIERS.get(1);
     private int generation;
     private boolean busy;
     private boolean awaitingPayment;
@@ -56,8 +61,8 @@ public final class RechargeActivity extends Activity {
         chipRow();
 
         custom = new EditText(this);
-        custom.setHint("其他金额，1–1000 的整数");
-        custom.setInputType(InputType.TYPE_CLASS_NUMBER);
+        custom.setHint("其他金额，0.01–1000 元");
+        custom.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
         custom.setTextSize(16);
         custom.setSingleLine(true);
         custom.setPadding(dp(14), dp(10), dp(14), dp(10));
@@ -66,7 +71,7 @@ public final class RechargeActivity extends Activity {
         customParams.topMargin = dp(8);
         screen.card.addView(custom, customParams);
 
-        amountLabel = screen.text(screen.card, "将充值 ¥" + amount, 14);
+        amountLabel = screen.text(screen.card, "将充值 ¥" + RechargeSignature.displayAmount(amount), 14);
         amountLabel.setTextColor(AppUi.ACCENT);
 
         screen.text(screen.card, "支付方式", 14);
@@ -86,10 +91,11 @@ public final class RechargeActivity extends Activity {
 
     private void chipRow() {
         presets.removeAllViews();
-        for (String value : PRESETS) {
+        for (String value : tiers) {
+            String label = RechargeSignature.displayAmount(value);
             boolean selected = value.equals(amount);
             TextView chip = new TextView(this);
-            chip.setText(value + " 元");
+            chip.setText(label + " 元");
             chip.setTextSize(15);
             chip.setGravity(Gravity.CENTER);
             chip.setMinHeight(dp(44));
@@ -98,7 +104,7 @@ public final class RechargeActivity extends Activity {
             chip.setTextColor(selected ? 0xffffffff : AppUi.INK);
             chip.setBackground(selected ? AppUi.shape(this, AppUi.ACCENT, 12)
                 : AppUi.outlined(this, 0xffffffff, 12, AppUi.LINE));
-            chip.setContentDescription("充值 " + value + " 元" + (selected ? "，已选中" : ""));
+            chip.setContentDescription("充值 " + label + " 元" + (selected ? "，已选中" : ""));
             chip.setOnClickListener(v -> pick(value));
             LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, -2, 1);
             params.setMargins(dp(3), 0, dp(3), 0);
@@ -106,11 +112,20 @@ public final class RechargeActivity extends Activity {
         }
     }
 
+    /** Replace the guessed amounts with the campus' configured ones, keeping the user's pick if valid. */
+    private void applyTiers(List<String> fromServer) {
+        tiers = fromServer;
+        if (!tiers.contains(amount)) amount = tiers.get(0);
+        custom.setText("");
+        chipRow();
+        amountLabel.setText("将充值 ¥" + RechargeSignature.displayAmount(amount));
+    }
+
     private void pick(String value) {
         amount = value;
         custom.setText("");
         chipRow();
-        amountLabel.setText("将充值 ¥" + amount);
+        amountLabel.setText("将充值 ¥" + RechargeSignature.displayAmount(amount));
     }
 
     private String chosen() {
@@ -141,7 +156,25 @@ public final class RechargeActivity extends Activity {
                 AccountProfile profile = SmsAccountApi.profile(signedIn);
                 post(ticket, () -> { balance.setText("正在读取余额…"); hint.setText(profile.description()); });
                 String text = SmsAccountApi.wallet(signedIn, profile);
-                post(ticket, () -> { balance.setText(text); pay.setVisibility(View.VISIBLE); login.setVisibility(View.GONE); });
+                // The server decides which amounts this campus accepts. A campus with no configured
+                // tiers (158) or a network hiccup must not hide the balance or block an attempt.
+                List<String> fromServer = null;
+                String tierNote;
+                try {
+                    fromServer = RechargeApi.amounts(signedIn, profile, SmsAccountApi.migrated(profile));
+                    tierNote = "已列出该校配置的充值金额；选其它金额可能被服务器拒绝。";
+                } catch (Exception unavailable) {
+                    tierNote = "没取到该校的充值金额配置，先用上面的金额试，或手动输入。";
+                }
+                final List<String> loaded = fromServer;
+                final String note = tierNote;
+                final String accountInfo = profile.description();
+                post(ticket, () -> {
+                    if (loaded != null && !loaded.isEmpty()) applyTiers(loaded);
+                    balance.setText(text);
+                    hint.setText(note + "\n" + accountInfo);
+                    pay.setVisibility(View.VISIBLE); login.setVisibility(View.GONE);
+                });
             } catch (HttpForm.SessionExpired expired) {
                 try { AccountVault.clearExpired(this, session); } catch (Exception ignored) { }
                 post(ticket, () -> { balance.setText("登录已失效"); hint.setText("请重新登录后再充值。"); pay.setVisibility(View.GONE); login.setVisibility(View.VISIBLE); });
@@ -167,7 +200,7 @@ public final class RechargeActivity extends Activity {
         hint.setText("");
         new AlertDialog.Builder(this)
             .setTitle("确认充值")
-            .setMessage("将创建一笔 ¥" + value + " 的充值订单，随后在支付宝中由你本人确认付款。\n\n未在支付宝完成付款不会扣款。")
+            .setMessage("将创建一笔 ¥" + RechargeSignature.displayAmount(value) + " 的充值订单，随后在支付宝中由你本人确认付款。\n\n未在支付宝完成付款不会扣款。")
             .setNegativeButton("取消", null)
             .setPositiveButton("去支付宝", (d, w) -> create(value))
             .show();
@@ -192,7 +225,7 @@ public final class RechargeActivity extends Activity {
                 String detail = expired.code == 0 ? "" : "（错误码 " + expired.code
                     + (expired.detail.isEmpty() ? "" : "：" + expired.detail) + "）";
                 post(ticket, () -> { busy(false); hint.setText("读取账号资料这一步，服务器说登录失效" + detail
-                    + "。余额刚才是能查的，说明账号没失效，请再点一次；如果一直这样，把这句话发给我。"); });
+                    + "。余额刚才是能查的，说明账号没有失效，请再点一次充值。"); });
             } catch (Exception failure) {
                 String message = failure.getMessage();
                 post(ticket, () -> { busy(false); hint.setText(message == null || message.isEmpty() ? "订单创建失败，未发起支付。" : "未能创建订单：" + message); });
