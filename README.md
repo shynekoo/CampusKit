@@ -1,6 +1,8 @@
 # CampusKit（趣智校园第三方安卓客户端）
 
-当前版本：[CampusKit 1.0.12 安装包](https://github.com/shynekoo/CampusKit/releases/tag/v1.0.12) · [更新说明](delivery/release-1.0.12.md)。界面美化：今日课程改彩色卡片、底部标签栏与弹窗圆角统一，已覆盖安装到手机并确认可用。
+当前版本：CampusKit 1.1.0（`delivery/CampusKit-1.1.0.apk`，版本代码 130）。新增余额充值（支付宝）与教务成绩、空教室查询；664 项核心断言通过，签名校验通过。**本版尚未真机验证**：构建时手机未连接、模拟器未能启动。[发布说明](delivery/release-1.1.0.md)。
+
+2026-11-15：1.1.0 按原版 6.5.28 反编译补上三块功能。（1）充值：账号 → 趣智校园 → 充值，走 `project/info/triple` 判定 `isMigrated` 后选 `wallet/recharge/aliPay` 或 `settlement/alipay/recharge/balance`，请求签名由 `sj.e0.e` 的排序拼接 + 原生盐重建（`core/RechargeSignature`）；钱只在支付宝里扣，返回后重新读余额，界面不会自报“充值成功”。微信/银联/校园卡需要各自 SDK 与商户签名，未实现，页面已注明。（2）成绩、空教室：复用课表导入的教务 WebView 登录，按页面菜单文字找入口而不写死路由，读取渲染后的表格，能认出「课程+成绩」列时显示成绩清单，其余表格按原列显示。[明细](delivery/release-1.1.0.md)，[充值依据](analysis/recharge-integration.md)。
 
 2026-10-14：1.0.12 合入用户提供的美化界面（AppUi 新增描边工具，今日课程改为按课程配色填充的圆角卡片，正在上课加圆点标记，已结束整行淡化；底部标签栏改为描边圆角并选中态浅底；周视图今日列表头改为蓝色圆角块并移除纵向网格线；弹窗统一 24dp 圆角）。644 项核心断言通过，v2/v3 签名验证通过，已覆盖安装到手机并确认可用；安装包为 delivery/CampusKit-1.0.12.apk（版本代码 129），[合入明细](delivery/ui-beautify-1.0.12.md)。
 

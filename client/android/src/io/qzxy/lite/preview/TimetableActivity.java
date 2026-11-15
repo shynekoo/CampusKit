@@ -393,10 +393,11 @@ public final class TimetableActivity extends Activity {
 
     private void manage() {
         if(unreadable || importing)return;
-        new AlertDialog.Builder(this).setTitle("我的课表").setItems(new String[]{"从教务系统导入", "开学日期", "添加课程", "全部课程（"+courses.size()+"）", "自定义背景图片", "添加桌面课表组件", "导出备份", "恢复备份"}, (d,index)-> {
+        new AlertDialog.Builder(this).setTitle("我的课表").setItems(new String[]{"从教务系统导入", "开学日期", "添加课程", "全部课程（"+courses.size()+"）", "自定义背景图片", "添加桌面课表组件", "导出备份", "恢复备份", "查成绩", "查空教室"}, (d,index)-> {
             if(index==0)startActivityForResult(new Intent(this,TimetableWebActivity.class),41);
             else if(index==1)semester();else if(index==2)edit(null);else if(index==3)allCourses();
             else if(index==4)backgroundMenu();else if(index==5)addScheduleWidget();else if(index==6)document(Intent.ACTION_CREATE_DOCUMENT,"application/json",81);else if(index==7)document(Intent.ACTION_OPEN_DOCUMENT,"*/*",82);
+            else if(index==8)openEdu("grades");else if(index==9)openEdu("rooms");
         }).setNegativeButton("关闭",null).show();
     }
     /**
@@ -517,6 +518,7 @@ public final class TimetableActivity extends Activity {
         LinearLayout content=column();scroll.addView(content,new ScrollView.LayoutParams(-1,-2));
         root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
         shortcutsCard(content);gap(content,14);
+        academicCard(content);gap(content,14);
         if(pickupWidget.hasPickup()){pickupCard(content);gap(content,14);}
         todayCourses(content);gap(content,18);
         if(!pickupWidget.hasPickup()){pickupCard(content);gap(content,14);}
@@ -599,8 +601,19 @@ public final class TimetableActivity extends Activity {
         row.addView(shortcutTile("parcel","菜鸟","出库码",this::openCainiao),new LinearLayout.LayoutParams(0,-2,1));
         card.addView(row);parent.addView(card,new LinearLayout.LayoutParams(-1,-2));
     }
-    private View shortcutTile(String icon,String title,String subtitle,Runnable action) {
-        LinearLayout tile=column();tile.setGravity(android.view.Gravity.CENTER);tile.setPadding(dp(4),dp(10),dp(4),dp(10));tile.setMinimumHeight(dp(96));AppUi.press(tile,0xffffffff,10);tile.setOnClickListener(v->action.run());
+    /** Grades and empty classrooms, read through the school's own academic site. */
+    private void academicCard(LinearLayout parent) {
+        LinearLayout card=whiteCard();cardHeader(card,"教务",null,null);gap(card,8);
+        LinearLayout row=new LinearLayout(this);
+        row.addView(shortcutTile("score","成绩","查询",()->openEdu("grades")),new LinearLayout.LayoutParams(0,-2,1));
+        row.addView(shortcutTile("room","空教室","查询",()->openEdu("rooms")),new LinearLayout.LayoutParams(0,-2,1));
+        card.addView(row);parent.addView(card,new LinearLayout.LayoutParams(-1,-2));
+    }
+    private void openEdu(String mode){
+        try{startActivity(new Intent(this,EduQueryActivity.class).putExtra("mode",mode));}
+        catch(RuntimeException unavailable){notice("无法打开教务页面。");}
+    }
+    private View shortcutTile(String icon,String title,String subtitle,Runnable action) {        LinearLayout tile=column();tile.setGravity(android.view.Gravity.CENTER);tile.setPadding(dp(4),dp(10),dp(4),dp(10));tile.setMinimumHeight(dp(96));AppUi.press(tile,0xffffffff,10);tile.setOnClickListener(v->action.run());
         android.widget.ImageView mark=new android.widget.ImageView(this);mark.setImageDrawable(AppUi.icon(this,icon,AppUi.ACCENT,24));mark.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);mark.setBackground(AppUi.shape(this,AppUi.SOFT,22));mark.setPadding(dp(10),dp(10),dp(10),dp(10));tile.addView(mark,new LinearLayout.LayoutParams(dp(44),dp(44)));
         TextView name=bold(title,13);name.setGravity(android.view.Gravity.CENTER);name.setPadding(0,dp(8),0,0);tile.addView(name);
         TextView hint=text(subtitle,12);hint.setTextColor(AppUi.MUTED);hint.setGravity(android.view.Gravity.CENTER);tile.addView(hint);tile.setContentDescription(title+"，"+subtitle);return tile;

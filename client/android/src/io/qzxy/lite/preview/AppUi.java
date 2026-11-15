@@ -29,6 +29,8 @@ final class AppUi {
     case "pay":rect(c,3,5,21,19);line(c,3,10,21,10);line(c,6,15,10,15);break;
     case "parcel":rect(c,4,5,20,20);line(c,4,10,20,10);line(c,12,5,12,10);line(c,9,15,15,15);break;
     case "water":Path drop=new Path();drop.moveTo(12,2);drop.cubicTo(9,7,5,10,5,15);drop.cubicTo(5,24,19,24,19,15);drop.cubicTo(19,10,15,7,12,2);c.drawPath(drop,p);break;
+    case "score":rect(c,4,3,20,21);line(c,8,9,16,9);line(c,8,13,13,13);line(c,8,17,13,17);line(c,15,16,16.6f,18);line(c,16.6f,18,19,15);break;
+    case "room":rect(c,3,4,21,20);line(c,13,4,13,20);c.drawCircle(16.5f,12,.9f,p);line(c,3,20,21,20);break;
     default:line(c,3,9,3,3);line(c,3,3,9,3);line(c,15,3,21,3);line(c,21,3,21,9);line(c,3,15,3,21);line(c,3,21,9,21);line(c,15,21,21,21);line(c,21,21,21,15);line(c,7,12,17,12);
    }c.restoreToCount(save);
   }

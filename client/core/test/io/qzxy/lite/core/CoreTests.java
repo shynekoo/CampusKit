@@ -630,6 +630,40 @@ public final class CoreTests {
         for (String broken : new String[]{null, "", "2026-9-22", "20260922", "2026-13-01", "2026-00-10", "2026-09-32"})
             rejects(() -> DailyQuote.forDate(broken));
         System.out.println("PASS: daily quote is stable per date and date arithmetic is zone-independent");
+
+        // Recharge signature: fixed salt, sorted field names, lowercase MD5 (vectors from Python).
+        equal("0767b8783fe2ce35b7510dbc0b1c3b17",
+            RechargeSignature.alipay("abc123", "50", "13800138000"));
+        equal("d3fd54b3f63bb2c52b4bcd1145bbd106",
+            RechargeSignature.alipayFallback("abc123", "50", "13800138000"));
+        // Order of insertion must not matter: only sorted names enter the digest.
+        equal(RechargeSignature.alipay("abc123", "50", "13800138000"),
+            RechargeSignature.sign(fields("telPhone", "13800138000", "rechargeMoney", "50",
+                "payWay", "2", "loginCode", "abc123"), "sign-kailu="));
+        equal(32, RechargeSignature.alipay("abc123", "50", "13800138000").length());
+        equal(true, RechargeSignature.alipay("abc123", "50", "13800138000").matches("[0-9a-f]{32}"));
+        rejects(() -> RechargeSignature.sign(new java.util.LinkedHashMap<String, String>(), "sign-kailu="));
+        rejects(() -> RechargeSignature.sign(null, "sign-kailu="));
+        System.out.println("PASS: recharge signature is deterministic and salt-scoped");
+
+        // Grade columns: identified by label, never by position, and 学分 must not be read as 成绩.
+        int[] graded = EduTableColumns.grade(Arrays.asList("序号", "课程名称", "学分", "成绩", "绩点"));
+        equal(1, graded[EduTableColumns.NAME]);
+        equal(3, graded[EduTableColumns.SCORE]);
+        equal(2, graded[EduTableColumns.CREDIT]);
+        equal(4, graded[EduTableColumns.GPA]);
+        equal(true, EduTableColumns.usable(graded));
+        int[] renamed = EduTableColumns.grade(Arrays.asList("科目", "总成绩", "学分"));
+        equal(0, renamed[EduTableColumns.NAME]);
+        equal(1, renamed[EduTableColumns.SCORE]);
+        equal(-1, renamed[EduTableColumns.GPA]);
+        int[] noScore = EduTableColumns.grade(Arrays.asList("课程", "学分", "绩点"));
+        equal(-1, noScore[EduTableColumns.SCORE]);
+        equal(false, EduTableColumns.usable(noScore));      // A credit count is not a score.
+        equal(false, EduTableColumns.usable(EduTableColumns.grade(null)));
+        equal(false, EduTableColumns.usable(EduTableColumns.grade(new ArrayList<String>())));
+        equal(false, EduTableColumns.usable(null));
+        System.out.println("PASS: grade columns are matched by label and refuse ambiguous tables");
         System.out.println("All " + assertions + " assertions passed. Live API/Bluetooth compatibility is not tested here.");
     }
 }

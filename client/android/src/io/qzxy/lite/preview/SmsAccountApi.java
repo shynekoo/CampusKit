@@ -81,6 +81,22 @@ final class SmsAccountApi {
         return value;
     }
 
+    /**
+     * Original RechargeActivity reads ProjectInfo.getIsMigrated before choosing between the legacy
+     * wallet routes and the settlement routes. The same project/info/triple reply answers it here.
+     */
+    static boolean migrated(AccountSession session, AccountProfile profile) throws IOException, JSONException {
+        if (!profile.hasAccount()) throw new IOException("当前账号没有返回校园账户，暂不能充值");
+        java.util.Map<String, String> fields = authenticated(session);
+        fields.put("projectId", profile.projectId);
+        fields.put("accountId", profile.accountId);
+        if (!profile.telephone.isEmpty()) { fields.put("telephone", profile.telephone); fields.put("telPhone", profile.telephone); }
+        JSONObject project = HttpForm.successfulData(request("project/info/triple", SmsLoginProtocol.form(fields), false));
+        if (!profile.projectId.equals(AccountProfile.identifier(project, "projectId")))
+            throw new IOException("校园资料不匹配，已停止");
+        return "1".equals(migrationFlag(project));
+    }
+
     /** Original ScanCodeActivity.c2 / ui.f.m read-only project route. */
     static String alipayWaterLink(AccountSession session, DeviceLookup device) throws IOException, JSONException {
         if (device == null || !device.alipayReady() || !device.profile.inProject(session.projectId()))
