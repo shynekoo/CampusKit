@@ -32,6 +32,8 @@ public final class EduSite {
     private static final Pattern GRADE_CODE = Pattern.compile("gnmkdm=N305\\d{3}", Pattern.CASE_INSENSITIVE);
     /** A Chinese character escaped the way an embedded script writes it. */
     private static final Pattern UNICODE = Pattern.compile("\\\\u([0-9a-fA-F]{4})");
+    private static final Pattern KB_PATH = Pattern.compile("/kbcx/[A-Za-z0-9_]+\\.html(?:\\?[^\"'<>\\s)]*)?");
+    private static final Pattern KB_NAME = Pattern.compile("(?<![A-Za-z0-9_/])(xskbcx_[A-Za-z0-9_]+\\.html)");
 
     private EduSite() { }
 
@@ -393,6 +395,31 @@ public final class EduSite {
         for (String[] option : types)
             if (option[1].contains("多媒体")) return option[0];
         return "";
+    }
+
+    /**
+     * Query endpoints the school's own timetable page names, in page order. 正方 renames this
+     * endpoint between deployments, so the page is a better source than a compiled-in list. The
+     * Index page itself is not a query, and a bare filename is given the /kbcx/ folder back.
+     */
+    public static List<String> timetableQueries(String html) {
+        List<String> out = new ArrayList<>();
+        if (html == null) return out;
+        Matcher full = KB_PATH.matcher(html);
+        while (full.find() && out.size() < 8) {
+            String path = full.group();
+            if (path.toLowerCase(java.util.Locale.ROOT).contains("index")) continue;
+            if (path.indexOf('?') < 0) path += "?gnmkdm=N2151";
+            if (!out.contains(path)) out.add(path);
+        }
+        Matcher bare = KB_NAME.matcher(html);
+        while (bare.find() && out.size() < 8) {
+            String name = bare.group(1);
+            if (name.toLowerCase(java.util.Locale.ROOT).contains("index")) continue;
+            String path = "/kbcx/" + name + "?gnmkdm=N2151";
+            if (!out.contains(path)) out.add(path);
+        }
+        return out;
     }
 
     private static String squeeze(String text) {

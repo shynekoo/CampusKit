@@ -683,6 +683,50 @@ public final class CoreTests {
             rejects(() -> RechargeSignature.normalizeAmount(bad));
         System.out.println("PASS: recharge amounts keep the server tier spelling and stay in range");
 
+        // Automatic timetable import: 正方 field shapes -> text the shared course parser already reads.
+        equal(0, EduTimetable.day("1", ""));
+        equal(6, EduTimetable.day("", "星期日"));
+        equal(6, EduTimetable.day("", "星期天"));
+        rejects(() -> EduTimetable.day("8", ""));
+        rejects(() -> EduTimetable.day("", "星期八"));
+        equal("1-2", EduTimetable.sections("1-2"));
+        equal("1-2", EduTimetable.sections("01-02"));
+        equal("1-2", EduTimetable.sections("0102"));
+        equal("10-11", EduTimetable.sections("1011"));
+        equal("3", EduTimetable.sections("3"));
+        rejects(() -> EduTimetable.sections("17-18"));
+        rejects(() -> EduTimetable.sections("abc"));
+        equal("1-16周", EduTimetable.weeks("1-16周", ""));
+        equal("1-16周(单周)", EduTimetable.weeks("1-16周(单周)", ""));
+        equal("1-16周(双周)", EduTimetable.weeks("1-16", "双"));
+        equal("5周", EduTimetable.weeks("5周", ""));
+        rejects(() -> EduTimetable.weeks("1,3,5-16周", ""));
+        rejects(() -> EduTimetable.weeks("20-1周", ""));
+        equal("A B", EduTimetable.clean("A&nbsp;<br/>B"));
+        equal("(1-2节)1-16周/场地:教101/教师:张三/教学班:高等数学",
+            EduTimetable.courseText("1-2", "1-16周", "教101", "张三", "高等数学"));
+        TimetablePdfParser.Course auto = TimetableWebCourseParser.parse(0, "高等数学",
+            EduTimetable.courseText("1-2", "1-16周(单周)", "教101", "张三", "高等数学"));
+        equal("高等数学", auto.name);
+        equal("教101", auto.room);
+        equal("张三", auto.teacher);
+        equal(0, auto.day);
+        equal(1, auto.first);
+        equal(2, auto.last);
+        equal(1, auto.from);
+        equal(16, auto.to);
+        equal(1, auto.parity);
+        System.out.println("PASS: academic timetable fields become valid course rows");
+        java.util.List<String> found = EduSite.timetableQueries(
+            "<script>url:'/kbcx/xskbcx_cxXsKbcx.html?gnmkdm=N2151';var a='xskbcx_cxXsKb.html';</script>"
+            + "<a href='/kbcx/xskbcx_cxXskbcxIndex.html?gnmkdm=N2151'>index</a>");
+        equal(2, found.size());
+        equal("/kbcx/xskbcx_cxXsKbcx.html?gnmkdm=N2151", found.get(0));
+        equal("/kbcx/xskbcx_cxXsKb.html?gnmkdm=N2151", found.get(1));
+        equal(true, EduSite.timetableQueries(null).isEmpty());
+        equal(true, EduSite.timetableQueries("<a href='/kbcx/xskbcx_cxXskbcxIndex.html'>index</a>").isEmpty());
+        System.out.println("PASS: timetable query endpoints are discovered from the school page");
+
         // Grade columns: identified by label, never by position, and 学分 must not be read as 成绩.
         int[] graded = EduTableColumns.grade(Arrays.asList("序号", "课程名称", "学分", "成绩", "绩点"));
         equal(1, graded[EduTableColumns.NAME]);

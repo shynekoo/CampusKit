@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="io.qzxy.lite.preview" android:versionCode="138" android:versionName="1.4.4-readonly">
+    package="io.qzxy.lite.preview" android:versionCode="139" android:versionName="1.4.5-readonly">
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="36" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CAMERA" />
@@ -32,6 +32,8 @@
         <activity android:name=".EduLoginActivity" android:exported="false" android:configChanges="orientation|screenSize" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".EduQueryActivity" android:exported="false" android:configChanges="orientation|screenSize" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".EduResultActivity" android:exported="false" />
+        <activity android:name=".EduPortalActivity" android:exported="false" android:configChanges="orientation|screenSize" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".EduTimetableImportActivity" android:exported="false" android:configChanges="orientation|screenSize" />
         <activity android:name=".AccountActivity" android:exported="false" />
         <activity android:name=".LifeDeviceActivity" android:exported="false" />
         <activity android:name=".LifeLoginActivity" android:exported="false" />

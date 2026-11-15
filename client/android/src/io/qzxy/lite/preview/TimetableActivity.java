@@ -196,6 +196,14 @@ public final class TimetableActivity extends Activity {
             catch(Exception invalid) { new AlertDialog.Builder(this).setMessage("网页课表未能完整识别，已有课表未修改。"+invalid.getMessage()).setPositiveButton("知道了",null).show(); }
             return;
         }
+        if (request == 42 && result == RESULT_OK && data != null && data.hasExtra("courses")) {
+            if (data.getBooleanExtra("auto", false)) autoImport(data);
+            else {
+                try { previewPdf(TimetableWebReader.parse(data.getStringExtra("courses")), "核对教务课表"); }
+                catch(Exception invalid) { new AlertDialog.Builder(this).setMessage("网页课表未能完整识别，已有课表未修改。"+invalid.getMessage()).setPositiveButton("知道了",null).show(); }
+            }
+            return;
+        }
         if (request != 40 || result != RESULT_OK || data == null || data.getData() == null || importing) return;
         importing = true; render(); final android.net.Uri uri = data.getData();
         pdfWorker.execute(() -> {
@@ -249,6 +257,66 @@ public final class TimetableActivity extends Activity {
             new AlertDialog.Builder(this).setMessage("课表信息未通过校验，未修改已有课程。"+(invalid.getMessage()==null?"":invalid.getMessage())).setPositiveButton("知道了",null).show();
         }
     }
+    /** A chosen term replaces the timetable in one step; one undo copy is kept for that import. */
+    private void autoImport(Intent data) {
+        try {
+            io.qzxy.lite.core.TimetablePdfParser.Result parsed =
+                TimetableWebReader.parse(data.getStringExtra("courses"));
+            List<JSONObject> replacement = new ArrayList<>();
+            for (io.qzxy.lite.core.TimetablePdfParser.Course c : parsed.courses) {
+                JSONObject item = new JSONObject();
+                item.put("name", c.name); item.put("room", c.room); item.put("teacher", c.teacher);
+                item.put("day", c.day); item.put("first", c.first); item.put("last", c.last);
+                item.put("from", c.from); item.put("to", c.to); item.put("parity", c.parity);
+                validate(item);
+                boolean duplicate = false;
+                for (JSONObject old : replacement) {
+                    boolean equal = true;
+                    for (String key : new String[]{"name","room","teacher","day","first","last","from","to","parity"})
+                        if (!old.get(key).equals(item.get(key))) equal = false;
+                    if (equal) { duplicate = true; break; }
+                }
+                if (!duplicate) replacement.add(item);
+            }
+            if (replacement.isEmpty() || replacement.size() > 500)
+                throw new IllegalArgumentException("课程数量异常");
+            JSONArray array = new JSONArray(); for (JSONObject c : replacement) array.put(c);
+            String term = data.getStringExtra("term");
+            if (term == null || term.isEmpty()) term = "教务课表";
+            int skipped = data.getIntExtra("skipped", 0);
+            String notes = term + "：从教务系统自动导入 " + replacement.size() + " 门课"
+                + (skipped > 0 ? "（跳过 " + skipped + " 条字段不完整的记录）" : "");
+            String previous = store.getString("courses", "[]");
+            if (!store.edit().putString("courses", array.toString()).putString("undo_courses", previous)
+                .putString("import_notes", notes).putString("import_term", term).commit()) {
+                notice("课表保存失败，原课表未修改。"); return;
+            }
+            courses.clear(); courses.addAll(replacement); render();
+            String message = "已写入 " + replacement.size() + " 门课（" + term + "）。"
+                + (skipped > 0 ? "\n另有 " + skipped + " 条记录字段不完整，已跳过。" : "")
+                + (monday.isEmpty() ? "\n记得在「开学日期」里设置本学期第一周的周一。" : "")
+                + "\n点「撤销」可恢复导入前的课表。";
+            new AlertDialog.Builder(this).setTitle("课表已导入").setMessage(message)
+                .setNegativeButton("撤销",(d,w)->undoImport()).setPositiveButton("知道了",null).show();
+        } catch (Exception invalid) {
+            notice("自动导入的课表未通过校验，原课表未修改。"
+                + (invalid.getMessage() == null ? "" : invalid.getMessage()));
+        }
+    }
+
+    private void undoImport() {
+        String previous = store.getString("undo_courses", "");
+        if (previous.isEmpty()) { notice("没有可恢复的课表。"); return; }
+        try {
+            JSONArray array = new JSONArray(previous);
+            List<JSONObject> restored = new ArrayList<>();
+            for (int i = 0; i < array.length(); i++) restored.add(array.getJSONObject(i));
+            store.edit().remove("undo_courses").commit();
+            courses.clear(); courses.addAll(restored); render();
+            notice("已恢复导入前的课表。");
+        } catch (Exception invalid) { notice("恢复失败，请从备份文件恢复。"); }
+    }
+
     private int dp(int n) { return Math.round(n * getResources().getDisplayMetrics().density); }
     private TextView text(String value, int size) {
         TextView view = new TextView(this); view.setText(value); view.setTextSize(size);
@@ -393,11 +461,12 @@ public final class TimetableActivity extends Activity {
 
     private void manage() {
         if(unreadable || importing)return;
-        new AlertDialog.Builder(this).setTitle("我的课表").setItems(new String[]{"从教务系统导入", "开学日期", "添加课程", "全部课程（"+courses.size()+"）", "自定义背景图片", "添加桌面课表组件", "导出备份", "恢复备份", "查成绩", "查空教室"}, (d,index)-> {
-            if(index==0)startActivityForResult(new Intent(this,TimetableWebActivity.class),41);
-            else if(index==1)semester();else if(index==2)edit(null);else if(index==3)allCourses();
-            else if(index==4)backgroundMenu();else if(index==5)addScheduleWidget();else if(index==6)document(Intent.ACTION_CREATE_DOCUMENT,"application/json",81);else if(index==7)document(Intent.ACTION_OPEN_DOCUMENT,"*/*",82);
-            else if(index==8)openEdu("grades");else if(index==9)openEdu("rooms");
+        new AlertDialog.Builder(this).setTitle("我的课表").setItems(new String[]{"从教务系统自动导入", "网页手动导入课表", "开学日期", "添加课程", "全部课程（"+courses.size()+"）", "自定义背景图片", "添加桌面课表组件", "导出备份", "恢复备份", "查成绩", "查空教室"}, (d,index)-> {
+            if(index==0)startActivityForResult(new Intent(this,EduTimetableImportActivity.class),42);
+            else if(index==1)startActivityForResult(new Intent(this,TimetableWebActivity.class),41);
+            else if(index==2)semester();else if(index==3)edit(null);else if(index==4)allCourses();
+            else if(index==5)backgroundMenu();else if(index==6)addScheduleWidget();else if(index==7)document(Intent.ACTION_CREATE_DOCUMENT,"application/json",81);else if(index==8)document(Intent.ACTION_OPEN_DOCUMENT,"*/*",82);
+            else if(index==9)openEdu("grades");else if(index==10)openEdu("rooms");
         }).setNegativeButton("关闭",null).show();
     }
     /**
@@ -601,17 +670,27 @@ public final class TimetableActivity extends Activity {
         row.addView(shortcutTile("parcel","菜鸟","出库码",this::openCainiao),new LinearLayout.LayoutParams(0,-2,1));
         card.addView(row);parent.addView(card,new LinearLayout.LayoutParams(-1,-2));
     }
-    /** Grades and empty classrooms, read through the school's own academic site. */
+    /** Grades, empty classrooms, the auto-signed-in portal and the two official school sites. */
     private void academicCard(LinearLayout parent) {
         LinearLayout card=whiteCard();cardHeader(card,"教务",null,null);gap(card,8);
         LinearLayout row=new LinearLayout(this);
         row.addView(shortcutTile("score","成绩","查询",()->openEdu("grades")),new LinearLayout.LayoutParams(0,-2,1));
         row.addView(shortcutTile("room","空教室","查询",()->openEdu("rooms")),new LinearLayout.LayoutParams(0,-2,1));
-        card.addView(row);parent.addView(card,new LinearLayout.LayoutParams(-1,-2));
+        row.addView(shortcutTile("user","教务系统","自动登录",()->startActivity(new Intent(this,EduPortalActivity.class))),new LinearLayout.LayoutParams(0,-2,1));
+        card.addView(row);
+        LinearLayout sites=new LinearLayout(this);
+        sites.addView(shortcutTile("web","大学官网","hebeu.edu.cn",()->openSchoolSite("https://www.hebeu.edu.cn/")),new LinearLayout.LayoutParams(0,-2,1));
+        sites.addView(shortcutTile("web","科信官网","kexin.hebeu.edu.cn",()->openSchoolSite("https://kexin.hebeu.edu.cn/")),new LinearLayout.LayoutParams(0,-2,1));
+        card.addView(sites);parent.addView(card,new LinearLayout.LayoutParams(-1,-2));
     }
     private void openEdu(String mode){
         try{startActivity(new Intent(this,AcademicActivity.class).putExtra("mode",mode));}
         catch(RuntimeException unavailable){notice("无法打开教务页面。");}
+    }
+    /** Official sites open in the user's browser; only the two school HTTPS hosts are used here. */
+    private void openSchoolSite(String url){
+        try{startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(url)));}
+        catch(RuntimeException unavailable){notice("没有可以打开网页的应用。");}
     }
     private View shortcutTile(String icon,String title,String subtitle,Runnable action) {        LinearLayout tile=column();tile.setGravity(android.view.Gravity.CENTER);tile.setPadding(dp(4),dp(10),dp(4),dp(10));tile.setMinimumHeight(dp(96));AppUi.press(tile,0xffffffff,10);tile.setOnClickListener(v->action.run());
         android.widget.ImageView mark=new android.widget.ImageView(this);mark.setImageDrawable(AppUi.icon(this,icon,AppUi.ACCENT,24));mark.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);mark.setBackground(AppUi.shape(this,AppUi.SOFT,22));mark.setPadding(dp(10),dp(10),dp(10),dp(10));tile.addView(mark,new LinearLayout.LayoutParams(dp(44),dp(44)));

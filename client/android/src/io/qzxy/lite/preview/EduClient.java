@@ -55,6 +55,14 @@ final class EduClient {
         "/kwgl/kscjcx_kscjcx.html?gnmkdm=N358105",
         "/kwgl/kscjcx_kscjcx.html",
     };
+    /** The student timetable page, used as Referer for its own query endpoints. */
+    private static final String TIMETABLE_PAGE = "/kbcx/xskbcx_cxXskbcxIndex.html?gnmkdm=N2151&layout=default";
+    /** 正方 names this query differently across deployments; try each with the same term fields. */
+    private static final String[] TIMETABLE_QUERIES = {
+        "/kbcx/xskbcx_cxXsKbcx.html?gnmkdm=N2151",
+        "/kbcx/xskbcx_cxXsKb.html?gnmkdm=N2151",
+        "/kbcx/xskbcx_cxXskbcx.html?gnmkdm=N2151",
+    };
     private static final String LOGIN = "/xtgl/login_slogin.html";
     private static final String PUBLIC_KEY = "/xtgl/login_getPublicKey.html";
     private static final String MENU = "/xtgl/index_initMenu.html";
@@ -189,6 +197,12 @@ final class EduClient {
     static boolean signedIn() { return !session.isEmpty(); }
 
     static boolean hasCredentials() { return !user.isEmpty() && !password.isEmpty(); }
+
+    /** The built-in session as a Cookie header, so a WebView can open an already signed-in page. */
+    static String browserCookie() { return session; }
+
+    /** The saved student number, used only by endpoints that repeat it in the query string. */
+    static String studentId() { return user; }
 
     /**
      * Ends the school session on both sides: the server is told to drop it, then the local copy is
@@ -581,13 +595,66 @@ final class EduClient {
         return courses;
     }
 
+    /**
+     * The student timetable for one term, read from the same query endpoint the school's own page
+     * calls — no browser, no rendered grid, no manual "读取当前课表" step.
+     *
+     * <p>正方 deployments rename that endpoint, so each known name is tried with the two parameter
+     * shapes in circulation. Only a reply carrying {@code kbList} is accepted; an HTML error page or
+     * a 404 is recorded and the next candidate is tried. Validation and storage belong to the caller,
+     * so a surprising reply can never silently replace the timetable.</p>
+     */
+    static String timetable(String year, String term) throws IOException {
+        if (year == null || !year.matches("(?:19|20)\\d{2}") || term == null || !term.matches("\\d{1,3}"))
+            throw new IOException("请选择有效的学年和学期");
+        // The page itself names the query endpoint it calls; that beats guessing across deployments.
+        List<String> paths = new ArrayList<>();
+        try {
+            paths.addAll(EduSite.timetableQueries(fetch(TIMETABLE_PAGE, null)));
+        } catch (IOException unavailable) {
+            // An unreadable page only means the compiled-in candidates below are used as-is.
+        }
+        for (String path : TIMETABLE_QUERIES) if (!paths.contains(path)) paths.add(path);
+        StringBuilder tried = new StringBuilder();
+        int attempts = 0;
+        for (String path : paths) {
+            for (int variant = 0; variant < 2 && attempts < 12; variant++, attempts++) {
+                Map<String, String> form = new LinkedHashMap<>();
+                form.put("xnm", year);
+                form.put("xqm", term);
+                form.put("kzlx", "ck");
+                String url = path;
+                if (variant == 1) {
+                    form.put("xsdm", ""); form.put("kclbdm", ""); form.put("jc", "");
+                    form.put("sfzgzc", ""); form.put("sflxjc", "");
+                    if (!studentId().isEmpty()) {
+                        form.put("su", studentId());
+                        if (!path.contains("su="))
+                            url = path + (path.contains("?") ? "&" : "?") + "su=" + encode(studentId());
+                    }
+                }
+                try {
+                    JSONObject reply = ask(url, form, "课表");
+                    if (reply.optJSONArray("kbList") != null) return reply.toString();
+                    tried.append(shortPath(url)).append("(无课表数据) ");
+                } catch (IOException failure) {
+                    String message = failure.getMessage() == null ? "失败" : failure.getMessage();
+                    tried.append(shortPath(url)).append('(').append(clip(message, 70)).append(") ");
+                }
+            }
+            if (attempts >= 12) break;
+        }
+        throw new IOException("教务课表查询没有返回数据（试过 " + attempts + " 种）：" + tried);
+    }
+
     // ---- transport -----------------------------------------------------------------------
 
     private static String fetch(String path, Map<String, String> form) throws IOException {
         checkPath(path);
         cancelSignOut();
         String method = form == null ? "GET" : "POST";
-        String referer = ORIGIN + (path.startsWith("/cdjy/") ? ROOMS_PAGE : pageOf(path));
+        String referer = ORIGIN + (path.startsWith("/cdjy/") ? ROOMS_PAGE
+            : path.startsWith("/kbcx/") ? TIMETABLE_PAGE : pageOf(path));
         try {
             return checked(request(ORIGIN + path, method, form, jar(), referer));
         } catch (NotSignedIn expired) {
@@ -817,7 +884,7 @@ final class EduClient {
     }
 
     private static void checkPath(String path) throws IOException {
-        if (path.startsWith("/cdjy/") || path.startsWith("/cjcx/")) return;
+        if (path.startsWith("/cdjy/") || path.startsWith("/cjcx/") || path.startsWith("/kbcx/")) return;
         // 正方's other grade module. Named one path, not the whole folder, so this stays as narrow as
         // the feature needs: two read-only modules, nothing else.
         if (path.startsWith("/kwgl/kscjcx_kscjcx.html")) return;
