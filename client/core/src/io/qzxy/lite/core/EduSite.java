@@ -19,6 +19,9 @@ public final class EduSite {
     private static final Pattern OPTION = Pattern.compile("<option\\b([^>]*)>([^<]*)</option>",
         Pattern.CASE_INSENSITIVE);
     private static final Pattern VALUE = Pattern.compile("value\\s*=\\s*\"([^\"]*)\"", Pattern.CASE_INSENSITIVE);
+    private static final Pattern HREF = Pattern.compile("href\\s*=\\s*\"([^\"]*)\"", Pattern.CASE_INSENSITIVE);
+    private static final Pattern ANCHOR = Pattern.compile("<a\\b([^>]*)>(.*?)</a>",
+        Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
     private static final Pattern INPUT = Pattern.compile("<input\\b[^>]*>", Pattern.CASE_INSENSITIVE);
 
     private EduSite() { }
@@ -72,6 +75,101 @@ public final class EduSite {
         long bits = 0;
         for (int i = from; i <= to; i++) bits |= 1L << (i - 1);
         return Long.toString(bits);
+    }
+
+    /** Bit mask for any set of periods, so 1, 2 and 5 become 19. */
+    public static String periodMask(int[] sections) {
+        if (sections == null || sections.length == 0) throw new IllegalArgumentException("节次为空");
+        long bits = 0;
+        for (int section : sections) {
+            if (section < 1 || section > 62) throw new IllegalArgumentException("节次超出范围");
+            bits |= 1L << (section - 1);
+        }
+        return Long.toString(bits);
+    }
+
+    /**
+     * Parses a stored period selection — {@code 1,2,5} or {@code 1-4} — into sorted unique
+     * periods. Anything out of range is dropped instead of widening the query.
+     */
+    public static int[] sections(String value) {
+        java.util.TreeSet<Integer> found = new java.util.TreeSet<>();
+        if (value != null) for (String part : value.split(",")) {
+            String text = part.trim();
+            if (text.isEmpty()) continue;
+            int dash = text.indexOf('-');
+            if (dash > 0) {
+                int from = number(text.substring(0, dash)), to = number(text.substring(dash + 1));
+                if (from >= 1 && to >= from && to <= 62) for (int i = from; i <= to; i++) found.add(i);
+            } else {
+                int single = number(text);
+                if (single >= 1 && single <= 62) found.add(single);
+            }
+        }
+        int[] out = new int[found.size()];
+        int index = 0;
+        for (int section : found) out[index++] = section;
+        return out;
+    }
+
+    /** "第 1-2、5 节" — consecutive periods collapse, gaps stay visible. */
+    public static String sectionLabel(int[] sections) {
+        if (sections == null || sections.length == 0) return "";
+        StringBuilder out = new StringBuilder("第 ");
+        int start = sections[0], end = start;
+        for (int index = 1; index <= sections.length; index++) {
+            int current = index < sections.length ? sections[index] : -1;
+            if (current == end + 1) { end = current; continue; }
+            if (out.length() > 2) out.append('、');
+            out.append(start == end ? Integer.toString(start) : start + "-" + end);
+            start = current;
+            end = current;
+        }
+        return out.append(" 节").toString();
+    }
+
+    /**
+     * The grade page the school links from its own menu, as a path with its query.
+     *
+     * <p>Reading it instead of compiling it in means a renamed module or a different function code
+     * still works; the caller decides what to do when the menu has no grade entry at all.</p>
+     */
+    public static String gradeLink(String html) {
+        if (html == null) return "";
+        Matcher anchor = ANCHOR.matcher(html);
+        String fallback = "";
+        while (anchor.find()) {
+            Matcher href = HREF.matcher(anchor.group(1));
+            if (!href.find()) continue;
+            String target = href.group(1).trim();
+            if (target.isEmpty() || target.startsWith("#") || target.toLowerCase(java.util.Locale.ROOT).startsWith("javascript")) continue;
+            if (!target.contains(".html")) continue;
+            String text = anchor.group(2).replaceAll("<[^>]*>", " ").replace("&nbsp;", " ")
+                .replaceAll("\\s+", " ").trim();
+            if (!text.contains("成绩")) continue;
+            String path = toPath(target);
+            if (path.isEmpty()) continue;
+            if (text.contains("成绩查询")) return path;
+            if (fallback.isEmpty()) fallback = path;
+        }
+        return fallback;
+    }
+
+    private static String toPath(String target) {
+        String path = target;
+        int scheme = path.indexOf("://");
+        if (scheme >= 0) {
+            int slash = path.indexOf('/', scheme + 3);
+            path = slash < 0 ? "" : path.substring(slash);
+        }
+        int hash = path.indexOf('#');
+        if (hash >= 0) path = path.substring(0, hash);
+        if (path.isEmpty()) return "";
+        return path.startsWith("/") ? path : "/" + path;
+    }
+
+    private static int number(String value) {
+        try { return Integer.parseInt(value.trim()); } catch (RuntimeException invalid) { return 0; }
     }
 
     /**

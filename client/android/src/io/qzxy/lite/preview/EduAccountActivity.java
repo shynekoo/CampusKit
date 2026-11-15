@@ -115,7 +115,9 @@ public final class EduAccountActivity extends Activity {
                 }
                 user.setText(stored.user);
                 password.setText(stored.password);
-                status.setText("已保存 " + stored.user + "。改完直接保存即可。");
+                status.setText(stored.refused
+                    ? "已保存 " + stored.user + "，但学校上次拒绝了这个密码。核对后重新保存，才会再自动登录。"
+                    : "已保存 " + stored.user + "。改完直接保存即可。");
             });
         });
     }
@@ -137,6 +139,7 @@ public final class EduAccountActivity extends Activity {
                 EduClient.remember(name, secret);
                 EduClient.signIn();
                 vault.save(name, secret);
+                vault.refused(false);
                 ok = true;
                 message = "登录成功，已保存。以后查成绩和空教室不用再输密码。";
             } catch (EduClient.BadPassword wrong) {

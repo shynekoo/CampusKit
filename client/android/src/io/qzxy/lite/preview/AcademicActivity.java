@@ -22,10 +22,10 @@ import java.util.concurrent.Executors;
  *
  * <p>No web page to click through: the screen asks the academic system for the current term, its
  * buildings, its period times and its real week calendar, then queries with the week, weekday and
- * period the user picked. Changing any filter re-queries by itself. Everything is read-only.</p>
+ * periods the user picked. Changing any filter re-queries by itself. Everything is read-only.</p>
  *
- * <p>Signing in still happens in the school's own page inside the app, so the password is typed once
- * into the school's form and is never stored or seen here.</p>
+ * <p>The saved account is used to sign in for the query and the session is closed when this screen
+ * goes away, so the account is not left signed in on the school's side.</p>
  */
 public final class AcademicActivity extends Activity {
     private static final String[] WEEKDAYS = {"星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"};
@@ -40,7 +40,7 @@ public final class AcademicActivity extends Activity {
     private EduClient.Campus campus;
     private EduClient.Semester semester;
     private int generation;
-    private boolean busy, needsLogin, afterLogin, afterAccount;
+    private boolean busy, needsLogin, afterLogin, afterAccount, handoff, loggedOut;
     private final android.os.Handler watchdog = new android.os.Handler(android.os.Looper.getMainLooper());
 
     /** Nothing should be able to leave the progress bar running forever. */
@@ -80,10 +80,13 @@ public final class AcademicActivity extends Activity {
         TextView webLogin = action("网页登录", this::openLogin);
         webLogin.setContentDescription("打开教务系统登录页，手动登录一次");
         loginBar.addView(webLogin, new LinearLayout.LayoutParams(0, -2, 1));
+        TextView signOut = action("退出登录", this::signOut);
+        signOut.setContentDescription("立即退出教务系统的登录状态");
+        loginBar.addView(signOut, new LinearLayout.LayoutParams(0, -2, 1));
         screen.root.addView(loginBar);
 
         results = paper();
-        screen.note("数据来自学校教务系统。账号密码只加密保存在这台设备，仅用于登录；不想保存也可以用网页登录。")
+        screen.note("账号密码只加密存在这台设备。每次查询时临时登录教务系统，离开这个页面就自动退出。")
             .setOnClickListener(v -> startActivity(new Intent(this, EduQueryActivity.class).putExtra("mode", mode)));
         load();
     }
@@ -118,9 +121,11 @@ public final class AcademicActivity extends Activity {
         watch(ticket);
         worker.execute(() -> {
             try {
-                EduVault.Credential credential = new EduVault(getApplicationContext()).load();
+                EduVault vault = new EduVault(getApplicationContext());
+                EduVault.Credential credential = vault.load();
                 EduClient.remember(credential == null ? "" : credential.user,
-                    credential == null ? "" : credential.password);
+                    credential == null ? "" : credential.password,
+                    credential != null && credential.refused);
                 if ("grades".equals(mode)) {
                     EduClient.Semester loaded = EduClient.semesters();
                     post(ticket, () -> { busy = false; semester = loaded; buildFields(); query(); });
@@ -140,6 +145,7 @@ public final class AcademicActivity extends Activity {
             } catch (EduClient.NotSignedIn expired) {
                 post(ticket, this::askLogin);
             } catch (EduClient.BadPassword wrong) {
+                refuse();
                 post(ticket, () -> fail(wrong.getMessage()));
             } catch (EduClient.CaptchaNeeded captcha) {
                 post(ticket, () -> fail(captcha.getMessage()));
@@ -149,7 +155,19 @@ public final class AcademicActivity extends Activity {
         });
     }
 
+    /** Remembers that the school said no, so the next launch does not spend another attempt. */
+    private void refuse() {
+        try { new EduVault(getApplicationContext()).refused(true); } catch (RuntimeException ignored) { }
+    }
+
+    /**
+     * Campus the screen opens on: 科信 first, because that is where these students are — the page's
+     * own default has been the other campus often enough to be worth overriding.
+     */
     private String choose(EduClient.Page loaded) {
+        for (String[] option : loaded.campuses) {
+            if (option[1].contains("科信")) return option[0];
+        }
         if (!loaded.campus.isEmpty()) return loaded.campus;
         return loaded.campuses.isEmpty() ? "" : loaded.campuses.get(0)[0];
     }
@@ -165,12 +183,20 @@ public final class AcademicActivity extends Activity {
 
     private void openLogin() {
         afterLogin = true;
+        handoff = true;
         startActivity(new Intent(this, EduLoginActivity.class));
     }
 
     private void openAccount() {
         afterAccount = true;
+        handoff = true;
         startActivity(new Intent(this, EduAccountActivity.class));
+    }
+
+    /** Manual sign-out: the next query signs in again by itself. */
+    private void signOut() {
+        EduClient.signOutLater();
+        status.setText("已退出教务登录。下次查询会重新登录一次。");
     }
 
     private void fail(String text) {
@@ -187,6 +213,11 @@ public final class AcademicActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
+        if (loggedOut) {
+            loggedOut = false;
+            EduClient.reopen();
+            EduClient.capture();
+        }
         if (needsLogin || afterLogin || afterAccount) {
             needsLogin = false;
             afterLogin = false;
@@ -208,7 +239,7 @@ public final class AcademicActivity extends Activity {
         ensure("weekday", Integer.toString(today()));
         ensure("section", defaultSection());
         ensure("building", "");
-        ensure("type", page == null ? "" : page.type);
+        ensure("type", "");
 
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -218,14 +249,13 @@ public final class AcademicActivity extends Activity {
             ask("星期", WEEKDAYS, weekdayValues(), "weekday"));
         fields.addView(row);
         row = new LinearLayout(this);
-        addCell(row, "节次", sectionLabel(pick.get("section")), () ->
-            ask("节次", sectionLabels(), sectionValues(), "section"));
+        addCell(row, "节次", sectionLabel(), this::openSections);
         addCell(row, "教学楼", buildingLabel(pick.get("building")), () ->
             ask("教学楼", buildingLabels(), buildingValues(), "building"));
         fields.addView(row);
         row = new LinearLayout(this);
-        addCell(row, "场地类别", typeLabel(pick.get("type")), () ->
-            ask("场地类别", typeLabels(), typeValues(), "type"));
+        addCell(row, "场地类型", typeLabel(pick.get("type")), () ->
+            ask("场地类型", typeLabels(), typeValues(), "type"));
         if (page != null && page.campuses.size() > 1) {
             addCell(row, "校区", campusLabel(pick.get("campus")), () ->
                 ask("校区", campusLabels(), campusValues(), "campus"));
@@ -287,6 +317,39 @@ public final class AcademicActivity extends Activity {
             .show();
     }
 
+    /** Periods are checkboxes, not a range: 1-2 and 5-6 in one search is a normal ask. */
+    private void openSections() {
+        if (campus == null || campus.periods.isEmpty()) return;
+        final java.util.List<Integer> all = campus.periods;
+        int[] chosen = periods();
+        String[] labels = new String[all.size()];
+        final boolean[] checked = new boolean[all.size()];
+        for (int i = 0; i < all.size(); i++) {
+            int number = all.get(i);
+            String time = time(number);
+            labels[i] = "第 " + number + " 节" + (time.isEmpty() ? "" : "  " + time);
+            for (int value : chosen) if (value == number) checked[i] = true;
+        }
+        new AlertDialog.Builder(this)
+            .setTitle("节次（可多选）")
+            .setMultiChoiceItems(labels, checked, (dialog, which, isChecked) -> checked[which] = isChecked)
+            .setPositiveButton("确定", (dialog, which) -> {
+                StringBuilder value = new StringBuilder();
+                for (int i = 0; i < all.size(); i++) {
+                    if (!checked[i]) continue;
+                    if (value.length() > 0) value.append(',');
+                    value.append(all.get(i));
+                }
+                if (value.length() == 0) { status.setText("至少要选一节课。"); return; }
+                String previous = pick.get("section");
+                pick.put("section", value.toString());
+                buildFields();
+                if (previous == null || !previous.equals(value.toString())) query();
+            })
+            .setNegativeButton("取消", null)
+            .show();
+    }
+
     /** Choosing another campus changes its buildings and week calendar, so they are re-read. */
     private void reloadCampus() {
         if (page == null) return;
@@ -308,6 +371,7 @@ public final class AcademicActivity extends Activity {
                     query();
                 });
             } catch (EduClient.BadPassword wrong) {
+                refuse();
                 post(ticket, () -> fail(wrong.getMessage()));
             } catch (EduClient.CaptchaNeeded captcha) {
                 post(ticket, () -> fail(captcha.getMessage()));
@@ -336,6 +400,7 @@ public final class AcademicActivity extends Activity {
                 } catch (EduClient.NotSignedIn expired) {
                     post(ticket, this::askLogin);
                 } catch (EduClient.BadPassword wrong) {
+                    refuse();
                     post(ticket, () -> fail(wrong.getMessage()));
                 } catch (EduClient.CaptchaNeeded captcha) {
                     post(ticket, () -> fail(captcha.getMessage()));
@@ -348,11 +413,13 @@ public final class AcademicActivity extends Activity {
         if (campus == null) { busy = false; screen.loading(false); return; }
         final String campusId = pick.get("campus"), building = pick.get("building"), type = pick.get("type");
         final int week = number(pick.get("week"), 1), weekday = number(pick.get("weekday"), today());
-        final int[] section = section(pick.get("section"));
+        final int[] chosen = periods();
+        final String mask = io.qzxy.lite.core.EduSite.periodMask(
+            chosen.length == 0 ? new int[]{1, 2} : chosen);
         worker.execute(() -> {
             try {
-                List<EduClient.Room> rooms = EduClient.rooms(page, campusId, building, type, week, weekday, section[0], section[1]);
-                post(ticket, () -> showRooms(rooms, week, weekday, section));
+                List<EduClient.Room> rooms = EduClient.rooms(page, campusId, building, type, week, weekday, mask);
+                post(ticket, () -> showRooms(rooms, week, weekday, chosen));
             } catch (EduClient.NotSignedIn expired) {
                 post(ticket, this::askLogin);
             } catch (Exception failure) {
@@ -367,8 +434,9 @@ public final class AcademicActivity extends Activity {
         screen.loading(false);
         results.removeAllViews();
         String where = typeLabel(pick.get("type"));
+        boolean everyType = where.equals("全部教室");
         String when = "第 " + week + " 周 · " + WEEKDAYS[Math.max(0, Math.min(6, weekday - 1))]
-            + " · " + sectionText(section);
+            + " · " + io.qzxy.lite.core.EduSite.sectionLabel(section);
         if (rooms.isEmpty()) {
             status.setText(when + " 没有空教室。");
             results.addView(hint("这个时间没有查到空教室，换个节次或教学楼再看看。"));
@@ -378,9 +446,10 @@ public final class AcademicActivity extends Activity {
         for (EduClient.Room room : rooms) {
             StringBuilder detail = new StringBuilder();
             if (!room.building.isEmpty()) detail.append(room.building);
-            if (!where.isEmpty() && !where.equals("全部")) {
+            String kind = everyType ? room.type : where;
+            if (!kind.isEmpty()) {
                 if (detail.length() > 0) detail.append(" · ");
-                detail.append(where);
+                detail.append(kind);
             }
             if (!room.seats.isEmpty()) {
                 if (detail.length() > 0) detail.append(" · ");
@@ -484,16 +553,16 @@ public final class AcademicActivity extends Activity {
     }
 
     private String defaultSection() {
-        if (campus == null) return "1-2";
+        if (campus == null) return "1,2";
         List<int[]> pairs = io.qzxy.lite.core.EduSite.pairs(campus.periods);
-        if (pairs.isEmpty()) return "1-2";
+        if (pairs.isEmpty()) return "1,2";
         int hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
         if (hour >= 18) return join(pairs.get(pairs.size() - 1));
         if (hour >= 12) return pairs.size() > 2 ? join(pairs.get(2)) : join(pairs.get(pairs.size() - 1));
         return join(pairs.get(0));
     }
 
-    private static String join(int[] pair) { return pair[0] + "-" + pair[1]; }
+    private static String join(int[] pair) { return pair[0] + "," + pair[1]; }
 
     private String weekLabel(String value) {
         int week = number(value, 1);
@@ -525,23 +594,23 @@ public final class AcademicActivity extends Activity {
         return out.toArray(new String[0]);
     }
 
-    private String sectionLabel(String value) {
-        int[] pair = section(value);
-        String times = "";
-        if (campus != null) times = times(pair[0], pair[1]);
-        String label = sectionText(pair);
-        return times.isEmpty() ? label : label + " " + times;
-    }
+    private int[] periods() { return io.qzxy.lite.core.EduSite.sections(pick.get("section")); }
 
-    private String sectionText(int[] pair) {
-        return pair[0] == pair[1] ? "第 " + pair[0] + " 节" : "第 " + pair[0] + "-" + pair[1] + " 节";
+    private String sectionLabel() {
+        int[] chosen = periods();
+        String label = io.qzxy.lite.core.EduSite.sectionLabel(chosen);
+        if (chosen.length == 0) return label;
+        boolean contiguous = chosen[chosen.length - 1] - chosen[0] + 1 == chosen.length;
+        if (!contiguous) return label;
+        String times = times(chosen[0], chosen[chosen.length - 1]);
+        return times.isEmpty() ? label : label + " " + times;
     }
 
     private String times(int from, int to) {
         if (campus == null) return "";
         String first = time(from), last = time(to);
         if (first.isEmpty() && last.isEmpty()) return "";
-        return first + "-" + last;
+        return from == to ? first : first + "-" + last;
     }
 
     private String time(int section) {
@@ -551,22 +620,6 @@ public final class AcademicActivity extends Activity {
             if (parts.length == 2 && parts[0].equals(Integer.toString(section))) return parts[1];
         }
         return "";
-    }
-
-    private String[] sectionLabels() {
-        List<String> out = new ArrayList<>();
-        if (campus != null) for (int[] pair : io.qzxy.lite.core.EduSite.pairs(campus.periods)) {
-            String label = sectionText(pair);
-            String times = times(pair[0], pair[1]);
-            out.add(times.isEmpty() ? label : label + " " + times);
-        }
-        return out.toArray(new String[0]);
-    }
-
-    private String[] sectionValues() {
-        List<String> out = new ArrayList<>();
-        if (campus != null) for (int[] pair : io.qzxy.lite.core.EduSite.pairs(campus.periods)) out.add(join(pair));
-        return out.toArray(new String[0]);
     }
 
     private String buildingLabel(String value) {
@@ -590,24 +643,30 @@ public final class AcademicActivity extends Activity {
         return out.toArray(new String[0]);
     }
 
+    /** An empty value means the school searches every room type, which is the default here. */
     private String typeLabel(String value) {
-        if (page == null) return "";
-        if (value == null || value.isEmpty()) return "全部场地";
-        for (String[] option : page.types) if (option[0].equals(value)) return option[1];
+        if (value == null || value.isEmpty()) return "全部教室";
+        if (page != null) for (String[] option : page.types) if (option[0].equals(value)) return option[1];
         return value;
     }
 
     private String[] typeLabels() {
         List<String> out = new ArrayList<>();
-        if (page == null) return out.toArray(new String[0]);
-        for (String[] option : page.types) out.add(option[1]);
+        out.add("全部教室");
+        if (page != null) for (String[] option : page.types) {
+            if (option[0].isEmpty()) continue;
+            out.add(option[1]);
+        }
         return out.toArray(new String[0]);
     }
 
     private String[] typeValues() {
         List<String> out = new ArrayList<>();
-        if (page == null) return out.toArray(new String[0]);
-        for (String[] option : page.types) out.add(option[0]);
+        out.add("");
+        if (page != null) for (String[] option : page.types) {
+            if (option[0].isEmpty()) continue;
+            out.add(option[0]);
+        }
         return out.toArray(new String[0]);
     }
 
@@ -636,14 +695,6 @@ public final class AcademicActivity extends Activity {
         return value == null ? "" : value;
     }
 
-    private static int[] section(String value) {
-        if (value == null || value.isEmpty()) return new int[]{1, 2};
-        String[] parts = value.split("-");
-        int from = number(parts[0], 1);
-        int to = parts.length > 1 ? number(parts[1], from) : from;
-        return new int[]{from, to};
-    }
-
     private static int today() {
         return (Calendar.getInstance().get(Calendar.DAY_OF_WEEK) + 5) % 7 + 1;
     }
@@ -654,6 +705,17 @@ public final class AcademicActivity extends Activity {
 
     private void post(int ticket, Runnable task) {
         runOnUiThread(() -> { if (!isDestroyed() && !isFinishing() && ticket == generation) task.run(); });
+    }
+
+    /**
+     * Leaving the screen ends the school session: the account is only signed in for the query, not
+     * left open in the background where a shared phone or a long idle session could pick it up.
+     */
+    @Override protected void onStop() {
+        super.onStop();
+        if (handoff) { handoff = false; return; }
+        EduClient.signOutLater();
+        loggedOut = true;
     }
 
     @Override protected void onDestroy() { generation++; worker.shutdownNow(); super.onDestroy(); }

@@ -44,11 +44,23 @@ final class EduClient {
     private static final String GRADES_QUERY = "/cjcx/cjcx_cxXsgrcj.html?gnmkdm=N305005&doType=query";
     private static final String LOGIN = "/xtgl/login_slogin.html";
     private static final String PUBLIC_KEY = "/xtgl/login_getPublicKey.html";
+    private static final String MENU = "/xtgl/index_initMenu.html";
+    private static final String LOGOUT = "/xtgl/logout.html";
     private static final int TIMEOUT = 15000, MAX_BYTES = 2_000_000, MAX_PAGES = 30;
 
     static final class NotSignedIn extends IOException {
         private static final long serialVersionUID = 1L;
         NotSignedIn() { super("需要先登录教务系统"); }
+    }
+
+    /** A status the school would not serve: kept with its code so a report can be acted on. */
+    static final class HttpFailure extends IOException {
+        private static final long serialVersionUID = 1L;
+        final int status;
+        HttpFailure(int status, String url, String snippet) {
+            super("教务系统返回 HTTP " + status + "（" + shortPath(url) + "）" + (snippet.isEmpty() ? "" : "：" + snippet));
+            this.status = status;
+        }
     }
 
     /** The school refused the saved password; retrying would only walk towards a lockout. */
@@ -109,6 +121,10 @@ final class EduClient {
     private static volatile String user = "", password = "";
     /** Set once the school rejects the saved password, so it is never retried into a lockout. */
     private static volatile boolean rejected;
+    /** True after leaving a query screen: a late response must not sign in again behind the user. */
+    private static volatile boolean closed;
+    /** Grade page found in the school's own menu, so a renamed module needs no release. */
+    private static volatile String gradesPage = "";
 
     private EduClient() { }
 
@@ -123,20 +139,71 @@ final class EduClient {
     }
 
     /** Hands the saved account over. Empty values simply mean "no automatic sign-in". */
-    static void remember(String name, String secret) {
+    static void remember(String name, String secret) { remember(name, secret, false); }
+
+    /**
+     * @param refused the school rejected this password before, so do not spend another attempt on
+     *                it — the school locks accounts after a handful of failures.
+     */
+    static void remember(String name, String secret, boolean refused) {
         String nextUser = name == null ? "" : name;
         String nextSecret = secret == null ? "" : secret;
+        boolean same = nextUser.equals(user) && nextSecret.equals(password);
         // Same account with a live session: no need to sign in again.
-        if (nextUser.equals(user) && nextSecret.equals(password) && !session.isEmpty()) return;
+        if (same && !session.isEmpty()) return;
         user = nextUser;
         password = nextSecret;
-        rejected = false;
+        rejected = same && refused;
         session = "";
+        closed = false;
     }
 
     static boolean signedIn() { return !session.isEmpty(); }
 
     static boolean hasCredentials() { return !user.isEmpty() && !password.isEmpty(); }
+
+    /**
+     * Ends the school session on both sides: the server is told to drop it, then the local copy is
+     * forgotten. Called when the query screen closes, so the account is not left signed in.
+     */
+    static void signOut() { signOut(session); }
+
+    /** Signs out off the UI thread; used when a screen closes. */
+    static void signOutLater() {
+        final String cookie = session;
+        EXIT.execute(() -> signOut(cookie));
+    }
+
+    /**
+     * @param cookie the session this request was queued for. A sign-in that happened meanwhile wins,
+     *               so a quick return to the screen does not log the fresh session out.
+     */
+    private static synchronized void signOut(String cookie) {
+        String held = cookie == null ? "" : cookie;
+        if (!session.isEmpty() && !session.equals(held)) return;
+        closed = true;
+        session = "";
+        webCookies = "";
+        gradesPage = "";
+        if (held.isEmpty()) return;
+        try {
+            Map<String, String> jar = new LinkedHashMap<>();
+            seed(jar, held);
+            request(ORIGIN + LOGOUT, "GET", null, jar, ORIGIN + "/");
+        } catch (Exception ignored) {
+            // The local session is gone already; an unreachable logout page changes nothing here.
+        }
+    }
+
+    /** Back on screen: a late automatic sign-in is allowed again. */
+    static void reopen() { closed = false; }
+
+    private static final java.util.concurrent.ExecutorService EXIT =
+        java.util.concurrent.Executors.newSingleThreadExecutor(task -> {
+            Thread thread = new Thread(task, "edu-signout");
+            thread.setDaemon(true);
+            return thread;
+        });
 
     /** Turns transport failures into something a person can act on. */
     static String describe(Throwable failure) {
@@ -220,7 +287,15 @@ final class EduClient {
     }
 
     static Semester semesters() throws IOException {
-        String html = fetch(GRADES_PAGE, null);
+        String entry = gradesEntry();
+        String html;
+        try {
+            html = fetch(entry, null);
+        } catch (HttpFailure refused) {
+            if (entry.equals(GRADES_PAGE)) throw refused;
+            gradesPage = GRADES_PAGE;
+            html = fetch(GRADES_PAGE, null);
+        }
         Semester semester = new Semester();
         semester.year = EduSite.field(html, "xnm");
         semester.term = EduSite.field(html, "xqm");
@@ -231,10 +306,44 @@ final class EduClient {
         return semester;
     }
 
+    /**
+     * The grade page the school itself links in its menu. Falls back to the compiled-in route when
+     * the menu cannot be read, so an unreachable menu never blocks the query.
+     */
+    private static String gradesEntry() {
+        if (!gradesPage.isEmpty()) return gradesPage;
+        try {
+            String menu = request(ORIGIN + MENU, "GET", null, jar(), ORIGIN + "/xtgl/index_initMenu.html");
+            String link = EduSite.gradeLink(menu);
+            if (link.startsWith("/cjcx/")) gradesPage = link;
+        } catch (Exception unavailable) {
+            // Menu missing or renamed: the route below still answers on most deployments.
+        }
+        return gradesPage.isEmpty() ? GRADES_PAGE : gradesPage;
+    }
+
+    /** Same page, in its query form: the school's script appends {@code doType=query} and posts. */
+    private static String queryPath(String entry) {
+        String base = entry;
+        int hash = base.indexOf('#');
+        if (hash >= 0) base = base.substring(0, hash);
+        if (base.contains("doType=query")) return base;
+        return base + (base.contains("?") ? "&" : "?") + "doType=query";
+    }
+
+    /**
+     * The page a query belongs to, used as {@code Referer}. Derived from the requested path rather
+     * than compiled in, because a discovered grade module can live somewhere else entirely.
+     */
+    private static String pageOf(String path) {
+        String page = path.replace("&doType=query", "").replace("?doType=query", "");
+        return page.isEmpty() ? GRADES_PAGE : page;
+    }
+
     // ---- queries -------------------------------------------------------------------------
 
     static List<Room> rooms(Page page, String campusId, String building, String type,
-                            int week, int weekday, int from, int to) throws IOException {
+                            int week, int weekday, String periodMask) throws IOException {
         List<Room> rooms = new ArrayList<>();
         for (int index = 1; index <= MAX_PAGES; index++) {
             Map<String, String> form = new LinkedHashMap<>();
@@ -244,7 +353,7 @@ final class EduClient {
             form.put("jyfs", "0");
             form.put("zcd", EduSite.weekMask(week));
             form.put("xqj", Integer.toString(weekday));
-            form.put("jcd", EduSite.periodMask(from, to));
+            form.put("jcd", periodMask);
             form.put("lh", building);
             form.put("cdlb_id", type);
             form.put("cdejlb_id", "");
@@ -259,7 +368,7 @@ final class EduClient {
             form.put("queryModel.sortOrder", "asc");
             form.put("_search", "false");
             form.put("nd", Long.toString(System.currentTimeMillis()));
-            JSONObject reply = json(fetch(ROOMS_QUERY, form), "空教室查询");
+            JSONObject reply = ask(ROOMS_QUERY, form, "空教室查询");
             JSONArray items = reply.optJSONArray("items");
             if (items != null) {
                 for (int i = 0; i < items.length(); i++) {
@@ -278,6 +387,7 @@ final class EduClient {
     }
 
     static List<Course> grades(String year, String term) throws IOException {
+        String path = queryPath(gradesEntry());
         List<Course> courses = new ArrayList<>();
         for (int index = 1; index <= 20; index++) {
             Map<String, String> form = new LinkedHashMap<>();
@@ -290,7 +400,7 @@ final class EduClient {
             form.put("queryModel.sortName", "");
             form.put("queryModel.sortOrder", "asc");
             form.put("time", "0");
-            JSONObject reply = json(fetch(GRADES_QUERY, form), "成绩查询");
+            JSONObject reply = ask(path, form, "成绩查询");
             JSONArray items = reply.optJSONArray("items");
             if (items != null) {
                 for (int i = 0; i < items.length(); i++) {
@@ -313,13 +423,28 @@ final class EduClient {
     private static String fetch(String path, Map<String, String> form) throws IOException {
         checkPath(path);
         String method = form == null ? "GET" : "POST";
-        String referer = ORIGIN + (path.startsWith("/cdjy/") ? ROOMS_PAGE : GRADES_PAGE);
+        String referer = ORIGIN + (path.startsWith("/cdjy/") ? ROOMS_PAGE : pageOf(path));
         try {
             return checked(request(ORIGIN + path, method, form, jar(), referer));
         } catch (NotSignedIn expired) {
-            if (!hasCredentials() || rejected) throw expired;
+            if (!hasCredentials() || rejected || closed) throw expired;
             signIn();
             return checked(request(ORIGIN + path, method, form, jar(), referer));
+        }
+    }
+
+    /**
+     * Runs a query and, if the school refuses the POST, repeats the same parameters as a GET.
+     * A few deployments answer 400 or 500 to the form post but still serve the URL query.
+     */
+    private static JSONObject ask(String path, Map<String, String> form, String what) throws IOException {
+        try {
+            return json(fetch(path, form), what);
+        } catch (HttpFailure refused) {
+            if (refused.status != 400 && refused.status < 500) throw refused;
+            StringBuilder url = new StringBuilder(path).append(path.contains("?") ? '&' : '?')
+                .append(SmsLoginProtocol.form(form));
+            return json(fetch(url.toString(), null), what);
         }
     }
 
@@ -369,6 +494,7 @@ final class EduClient {
         String cookies = cookies(jar);
         if (cookies.isEmpty()) throw new IOException("登录后没有拿到会话，请重试。");
         session = cookies;
+        closed = false;
     }
 
     /** Cookies for the next request: the built-in session first, the embedded browser second. */
@@ -439,7 +565,7 @@ final class EduClient {
                     continue;
                 }
                 if (status == 401 || status == 403) throw new NotSignedIn();
-                if (status != 200) throw new IOException("教务系统暂时无法响应（HTTP " + status + "）。");
+                if (status != 200) throw new HttpFailure(status, url, snippet(connection));
                 return read(connection);
             } finally {
                 connection.disconnect();
@@ -463,6 +589,41 @@ final class EduClient {
                 if (name.isEmpty()) continue;
                 if (text.isEmpty()) jar.remove(name); else jar.put(name, text);
             }
+        }
+    }
+
+    /**
+     * The first readable words of an error response, so a failure can be reported instead of only
+     * described. Tags and scripts are dropped; nothing longer than a line is kept.
+     */
+    private static String snippet(HttpsURLConnection connection) {
+        try (InputStream input = connection.getErrorStream()) {
+            if (input == null) return "";
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buffer = new byte[4096];
+            int count = input.read(buffer);
+            if (count > 0) out.write(buffer, 0, count);
+            String text = new String(out.toByteArray(), StandardCharsets.UTF_8)
+                .replaceAll("(?is)<script.*?</script>", " ")
+                .replaceAll("(?is)<style.*?</style>", " ")
+                .replaceAll("<[^>]*>", " ")
+                .replace("&nbsp;", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+            return text.length() > 90 ? text.substring(0, 90) + "…" : text;
+        } catch (Exception unreadable) {
+            return "";
+        }
+    }
+
+    /** Path and query only: the host is the same for every request and only adds noise. */
+    private static String shortPath(String url) {
+        try {
+            URL parsed = new URL(url);
+            String query = parsed.getQuery();
+            return parsed.getPath() + (query == null || query.isEmpty() ? "" : "?" + query);
+        } catch (Exception invalid) {
+            return url;
         }
     }
 

@@ -29,16 +29,28 @@ final class EduVault {
     private static final String ALIAS = "campuskit-edu-account-v1";
     private static final int IV_BYTES = 12;
     private final AtomicFile file;
+    private final android.content.SharedPreferences state;
 
     static final class Credential {
         final String user, password;
-        Credential(String user, String password) { this.user = user; this.password = password; }
+        /** The school refused this password before; it is not worth a second automatic attempt. */
+        final boolean refused;
+        Credential(String user, String password) { this(user, password, false); }
+        Credential(String user, String password, boolean refused) {
+            this.user = user; this.password = password; this.refused = refused;
+        }
         boolean complete() { return !user.isEmpty() && !password.isEmpty(); }
     }
 
     EduVault(Context context) {
         file = new AtomicFile(new File(context.getNoBackupFilesDir(), "edu-account.bin"));
+        state = context.getSharedPreferences("edu-account-state", Context.MODE_PRIVATE);
     }
+
+    /** Whether the last saved password was rejected, kept across restarts to avoid a lockout. */
+    boolean refused() { return state.getBoolean("refused", false); }
+
+    void refused(boolean value) { state.edit().putBoolean("refused", value).apply(); }
 
     void save(String user, String password) throws GeneralSecurityException, IOException {
         if (user == null || user.trim().isEmpty() || password == null || password.isEmpty())
@@ -86,7 +98,7 @@ final class EduVault {
             String text = new String(cipher.doFinal(payload, IV_BYTES, payload.length - IV_BYTES), "UTF-8");
             int split = text.indexOf('\n');
             if (split <= 0) return null;
-            return new Credential(text.substring(0, split), text.substring(split + 1));
+            return new Credential(text.substring(0, split), text.substring(split + 1), refused());
         } catch (Exception broken) {
             // Keystore reset or tampered file: treat as "no saved account" so the user can re-enter.
             return null;
@@ -98,6 +110,7 @@ final class EduVault {
             keyStore().deleteEntry(ALIAS);
         } catch (Exception ignored) { }
         file.delete();
+        state.edit().clear().apply();
     }
 
     private SecretKey key() throws GeneralSecurityException, IOException {

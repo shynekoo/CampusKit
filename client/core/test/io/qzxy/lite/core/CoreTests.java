@@ -700,6 +700,31 @@ public final class CoreTests {
         equal(2, odd.size());
         equal(3, odd.get(1)[1]);   // A lone period stays alone; it is never widened.
         equal(0, EduSite.pairs(null).size());
+        // Multi-period selection: gaps stay gaps in both the mask and the label.
+        equal("19", EduSite.periodMask(new int[]{1, 2, 5}));
+        equal("12", EduSite.periodMask(new int[]{3, 4}));
+        rejects(() -> EduSite.periodMask(new int[]{}));
+        rejects(() -> EduSite.periodMask(new int[]{0}));
+        rejects(() -> EduSite.periodMask(new int[]{63}));
+        equal(3, EduSite.sections("1,2,5").length);
+        equal(5, EduSite.sections("1,2,5")[2]);
+        equal(4, EduSite.sections("1-4").length);
+        equal(4, EduSite.sections("1-4,2")[3]);   // duplicates collapse
+        equal(0, EduSite.sections("").length);
+        equal(0, EduSite.sections(null).length);
+        equal(0, EduSite.sections("0,99,abc").length);
+        equal(0, EduSite.sections("3-2").length);   // reversed range is dropped
+        equal("第 1-2、5 节", EduSite.sectionLabel(new int[]{1, 2, 5}));
+        equal("第 3 节", EduSite.sectionLabel(new int[]{3}));
+        equal("第 1-3 节", EduSite.sectionLabel(new int[]{1, 2, 3}));
+        equal("", EduSite.sectionLabel(null));
+        // Grade page found in the school's own menu, so a renamed module still resolves.
+        String menu = "<ul><li><a href=\"/xsxk/zzz.html?gnmkdm=N253508\">选课</a></li>"
+            + "<li><a href=\"/cjcx/cjcx_cxXsgrcj.html?gnmkdm=N305005\"><span>成绩查询</span></a></li>"
+            + "<li><a href=\"javascript:void(0)\">成绩说明</a></li></ul>";
+        equal("/cjcx/cjcx_cxXsgrcj.html?gnmkdm=N305005", EduSite.gradeLink(menu));
+        equal("", EduSite.gradeLink("<a href=\"/xsxk/xk.html\">选课</a>"));
+        equal("", EduSite.gradeLink(null));
         System.out.println("PASS: academic page values and empty-room query masks");
 
         // ---- 正方 login form: csrf token, hidden fields, RSA password ----

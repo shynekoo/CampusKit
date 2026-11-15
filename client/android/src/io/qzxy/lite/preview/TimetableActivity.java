@@ -610,7 +610,7 @@ public final class TimetableActivity extends Activity {
         card.addView(row);parent.addView(card,new LinearLayout.LayoutParams(-1,-2));
     }
     private void openEdu(String mode){
-        try{startActivity(new Intent(this,EduQueryActivity.class).putExtra("mode",mode));}
+        try{startActivity(new Intent(this,AcademicActivity.class).putExtra("mode",mode));}
         catch(RuntimeException unavailable){notice("无法打开教务页面。");}
     }
     private View shortcutTile(String icon,String title,String subtitle,Runnable action) {        LinearLayout tile=column();tile.setGravity(android.view.Gravity.CENTER);tile.setPadding(dp(4),dp(10),dp(4),dp(10));tile.setMinimumHeight(dp(96));AppUi.press(tile,0xffffffff,10);tile.setOnClickListener(v->action.run());

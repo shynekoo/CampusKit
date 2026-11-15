@@ -2,10 +2,8 @@ package io.qzxy.lite.preview;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.graphics.Typeface;
-import android.net.Uri;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.Gravity;
@@ -28,7 +26,6 @@ import java.util.concurrent.Executors;
  */
 public final class RechargeActivity extends Activity {
     private static final String[] PRESETS = {"20", "50", "100", "300"};
-    private static final String ALIPAY_PACKAGE = "com.eg.android.AlipayGphone";
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private DeviceScreen screen;
@@ -198,30 +195,23 @@ public final class RechargeActivity extends Activity {
         });
     }
 
-    /** Hands the signed order to Alipay. This does not pay by itself; the user still confirms there. */
+    /**
+     * Hands the signed order to Alipay's own payment service. Nothing is paid here: the cashier, the
+     * password and the result all belong to Alipay, and the balance is re-read afterwards.
+     */
     private void pay(String order) {
         awaitingPayment = true;
-        hint.setText("已在支付宝中打开支付页。完成付款后返回本页会自动刷新余额。");
-        try {
-            Intent intent = new Intent(Intent.ACTION_VIEW,
-                Uri.parse("alipays://platformapi/startapp?appId=20000067&url=" + Uri.encode(order)));
-            intent.setPackage(ALIPAY_PACKAGE);
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(intent);
-        } catch (ActivityNotFoundException missing) {
+        hint.setText("正在打开支付宝…");
+        AlipayHandoff.start(this, order, (paid, message) -> {
             awaitingPayment = false;
-            // A payment link is only useful with the Alipay app present.
-            hint.setText("未找到支付宝，无法完成支付。这笔订单未支付，不会扣款。");
-        } catch (RuntimeException blocked) {
-            awaitingPayment = false;
-            hint.setText("系统阻止了跳转支付宝。这笔订单未支付，不会扣款。");
-        }
+            hint.setText(message);
+            if (paid) load();
+        });
     }
 
     @Override protected void onResume() {
         super.onResume();
-        if (awaitingPayment) { awaitingPayment = false; load(); }
-        else if (!busy && screen != null) load();
+        if (!awaitingPayment && !busy && screen != null) load();
     }
 
     private void post(int ticket, Runnable task) {
