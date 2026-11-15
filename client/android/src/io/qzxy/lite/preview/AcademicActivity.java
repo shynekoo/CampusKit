@@ -44,7 +44,7 @@ public final class AcademicActivity extends Activity {
     private EduClient.Campus campus;
     private EduClient.Semester semester;
     private int generation;
-    private boolean busy, needsLogin, afterLogin, afterAccount, handoff, loggedOut;
+    private boolean busy, needsLogin, afterLogin, afterAccount, handoff, loggedOut, termChosen;
     private final android.os.Handler watchdog = new android.os.Handler(android.os.Looper.getMainLooper());
 
     /** Nothing should be able to leave the progress bar running forever. */
@@ -90,7 +90,10 @@ public final class AcademicActivity extends Activity {
         screen.root.addView(loginBar);
 
         results = paper();
-        screen.note("账号密码只加密存在这台设备。查询时临时登录教务系统，离开这个页面后 5 分钟内没有再查看就自动退出。")
+        String note = "grades".equals(mode)
+            ? "上面的「学年 / 学期」可以切换，也能选「全部学年 / 全部学期」查历年的成绩。账号密码只加密存在这台设备，查询时临时登录，离开 5 分钟后自动退出。"
+            : "账号密码只加密存在这台设备。查询时临时登录教务系统，离开这个页面后 5 分钟内没有再查看就自动退出。";
+        screen.note(note)
             .setOnClickListener(v -> startActivity(new Intent(this, EduQueryActivity.class).putExtra("mode", mode)));
         load();
     }
@@ -118,6 +121,12 @@ public final class AcademicActivity extends Activity {
     private void load() {
         if (busy) return;
         EduClient.capture();
+        if ("grades".equals(mode)) {
+            // Always redraw: reload() clears the fields, and the school page may never answer at
+            // all. Either way the screen must still offer every term to try.
+            if (semester == null) semester = EduClient.localSemesters();
+            buildFields();
+        }
         busy = true;
         screen.loading(true);
         status.setText("正在读取教务系统…");
@@ -132,7 +141,15 @@ public final class AcademicActivity extends Activity {
                     credential != null && credential.refused);
                 if ("grades".equals(mode)) {
                     EduClient.Semester loaded = EduClient.semesters();
-                    post(ticket, () -> { busy = false; semester = loaded; buildFields(); query(); });
+                    post(ticket, () -> {
+                        busy = false;
+                        semester = loaded;
+                        // The clock supplied the first values; the school's own current term wins
+                        // unless the user has already chosen a different one.
+                        if (!termChosen) { pick.put("year", loaded.year); pick.put("term", loaded.term); }
+                        buildFields();
+                        query();
+                    });
                 } else {
                     EduClient.Page loadedPage = EduClient.page();
                     String campusId = choose(loadedPage);
@@ -273,9 +290,11 @@ public final class AcademicActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         addCell(row, "学年", label(semester == null ? null : semester.years, pick.get("year")), () ->
-            ask("学年", labels(semester.years), values(semester.years), "year"));
+            ask("学年", labels(semester == null ? null : semester.years),
+                values(semester == null ? null : semester.years), "year"));
         addCell(row, "学期", label(semester == null ? null : semester.terms, pick.get("term")), () ->
-            ask("学期", labels(semester.terms), values(semester.terms), "term"));
+            ask("学期", labels(semester == null ? null : semester.terms),
+                values(semester == null ? null : semester.terms), "term"));
         fields.addView(row);
     }
 
@@ -312,8 +331,9 @@ public final class AcademicActivity extends Activity {
             .setTitle(title)
             .setItems(labels, (dialog, which) -> {
                 String previous = pick.get(key);
-                pick.put(key, values[which]);
                 if (previous != null && previous.equals(values[which])) return;
+                pick.put(key, values[which]);
+                if ("year".equals(key) || "term".equals(key)) termChosen = true;
                 if ("campus".equals(key)) reloadCampus();
                 else { buildFields(); query(); }
             })
@@ -423,7 +443,12 @@ public final class AcademicActivity extends Activity {
                 } catch (EduClient.CaptchaNeeded captcha) {
                     post(ticket, () -> fail(captcha.getMessage()));
                 } catch (Exception failure) {
-                    post(ticket, () -> fail(message(failure)));
+                    // Name the term: the picker stays on screen, so "this term has no grades" and
+                    // "this account has no grade module" must not read the same.
+                    post(ticket, () -> {
+                        String when = semesterText();
+                        fail(when.isEmpty() ? message(failure) : when + "：" + message(failure));
+                    });
                 }
             });
             return;
@@ -483,8 +508,9 @@ public final class AcademicActivity extends Activity {
         screen.loading(false);
         results.removeAllViews();
         if (courses.isEmpty()) {
-            status.setText("这个学期还没有成绩。");
-            results.addView(hint("学校没有返回成绩。可能这学期还没出分。"));
+            String when = semesterText();
+            status.setText(when.isEmpty() ? "这次查询没有成绩。" : when + " 没有查到成绩。");
+            results.addView(hint("学校返回了空列表。可以换上面的学年、学期再试一次，或选「全部学年 / 全部学期」。"));
             return;
         }
         status.setText("已显示 " + courses.size() + " 门课程");
@@ -736,7 +762,18 @@ public final class AcademicActivity extends Activity {
         return out.toArray(new String[0]);
     }
 
-    private static String label(List<String[]> options, String value) {
+    /** The chosen term in words, so an error says which term it was about. */
+    private String semesterText() {
+        if (semester == null) return "";
+        String year = label(semester.years, pick.get("year"));
+        String term = label(semester.terms, pick.get("term"));
+        if (year.isEmpty() && term.isEmpty()) return "";
+        if (year.isEmpty()) return term;
+        if (term.isEmpty()) return year;
+        return year + " " + term;
+    }
+
+    private String label(List<String[]> options, String value) {
         if (options != null) for (String[] option : options) if (option[0].equals(value)) return option[1];
         return value == null ? "" : value;
     }

@@ -42,14 +42,18 @@ final class EduClient {
     private static final String ROOMS_TERM = "/cdjy/cdjy_cxQtlb.html?gnmkdm=N2155";
     private static final String GRADES_PAGE = "/cjcx/cjcx_cxXsgrcj.html?gnmkdm=N305005&layout=default";
     /**
-     * Grade pages to try when the menu has no usable link. Deployments differ in whether they accept
-     * the {@code layout} parameter at all — this school answers 404 to the compiled-in route — so a
-     * page is now only accepted after it has actually been opened and read.
+     * Grade modules to try when the menu has no usable link. 正方 ships more than one — 个人成绩 under
+     * /cjcx/ and 考试课程成绩 under /kwgl/ — and a deployment may enable either, both or neither, so
+     * the compiled-in route is never trusted on its own: this school answers 404 to it with its own
+     * "page not found" screen.
      */
-    private static final String[] GRADES_TRIES = {
+    private static final String[] GRADE_PATHS = {
         "/cjcx/cjcx_cxXsgrcj.html?gnmkdm=N305005",
         "/cjcx/cjcx_cxXsgrcj.html",
         GRADES_PAGE,
+        "/cjcx/cjcx_cxXsKccj_list.html?gnmkdm=N305005",
+        "/kwgl/kscjcx_kscjcx.html?gnmkdm=N358105",
+        "/kwgl/kscjcx_kscjcx.html",
     };
     private static final String LOGIN = "/xtgl/login_slogin.html";
     private static final String PUBLIC_KEY = "/xtgl/login_getPublicKey.html";
@@ -90,6 +94,9 @@ final class EduClient {
         String year = "", term = "", campus = "", type = "";
         final List<String[]> campuses = new ArrayList<>();
         final List<String[]> types = new ArrayList<>();
+        /** The school-wide 学年/学期 selects, which the grade screen offers as a term picker. */
+        final List<String[]> years = new ArrayList<>();
+        final List<String[]> terms = new ArrayList<>();
         boolean signedIn;
     }
 
@@ -134,8 +141,12 @@ final class EduClient {
     private static volatile boolean closed;
     /** A sign-out queued for when the screen was left; cancelled as soon as the account is used. */
     private static volatile java.util.concurrent.ScheduledFuture<?> pending;
-    /** Grade page found in the school's own menu, so a renamed module needs no release. */
+    /** Grade page found by the last successful query, so a later term does not re-probe others. */
     private static volatile String gradesPage = "";
+    /** The school's own grade link, read once per session; empty when its menu has no such entry. */
+    private static volatile String menuLink = "";
+    /** True once the menu has been read: an empty answer is a result too, not a reason to retry. */
+    private static volatile boolean menuChecked;
     /**
      * A grade page the menu just named, allowed through the read-only path check while it is being
      * opened — this is the only way a query can leave the two folders compiled into the app.
@@ -224,6 +235,8 @@ final class EduClient {
         session = "";
         webCookies = "";
         gradesPage = "";
+        menuLink = "";
+        menuChecked = false;
         discovery = "";
         if (held.isEmpty()) return;
         try {
@@ -272,6 +285,8 @@ final class EduClient {
         page.type = EduSite.field(html, "cdlb_id");
         page.campuses.addAll(EduSite.options(html, "xqh_id"));
         page.types.addAll(EduSite.options(html, "cdlb_id"));
+        page.years.addAll(EduSite.options(html, "xnm"));
+        page.terms.addAll(EduSite.options(html, "xqm"));
         if (page.year.isEmpty() || page.term.isEmpty())
             throw new IOException("没有读到当前学年学期，学校页面可能改版了。");
         return page;
@@ -329,57 +344,79 @@ final class EduClient {
         return campus;
     }
 
-    static Semester semesters() throws IOException {
-        String html = fetch(gradesEntry(), null);
+    /**
+     * A term picker that needs no network at all.
+     *
+     * <p>Previously the grade screen asked the grade page for its term selectors before drawing
+     * anything, so a school that returns 404 for that page left the screen with an error and no
+     * picker — the user could not even try another term. The clock gives a usable starting point
+     * (正方 codes 学年 by the year its autumn term begins), and the school's own values replace it
+     * as soon as a page answers. The term code is the pair this school uses; a deployment using 1/2
+     * is corrected by the page read, not guessed here.</p>
+     */
+    static Semester localSemesters() {
+        java.util.Calendar now = java.util.Calendar.getInstance();
+        int year = now.get(java.util.Calendar.YEAR);
+        int month = now.get(java.util.Calendar.MONTH) + 1;
+        if (month < 9) year--;                       // Spring still belongs to last autumn's year.
+        String current = Integer.toString(year);
+        String term = (month >= 9 || month < 3) ? "3" : "12";
         Semester semester = new Semester();
-        semester.year = EduSite.field(html, "xnm");
-        semester.term = EduSite.field(html, "xqm");
-        semester.years.addAll(EduSite.options(html, "xnm"));
-        semester.terms.addAll(EduSite.options(html, "xqm"));
-        if (semester.year.isEmpty() || semester.term.isEmpty())
-            throw new IOException("没有读到成绩页的学期。");
+        semester.year = current;
+        semester.term = term;
+        semester.years.addAll(EduSite.yearOptions(current, 6));
+        semester.terms.addAll(EduSite.termOptions(term));
         return semester;
     }
 
     /**
-     * The grade page, opened once to prove it is really there.
+     * The terms the school knows, read from the empty-classroom page.
      *
-     * <p>The compiled-in route is not trusted on its own: this school answers 404 to it with its own
-     * "page not found" screen, so a wrong guess used to surface as "系统维护页面" on the user's phone.
-     * The menu's own link is tried first, then the common routes, and a page only counts when it
-     * actually carries the term selectors — a renamed, missing or disabled module is reported as
-     * such instead of looking like a network failure.</p>
+     * <p>That page carries the same school-wide 学年/学期 fields the grade page does, and it is the
+     * module this account is certain to have — it is the other half of the same feature and it works
+     * here. Taking the list from there means a grade module the school disabled no longer hides the
+     * term picker as well.</p>
+     *
+     * <p>The school renders both values as hidden inputs rather than selects, so its own option list
+     * is usually empty. The picker therefore also gets the recent academic years and the terms 正方
+     * uses, with the school's own options kept first and never duplicated. Without this, a user whose
+     * current term has no grades would have no way to ask for an earlier one.</p>
      */
-    private static String gradesEntry() throws IOException {
-        if (!gradesPage.isEmpty()) return gradesPage;
-        List<String> candidates = new ArrayList<>();
-        String discovered = menuGradeLink();
-        if (!discovered.isEmpty()) candidates.add(discovered);
-        for (String path : GRADES_TRIES) if (!candidates.contains(path)) candidates.add(path);
-        StringBuilder tried = new StringBuilder();
-        HttpFailure last = null;
-        for (String path : candidates) {
-            discovery = path;
-            try {
-                if (looksLikeGrades(fetch(path, null))) { gradesPage = path; discovery = ""; return path; }
-                tried.append(tried.length() == 0 ? "" : "、").append("页面不对 ").append(shortPath(path));
-            } catch (HttpFailure refused) {
-                last = refused;
-                tried.append(tried.length() == 0 ? "" : "、").append(refused.status).append(' ')
-                    .append(shortPath(path));
-            }
-        }
-        discovery = "";
-        if (last != null && candidates.size() == 1) throw last;
-        throw new IOException("教务系统的成绩页打不开（试过 " + candidates.size() + " 个地址："
-            + clip(tried.toString(), 110) + "）。" + (discovered.isEmpty()
-            ? "学校菜单里也没找到成绩入口，可能这个学期关闭了网页成绩查询。"
-            : "菜单里的成绩地址也打不开，模块可能被学校停用了。"));
+    static Semester semesters() throws IOException {
+        Page page = page();
+        Semester semester = new Semester();
+        semester.year = page.year;
+        semester.term = page.term;
+        semester.years.addAll(page.years);
+        semester.terms.addAll(page.terms);
+        addMissing(semester.years, EduSite.yearOptions(page.year, 6));
+        addMissing(semester.terms, EduSite.termOptions(page.term));
+        // A page that renders the values without a select still has to offer something to pick.
+        if (semester.years.isEmpty()) semester.years.add(new String[]{page.year, page.year});
+        if (semester.terms.isEmpty()) semester.terms.add(new String[]{page.term, page.term});
+        return semester;
     }
 
-    /** The grade page carries the term selectors the query then reads; nothing else does. */
-    private static boolean looksLikeGrades(String html) {
-        return html != null && html.contains("xnm") && html.contains("xqm");
+    /** Appends only values the school did not already offer, keeping its own labels and order. */
+    private static void addMissing(List<String[]> options, List<String[]> extra) {
+        for (String[] candidate : extra) {
+            boolean known = false;
+            for (String[] existing : options) if (existing[0].equals(candidate[0])) { known = true; break; }
+            if (!known) options.add(candidate);
+        }
+    }
+
+    /**
+     * Grade modules to try, best first: whatever the school's own menu names, then the routes 正方
+     * ships. Reading the menu keeps a moved or renamed module working without a release.
+     */
+    private static List<String> gradeEntries() {
+        List<String> entries = new ArrayList<>();
+        if (!gradesPage.isEmpty()) entries.add(gradesPage);
+        String discovered = menuGradeLink();
+        if (!discovered.isEmpty() && !entries.contains(discovered)) entries.add(discovered);
+        for (String path : GRADE_PATHS) if (!entries.contains(path)) entries.add(path);
+        return entries;
     }
 
     /**
@@ -389,15 +426,17 @@ final class EduClient {
      * deployments serve the menu inline there instead of on the menu page.
      */
     private static String menuGradeLink() {
+        if (menuChecked) return menuLink;
         for (String page : new String[]{MENU, "/"}) {
             try {
                 String link = EduSite.gradeLink(request(ORIGIN + page, "GET", null, jar(), ORIGIN + page));
-                if (link.contains(".html")) return link;
+                if (link.contains(".html")) { menuLink = link; break; }
             } catch (Exception unavailable) {
                 // Next source; a menu that cannot be read is not an error on its own.
             }
         }
-        return "";
+        menuChecked = true;
+        return menuLink;
     }
 
     private static String clip(String text, int limit) {
@@ -468,8 +507,50 @@ final class EduClient {
         return rooms;
     }
 
+    /**
+     * Grades for one term.
+     *
+     * <p>The query itself is the test: a module that is not offered to this account answers 404 to
+     * the query exactly as it does to the page, so opening the page first only doubled the requests
+     * and turned one refusal into a screen that could not even offer a term to switch to. Each
+     * candidate is queried directly and the first one that returns a result set wins.</p>
+     */
     static List<Course> grades(String year, String term) throws IOException {
-        String path = queryPath(gradesEntry());
+        // "ALL" is the picker's sentinel: the school wants an empty field for "every year/term".
+        String xnm = "ALL".equals(year) ? "" : year;
+        String xqm = "ALL".equals(term) ? "" : term;
+        StringBuilder tried = new StringBuilder();
+        int count = 0;
+        for (String entry : gradeEntries()) {
+            count++;
+            discovery = entry;
+            try {
+                List<Course> courses = queryGrades(entry, xnm, xqm);
+                gradesPage = entry;
+                discovery = "";
+                return courses;
+            } catch (NotSignedIn expired) {
+                discovery = "";
+                throw expired;
+            } catch (HttpFailure refused) {
+                if (tried.length() > 0) tried.append('、');
+                tried.append(refused.status).append(' ').append(shortPath(entry));
+            } catch (IOException unavailable) {
+                if (tried.length() > 0) tried.append('、');
+                tried.append("无数据 ").append(shortPath(entry));
+            }
+        }
+        discovery = "";
+        throw new IOException("成绩接口打不开（试过 " + count + " 个地址："
+            + clip(tried.toString(), 120) + "）。可以换上面的学年、学期再试一次；"
+            + (menuGradeLink().isEmpty()
+                ? "学校菜单里目前也没有成绩入口。"
+                : "学校菜单里的成绩地址同样打不开。")
+            + "若每个学期都一样，多半是学校没给这个账号开放网页成绩查询。");
+    }
+
+    private static List<Course> queryGrades(String entry, String year, String term) throws IOException {
+        String path = queryPath(entry);
         List<Course> courses = new ArrayList<>();
         for (int index = 1; index <= 20; index++) {
             Map<String, String> form = new LinkedHashMap<>();
@@ -737,6 +818,9 @@ final class EduClient {
 
     private static void checkPath(String path) throws IOException {
         if (path.startsWith("/cdjy/") || path.startsWith("/cjcx/")) return;
+        // 正方's other grade module. Named one path, not the whole folder, so this stays as narrow as
+        // the feature needs: two read-only modules, nothing else.
+        if (path.startsWith("/kwgl/kscjcx_kscjcx.html")) return;
         // A grade module the school moved out of /cjcx/: allowed only once its own menu named it.
         String named = gradesPage.isEmpty() ? discovery : gradesPage;
         if (!named.isEmpty() && path.startsWith(named)) return;

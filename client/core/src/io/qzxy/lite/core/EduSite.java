@@ -23,11 +23,15 @@ public final class EduSite {
     private static final Pattern ANCHOR = Pattern.compile("<a\\b([^>]*)>(.*?)</a>",
         Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
     private static final Pattern INPUT = Pattern.compile("<input\\b[^>]*>", Pattern.CASE_INSENSITIVE);
-    /** A menu entry as a script writes it: '/cjcx/cjcx_cxXsgrcj.html?gnmkdm=N305005'. */
+    /** A menu entry as a script writes it: '/cjcx/cjcx_cjcx.html?gnmkdm=N305005'. */
     private static final Pattern MENU_PATH = Pattern.compile(
         "/[A-Za-z]{3,}/[A-Za-z0-9_]+\\.html(?:\\?[^\"'<>\\s)]*)?");
+    /** A quoted token, the way an embedded script or JSON spells a menu item's name. */
+    private static final Pattern QUOTED = Pattern.compile("['\"]([^'\"\\r\\n]{1,60})['\"]");
     /** The school's own function code for the grade group, which survives a folder rename. */
     private static final Pattern GRADE_CODE = Pattern.compile("gnmkdm=N305\\d{3}", Pattern.CASE_INSENSITIVE);
+    /** A Chinese character escaped the way an embedded script writes it. */
+    private static final Pattern UNICODE = Pattern.compile("\\\\u([0-9a-fA-F]{4})");
 
     private EduSite() { }
 
@@ -53,6 +57,53 @@ public final class EduSite {
             if (parsed[2].equals("1")) return parsed[0];
         }
         return first;
+    }
+
+    /**
+     * Academic years the grade picker offers when the school page only renders the current year as a
+     * hidden input — which is what 正方 does on the empty-classroom page, so that page alone would
+     * leave the picker with exactly one choice. A year is coded as the calendar year the autumn term
+     * starts: {@code 2026} means the 2026-2027 academic year. Newest first, at most a dozen.
+     */
+    public static List<String[]> yearOptions(String current, int count) {
+        List<String[]> out = new ArrayList<>();
+        if (current == null || !current.matches("(?:19|20)\\d{2}")) return out;
+        int start = Integer.parseInt(current);
+        if (count < 1) count = 1;
+        if (count > 12) count = 12;
+        for (int i = 0; i < count; i++) {
+            int year = start - i;
+            if (year < 1990) break;
+            out.add(new String[]{Integer.toString(year), year + "-" + (year + 1) + " 学年"});
+        }
+        // The grade query accepts an empty year as "all years"; offer it as a real choice rather
+        // than making the user walk six years one term at a time. A non-empty sentinel keeps the
+        // picker's "fill in the default if unset" helper from silently undoing this choice.
+        out.add(new String[]{"ALL", "全部学年"});
+        return out;
+    }
+
+    /**
+     * The terms 正方 uses, so a page that hides them still leaves every term of the year selectable.
+     * Two codings are in circulation: {@code 1/2} on some deployments and {@code 3/12/16} on others.
+     * Which one a school uses is read from the value its own page reports; an unknown code is kept as
+     * the only option rather than guessed.
+     */
+    public static List<String[]> termOptions(String current) {
+        List<String[]> out = new ArrayList<>();
+        String value = current == null ? "" : current.trim();
+        if (value.equals("1") || value.equals("2")) {
+            out.add(new String[]{"1", "第一学期"});
+            out.add(new String[]{"2", "第二学期"});
+        } else if (value.equals("3") || value.equals("12") || value.equals("16")) {
+            out.add(new String[]{"3", "第一学期"});
+            out.add(new String[]{"12", "第二学期"});
+            out.add(new String[]{"16", "第三学期"});
+        } else if (value.matches("\\d{1,3}")) {
+            out.add(new String[]{value, "当前学期"});
+        }
+        if (!out.isEmpty()) out.add(new String[]{"ALL", "全部学期"});
+        return out;
     }
 
     /** Options of a select as {value, label}, in page order. */
@@ -137,11 +188,15 @@ public final class EduSite {
      * The grade page the school links from its own menu, as a path with its query.
      *
      * <p>Reading it instead of compiling it in means a renamed module or a different function code
-     * still works; the caller decides what to do when the menu has no grade entry at all.</p>
+     * still works. 正方 writes its menu two ways — an anchor, or a script/JSON entry such as
+     * {@code openTab('成绩查询','/cjcx/cjcx_cxXsgrcj.html?gnmkdm=N305005','N305005')} — and the
+     * script form often writes every Chinese character as a backslash-u escape, which would otherwise
+     * hide the word 成绩 completely. The caller decides what to do when the menu has no entry.</p>
      */
     public static String gradeLink(String html) {
         if (html == null) return "";
-        Matcher anchor = ANCHOR.matcher(html);
+        String page = unescape(html);
+        Matcher anchor = ANCHOR.matcher(page);
         String fallback = "";
         while (anchor.find()) {
             Matcher href = HREF.matcher(anchor.group(1));
@@ -158,29 +213,66 @@ public final class EduSite {
             if (fallback.isEmpty()) fallback = path;
         }
         if (!fallback.isEmpty()) return fallback;
-        return menuPath(html);
+        return menuPath(page);
+    }
+
+    /** Turns backslash-u and escaped-slash sequences of an embedded script back into text. */
+    static String unescape(String html) {
+        if (html.indexOf('\\') < 0) return html;
+        Matcher escape = UNICODE.matcher(html);
+        StringBuffer out = new StringBuffer(html.length());
+        while (escape.find()) {
+            String hex = escape.group(1);
+            char decoded = (char) Integer.parseInt(hex, 16);
+            escape.appendReplacement(out, Matcher.quoteReplacement(String.valueOf(decoded)));
+        }
+        escape.appendTail(out);
+        return out.toString().replace("\\/", "/");
     }
 
     /**
-     * A menu entry written by script rather than an anchor — the shape 正方's own home page uses, e.g.
-     * {@code openTab('成绩查询','/cjcx/cjcx_cxXsgrcj.html?gnmkdm=N305005','N305005')}. Links carrying
-     * the grade function code win over a plain {@code /cjcx/} page, because the code is what identifies
-     * the module; the caller still opens the page and checks it reads as a grade form.
+     * A menu entry written by script or as JSON rather than as an anchor — the shape 正方's own pages
+     * use. The path alone says nothing about which module it is, so the text around it decides: a
+     * name containing 成绩, or the {@code N305xxx} function code, which survives a folder rename.
+     * Entries whose own name says 成绩查询 win over ones that merely sit next to the word.
      */
     private static String menuPath(String html) {
+        List<String> paths = new ArrayList<>();
+        List<int[]> spans = new ArrayList<>();
         String cjcx = "", coded = "";
         Matcher path = MENU_PATH.matcher(html);
         while (path.find()) {
             String found = path.group();
-            boolean grade = GRADE_CODE.matcher(found).find() || found.contains("Xsgr");
-            if (found.contains("/cjcx/")) {
-                if (grade) return found;
-                if (cjcx.isEmpty()) cjcx = found;
-            } else if (grade && coded.isEmpty()) {
-                coded = found;
+            paths.add(found);
+            spans.add(new int[]{path.start(), path.end()});
+            if (found.contains("/cjcx/") && cjcx.isEmpty()) cjcx = found;
+            if (GRADE_CODE.matcher(found).find() && coded.isEmpty()) coded = found;
+        }
+        // A menu name belongs to the path nearest it, not to every path within a wide window.
+        // Without that, a 成绩 entry next to 选课 quietly turns the 选课 link into the grade page.
+        String best = "", query = "";
+        int nearest = Integer.MAX_VALUE, nearestQuery = Integer.MAX_VALUE;
+        Matcher name = QUOTED.matcher(html);
+        while (name.find()) {
+            String label = name.group(1);
+            if (!label.contains("成绩")) continue;
+            int middle = (name.start() + name.end()) / 2;
+            int chosen = -1, distance = Integer.MAX_VALUE;
+            for (int i = 0; i < spans.size(); i++) {
+                int gap = middle < spans.get(i)[0] ? spans.get(i)[0] - middle
+                    : middle > spans.get(i)[1] ? middle - spans.get(i)[1] : 0;
+                if (gap < distance) { distance = gap; chosen = i; }
+            }
+            if (chosen < 0 || distance > 200) continue;
+            if (distance < nearest) { nearest = distance; best = paths.get(chosen); }
+            if (label.contains("成绩查询") && distance < nearestQuery) {
+                nearestQuery = distance; query = paths.get(chosen);
             }
         }
-        return cjcx.isEmpty() ? coded : cjcx;
+        if (!query.isEmpty()) return query;
+        if (!best.isEmpty()) return best;
+        if (!coded.isEmpty()) return coded;
+        return cjcx;
     }
 
     private static String toPath(String target) {

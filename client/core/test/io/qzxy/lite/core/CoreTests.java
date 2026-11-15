@@ -752,7 +752,50 @@ public final class CoreTests {
             "<script>openTab('学生成绩','/xscjgl/xscjgl_cxXs.html?gnmkdm=N305021','N305021')</script>"));
         equal("", EduSite.gradeLink("<script>openTab('选课','/xsxk/xk.html?gnmkdm=N253508')</script>"));
         equal("/cjcx/cjcx_cxXsgrcj.html", EduSite.gradeLink("<script>openTab('X','/cjcx/cjcx_cxXsgrcj.html')</script>"));
-        System.out.println("PASS: academic page values and empty-room query masks");
+        // 正方's script escapes every Chinese character; without decoding, 成绩查询 is invisible.
+        equal("成绩查询", EduSite.unescape("\\u6210\\u7ee9\\u67e5\\u8be2"));
+        equal("/cjcx/cjcx_cxXsgrcj.html?gnmkdm=N305005", EduSite.gradeLink(
+            "<script>openTab('\\u6210\\u7ee9\\u67e5\\u8be2','/cjcx/cjcx_cxXsgrcj.html?gnmkdm=N305005')</script>"));
+        equal("/a/b.html", EduSite.unescape("\\/a\\/b.html"));
+        // A path next to the word 成绩 in someone else's text must not become "the grade page".
+        equal("", EduSite.gradeLink(
+            "<script>openTab('选课','/xsxk/xk.html?gnmkdm=N253508')</script><p>成绩说明</p>"));
+        // Two script entries: each name binds to its own path, never to its neighbour's.
+        equal("/cjcx/cjcx_cxXsgrcj.html?gnmkdm=N305005", EduSite.gradeLink(
+            "<script>openTab('选课','/xsxk/xk.html?gnmkdm=N253508');"
+                + "openTab('成绩查询','/cjcx/cjcx_cxXsgrcj.html?gnmkdm=N305005');</script>"));
+        // The JSON menu 正方's /xtgl/index_initMenu.html returns, with every Chinese char escaped.
+        String jsonMenu = "[{\"text\":\"\\u9009\\u8bfe\",\"url\":\"/xsxk/xk.html?gnmkdm=N253508\"},"
+            + "{\"text\":\"\\u6210\\u7ee9\\u67e5\\u8be2\",\"url\":\"/cjcx/cjcx_cxXsgrcj.html?gnmkdm=N305005\"}]";
+        equal("/cjcx/cjcx_cxXsgrcj.html?gnmkdm=N305005", EduSite.gradeLink(jsonMenu));
+        // Term picker: the school renders xnm/xqm as hidden inputs, so the app must offer years.
+        java.util.List<String[]> years = EduSite.yearOptions("2026", 6);
+        equal(7, years.size());
+        equal("2026", years.get(0)[0]);
+        equal("2026-2027 学年", years.get(0)[1]);
+        equal("2021", years.get(5)[0]);
+        equal("ALL", years.get(6)[0]);
+        equal("全部学年", years.get(6)[1]);
+        equal(2, EduSite.yearOptions("2026", 0).size());    // one year, plus 全部学年
+        equal(13, EduSite.yearOptions("2026", 99).size());   // bounded, not an endless list
+        equal(0, EduSite.yearOptions("abc", 6).size());
+        equal(0, EduSite.yearOptions(null, 6).size());
+        equal(0, EduSite.yearOptions("16", 6).size());
+        java.util.List<String[]> terms = EduSite.termOptions("3");
+        equal(4, terms.size());
+        equal("3", terms.get(0)[0]);
+        equal("第一学期", terms.get(0)[1]);
+        equal("12", terms.get(1)[0]);
+        equal("16", terms.get(2)[0]);
+        equal("ALL", terms.get(3)[0]);
+        equal("全部学期", terms.get(3)[1]);
+        java.util.List<String[]> simple = EduSite.termOptions("1");
+        equal(3, simple.size());
+        equal("2", simple.get(1)[0]);
+        equal(2, EduSite.termOptions("7").size());          // unknown code is kept, not guessed
+        equal(0, EduSite.termOptions("").size());
+        equal(0, EduSite.termOptions(null).size());
+        System.out.println("PASS: academic page values, grade menu decoding, term choices and empty-room query masks");
 
         // Room type the screen opens on: 多媒体教室一, then any 多媒体 room, else every room.
         java.util.List<String[]> types = Arrays.asList(
