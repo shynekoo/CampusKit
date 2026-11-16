@@ -25,7 +25,11 @@ import android.widget.TextView;
  */
 public final class PrivacyActivity extends Activity {
     private static final int DANGER = 0xffb42318;
-    /** Everything the app writes as settings; cleared only by the "all" action. */
+    /**
+     * Everything the app writes as settings; cleared only by the "all" action.
+     * pickup-widget no longer has a writer (the Cainiao widget host was removed), but installs from
+     * before 2.1.1 still carry its id, so it stays in the wipe list.
+     */
     private static final String[] SETTINGS = {
         "campus-v1", "pickup-widget", "water-history",
         "edu-account-state", "life798-login-ui", "notice-v1"

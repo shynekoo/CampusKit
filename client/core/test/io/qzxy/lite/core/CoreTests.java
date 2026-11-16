@@ -42,13 +42,6 @@ public final class CoreTests {
         equal(false, WaterChannel.requiresAlipay(1,"当前项目不支持该应用，请使用支付宝小程序"));
         equal(false, WaterChannel.requiresAlipay(10000,null));
         equal(false, WaterChannel.requiresAlipay(10000,"当前项目不支持该应用"));
-        equal(false, PickupPresence.hasPickup("暂无物流信息"));
-        equal(false, PickupPresence.hasPickup("请登录"));
-        equal(false, PickupPresence.hasPickup("0件待取件"));
-        equal(true, PickupPresence.hasPickup("2件待取件"));
-        equal(true, PickupPresence.hasPickup("取件码 2-3-456"));
-        equal(false, PickupPresence.hasPickup("快递运输中"));
-        equal(false, PickupPresence.hasPickup(null));
         // 慧生活 stickers. Current ones carry a server ticket, not a device id: sending the ticket
         // as "did" is why scanning looked broken after the official app update. Reference logic:
         // ilife798/ilife798 DeviceLinkParser and nocookies111/life-798 DeviceIdParser.

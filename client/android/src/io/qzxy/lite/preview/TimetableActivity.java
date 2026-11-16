@@ -34,7 +34,6 @@ public final class TimetableActivity extends Activity {
     private static final String[] DAYS = {"周一", "周二", "周三", "周四", "周五", "周六", "周日"};
     private final List<JSONObject> courses = new ArrayList<>();
     private SharedPreferences store;
-    private PickupWidget pickupWidget;
     private int week = 1;
     private String lastDay="";
     private android.graphics.Bitmap backgroundImage;
@@ -72,11 +71,8 @@ public final class TimetableActivity extends Activity {
     private static final String TAOBAO_PACKAGE = "com.taobao.taobao";
     /** Opened in this order when the identity code is tapped; 淘宝 owns the page now. */
     private static final String[] PICKUP_FALLBACK_PACKAGES = {TAOBAO_PACKAGE, CAINIAO_PACKAGE, "com.eg.android.AlipayGphone"};
-    private final java.util.concurrent.ExecutorService pdfWorker = java.util.concurrent.Executors.newSingleThreadExecutor();
-    @Override protected void onDestroy() { pdfWorker.shutdown(); clockHandler.removeCallbacks(clockTick);if(store!=null)store.unregisterOnSharedPreferenceChangeListener(timetableChanged); super.onDestroy(); }
-
-    @Override protected void onStart() { super.onStart(); if (pickupWidget != null) pickupWidget.start(); }
-    @Override protected void onStop() { if (pickupWidget != null) pickupWidget.stop(); super.onStop(); }
+    private final java.util.concurrent.ExecutorService backgroundWorker = java.util.concurrent.Executors.newSingleThreadExecutor();
+    @Override protected void onDestroy() { backgroundWorker.shutdown(); clockHandler.removeCallbacks(clockTick);if(store!=null)store.unregisterOnSharedPreferenceChangeListener(timetableChanged); super.onDestroy(); }
 
     @Override protected void onResume() {
         super.onResume();
@@ -88,7 +84,7 @@ public final class TimetableActivity extends Activity {
     private void showExpiredNotice(){if(!accountVisible||!expiredNotice||isDestroyed()||isFinishing())return;expiredNotice=false;new android.app.AlertDialog.Builder(this).setTitle("趣智校园登录已失效").setMessage("请重新登录后使用趣智校园设备。").setNegativeButton("稍后",null).setPositiveButton("重新登录",(d,w)->startActivity(new Intent(this,AccountActivity.class).putExtra("returnToAccountInfo",true))).show();}
     private void checkQzxySession(){
         showExpiredNotice();if(sessionChecking)return;sessionChecking=true;
-        pdfWorker.execute(()->{io.qzxy.lite.core.AccountSession checked=null;boolean expired=false;
+        backgroundWorker.execute(()->{io.qzxy.lite.core.AccountSession checked=null;boolean expired=false;
             try{checked=new AccountVault(this).load();if(checked!=null)SmsAccountApi.profile(checked);}
             catch(HttpForm.SessionExpired e){try{expired=AccountVault.clearExpired(this,checked);}catch(Exception ignored){}}
             catch(Exception unavailable){/* A network or parsing error is not proof of logout. */}
@@ -108,7 +104,7 @@ public final class TimetableActivity extends Activity {
      * than hidden, and the view is only rebuilt when something actually changed.
      */
     private void loadLocalState() {
-        pdfWorker.execute(() -> {
+        backgroundWorker.execute(() -> {
             boolean signed = false;
             try { signed = new AccountVault(getApplicationContext()).load() != null; }
             catch (Exception unreadableSession) { /* Shown as "not signed in"; the account screen says more. */ }
@@ -199,21 +195,9 @@ public final class TimetableActivity extends Activity {
         startActivity(new Intent(this,ScanActivity.class).putExtra("life798",true));
     }
 
-    private void choosePdf() {
-        if (importing) return;
-        android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT);
-        intent.setType("application/pdf"); intent.addCategory(android.content.Intent.CATEGORY_OPENABLE);
-        startActivityForResult(intent, 40);
-    }
     @Override protected void onActivityResult(int request, int result, android.content.Intent data) {
         super.onActivityResult(request, result, data);
         if(request>=80&&request<=83){handleDocument(request,result,data);return;}
-        if (pickupWidget != null && pickupWidget.result(request, result)) { render(); return; }
-        if (request == 41 && result == RESULT_OK && data != null) {
-            try { previewPdf(TimetableWebReader.parse(data.getStringExtra("courses")), "核对教务课表"); }
-            catch(Exception invalid) { new AlertDialog.Builder(this).setMessage("网页课表未能完整识别，已有课表未修改。"+invalid.getMessage()).setPositiveButton("知道了",null).show(); }
-            return;
-        }
         if (request == 42 && result == RESULT_OK && data != null && data.hasExtra("courses")) {
             if (data.getBooleanExtra("auto", false)) autoImport(data);
             else {
@@ -222,18 +206,6 @@ public final class TimetableActivity extends Activity {
             }
             return;
         }
-        if (request != 40 || result != RESULT_OK || data == null || data.getData() == null || importing) return;
-        importing = true; render(); final android.net.Uri uri = data.getData();
-        pdfWorker.execute(() -> {
-            try {
-                io.qzxy.lite.core.TimetablePdfParser.Result parsed = TimetablePdfReader.read(getApplicationContext(), uri);
-                runOnUiThread(() -> { if (isDestroyed() || isFinishing()) return; importing=false; render(); previewPdf(parsed); });
-            } catch (Exception failure) {
-                final String message = failure instanceof IllegalArgumentException ? failure.getMessage() : "无法读取此 PDF，请选择教务系统导出的未加密课表（10 MB、10 页以内）。";
-                runOnUiThread(() -> { if (isDestroyed() || isFinishing()) return; importing=false; render();
-                    new AlertDialog.Builder(this).setTitle("未导入课表").setMessage(message).setPositiveButton("知道了", null).show(); });
-            }
-        });
     }
     private void previewPdf(io.qzxy.lite.core.TimetablePdfParser.Result parsed) {
         previewPdf(parsed, "核对 PDF 课表");
@@ -367,8 +339,6 @@ public final class TimetableActivity extends Activity {
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
-        pickupWidget = new PickupWidget(this);
-        pickupWidget.onChanged(()->{if(root!=null && tab==0)render();});
         store = TimetableStore.open(this);
         // 0.7.7 and earlier stored a hand-typed pickup code here; the feature is gone, so drop it.
         getSharedPreferences("campus-v1", MODE_PRIVATE).edit().remove("pickup_code").apply();
@@ -472,7 +442,7 @@ public final class TimetableActivity extends Activity {
     private void handleDocument(int request,int result,Intent data){
         if(result!=RESULT_OK||data==null||data.getData()==null)return;
         final Uri uri=data.getData();importing=true;render();
-        pdfWorker.execute(()->{
+        backgroundWorker.execute(()->{
             try{
                 if(request==81){JSONObject backup=TimetableBackup.exportData(store);backup.put("background",TimetableStore.background(this));try(java.io.OutputStream out=getContentResolver().openOutputStream(uri,"wt")){if(out==null)throw new java.io.IOException();out.write(backup.toString().getBytes("UTF-8"));}
                     runOnUiThread(()->{if(isDestroyed())return;importing=false;render();notice("备份已导出，包含课表、配色、开学日期和背景图片。");});
@@ -789,21 +759,6 @@ public final class TimetableActivity extends Activity {
         academicCard(content);
     }
 
-    /** Today's actual classes: the current week, the current weekday, in section order. */
-    private void pickupCard(LinearLayout parent) {
-        LinearLayout card=whiteCard();
-        View widget = null;
-        try { widget = pickupWidget.view(); } catch (RuntimeException unavailable) { /* Offer recovery below. */ }
-        boolean added = pickupWidget.added();
-        cardHeader(card,"取件信息",added?"设置":"添加菜鸟组件",()->{
-            if(pickupWidget.added()) {
-                pickupWidget.settings();
-            } else { pickupWidget.add(); render(); }
-        });gap(card,8);
-        if(widget!=null) card.addView(widget,new LinearLayout.LayoutParams(-1,dp(180)));
-        else card.addView(body(added?"菜鸟组件暂不可用，可移除后重新添加。":"添加菜鸟组件，查看待取包裹。"));
-        parent.addView(card,new LinearLayout.LayoutParams(-1,-2));
-    }
 
     private void todayCourses(LinearLayout parent) {
         LinearLayout card=whiteCard();
