@@ -491,8 +491,8 @@ public final class TimetableActivity extends Activity {
     /**
      * The table picker behind the heading: the name of every table, the current one marked, and
      * 新建课表 at the bottom. Tapping a name renames that table; tapping the rest of the row (or the
-     * 切换 label) switches to it — the name is where people instinctively reach when they want to fix
-     * a name, and long-pressing to find that out was a guess nobody makes.
+     * 切换 label) switches to it. Delete is a labelled button on every row — a long press was
+     * undiscoverable, and on a list this short a visible button costs nothing.
      */
     private void chooseTable() {
         List<TimetableIndex.Table> tables = TimetableStore.tables(this);
@@ -500,7 +500,7 @@ public final class TimetableActivity extends Activity {
         final AlertDialog[] holder = new AlertDialog[1];
         LinearLayout list = column();
         list.setPadding(dp(4), dp(4), dp(4), dp(6));
-        TextView hint = text("点课表名字可重命名，长按可删除。", 12);
+        TextView hint = text("点名字可重命名，点右侧可切换或删除。", 12);
         hint.setTextColor(AppUi.MUTED);
         hint.setPadding(dp(14), dp(2), dp(14), dp(10));
         list.addView(hint, new LinearLayout.LayoutParams(-1, -2));
@@ -508,7 +508,7 @@ public final class TimetableActivity extends Activity {
             boolean active = table.id.equals(current);
             LinearLayout row = new LinearLayout(this);
             row.setGravity(android.view.Gravity.CENTER_VERTICAL);
-            row.setPadding(dp(14), dp(11), dp(14), dp(11));
+            row.setPadding(dp(14), dp(8), dp(8), dp(8));
             AppUi.press(row, 0xffffffff, 10);
             TextView name = text(table.name, 16);
             if (active) {
@@ -522,24 +522,33 @@ public final class TimetableActivity extends Activity {
             });
             name.setContentDescription(table.name + "，点按重命名");
             row.addView(name, new LinearLayout.LayoutParams(0, -2, 1));
+            TextView remove = text("删除", 13);
+            remove.setTextColor(AppUi.DANGER);
+            remove.setPadding(dp(10), dp(8), dp(10), dp(8));
+            AppUi.press(remove, 0x00ffffff, 8);
+            remove.setOnClickListener(v -> {
+                if (holder[0] != null) holder[0].dismiss();
+                removeTable(table);
+            });
+            remove.setContentDescription("删除" + table.name);
+            row.addView(remove);
             TextView mark = text(active ? "当前" : "切换", 13);
             mark.setTextColor(AppUi.ACCENT);
             if (!active) {
-                mark.setPadding(dp(10), dp(4), dp(10), dp(4));
+                mark.setPadding(dp(10), dp(8), dp(10), dp(8));
                 AppUi.press(mark, 0x00ffffff, 8);
                 mark.setOnClickListener(v -> {
                     if (holder[0] != null) holder[0].dismiss();
                     switchTable(table.id);
                 });
                 mark.setContentDescription("切换到" + table.name);
-            }
+            } else mark.setPadding(dp(10), dp(8), dp(10), dp(8));
             row.addView(mark);
-            row.setContentDescription(table.name + (active ? "，当前课表" : "，点按切换") + "，点名字可重命名");
+            row.setContentDescription(table.name + (active ? "，当前课表" : "，点按切换"));
             row.setOnClickListener(v -> {
                 if (holder[0] != null) holder[0].dismiss();
                 switchTable(table.id);
             });
-            row.setOnLongClickListener(v -> { tableMenu(table, holder[0]); return true; });
             list.addView(row, new LinearLayout.LayoutParams(-1, -2));
             View rule = new View(this); rule.setBackgroundColor(AppUi.LINE);
             list.addView(rule, new LinearLayout.LayoutParams(-1, Math.max(1, dp(1))));
@@ -591,14 +600,6 @@ public final class TimetableActivity extends Activity {
             }).show();
     }
 
-    private void tableMenu(final TimetableIndex.Table table, final AlertDialog picker) {
-        new AlertDialog.Builder(this).setTitle(table.name)
-            .setItems(new String[]{"重命名", "删除"}, (d, index) -> {
-                if (picker != null) picker.dismiss();
-                if (index == 0) renameTable(table); else removeTable(table);
-            }).setNegativeButton("取消", null).show();
-    }
-
     private void renameTable(final TimetableIndex.Table table) {
         final EditText input = new EditText(this);
         input.setSingleLine(true);
@@ -615,11 +616,19 @@ public final class TimetableActivity extends Activity {
 
     private void removeTable(final TimetableIndex.Table table) {
         if (TimetableStore.tables(this).size() <= 1) { notice("至少要保留一个课表。"); return; }
+        boolean wasCurrent = table.id.equals(TimetableStore.currentId(this));
+        String message = "这个课表的课程、背景和导入记录会一起删除，无法恢复。";
+        if (wasCurrent) {
+            // Say which table the screen will land on, so deleting the one you are looking at is not
+            // a jump into the unknown.
+            for (TimetableIndex.Table other : TimetableStore.tables(this)) {
+                if (!other.id.equals(table.id)) { message = "删除后会切到「" + other.name + "」。" + message; break; }
+            }
+        }
         new AlertDialog.Builder(this).setTitle("删除「" + table.name + "」？")
-            .setMessage("这个课表的课程、背景和导入记录会一起删除，无法恢复。")
+            .setMessage(message)
             .setNegativeButton("取消", null)
             .setPositiveButton("删除", (d, w) -> {
-                boolean wasCurrent = table.id.equals(TimetableStore.currentId(this));
                 if (!TimetableStore.remove(this, table.id)) { notice("删除失败，至少要保留一个课表。"); return; }
                 if (wasCurrent) bind(); else render();
                 notice("已删除「" + table.name + "」。");
@@ -724,10 +733,10 @@ public final class TimetableActivity extends Activity {
             pickerName.setMaxWidth(dp(200));
             picker.addView(pickerName,new LinearLayout.LayoutParams(-2,-2));
             android.widget.ImageView caret=new android.widget.ImageView(this);
-            caret.setImageDrawable(AppUi.icon(this,"caret",AppUi.INK,11));
+            caret.setImageDrawable(AppUi.icon(this,"caret",AppUi.INK,13));
             caret.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-            LinearLayout.LayoutParams caretParams=new LinearLayout.LayoutParams(dp(11),dp(11));
-            caretParams.setMargins(dp(6),dp(2),0,0);
+            LinearLayout.LayoutParams caretParams=new LinearLayout.LayoutParams(dp(13),dp(13));
+            caretParams.setMargins(dp(6),dp(3),0,0);
             picker.addView(caret,caretParams);
             picker.setPadding(dp(2),dp(2),dp(6),dp(2));
             picker.setOnClickListener(v->chooseTable());

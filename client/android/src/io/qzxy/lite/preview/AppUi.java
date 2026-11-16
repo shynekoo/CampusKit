@@ -8,6 +8,8 @@ import android.view.View;
 /** The app's light theme and native outline icon family. No font glyph icons. */
 final class AppUi {
  static final int BG=0xfff6f7f9,SURFACE=0xffffffff,INK=0xff202735,MUTED=0xff596575,ACCENT=0xff275dad,LINE=0xffe3e7ed,SOFT=0xffedf2f9;
+ /** Destructive actions only: deleting a timetable, wiping local data. */
+ static final int DANGER=0xffc0392b;
  static int dp(Context c,int n){return Math.round(n*c.getResources().getDisplayMetrics().density);}
  /** The installed version, so footers never drift out of date. */
  static String version(Context c){try{return c.getPackageManager().getPackageInfo(c.getPackageName(),0).versionName;}catch(Exception unknown){return "";}}
