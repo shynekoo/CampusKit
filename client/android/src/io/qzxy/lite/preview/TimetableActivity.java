@@ -461,12 +461,11 @@ public final class TimetableActivity extends Activity {
 
     private void manage() {
         if(unreadable || importing)return;
-        new AlertDialog.Builder(this).setTitle("我的课表").setItems(new String[]{"从教务系统自动导入", "网页手动导入课表", "开学日期", "添加课程", "全部课程（"+courses.size()+"）", "自定义背景图片", "添加桌面课表组件", "导出备份", "恢复备份", "查成绩", "查空教室"}, (d,index)-> {
+        new AlertDialog.Builder(this).setTitle("我的课表").setItems(new String[]{"从教务系统自动导入", "开学日期", "添加课程", "全部课程（"+courses.size()+"）", "自定义背景图片", "添加桌面课表组件", "导出备份", "恢复备份", "查成绩", "查空教室"}, (d,index)-> {
             if(index==0)startActivityForResult(new Intent(this,EduTimetableImportActivity.class),42);
-            else if(index==1)startActivityForResult(new Intent(this,TimetableWebActivity.class),41);
-            else if(index==2)semester();else if(index==3)edit(null);else if(index==4)allCourses();
-            else if(index==5)backgroundMenu();else if(index==6)addScheduleWidget();else if(index==7)document(Intent.ACTION_CREATE_DOCUMENT,"application/json",81);else if(index==8)document(Intent.ACTION_OPEN_DOCUMENT,"*/*",82);
-            else if(index==9)openEdu("grades");else if(index==10)openEdu("rooms");
+            else if(index==1)semester();else if(index==2)edit(null);else if(index==3)allCourses();
+            else if(index==4)backgroundMenu();else if(index==5)addScheduleWidget();else if(index==6)document(Intent.ACTION_CREATE_DOCUMENT,"application/json",81);else if(index==7)document(Intent.ACTION_OPEN_DOCUMENT,"*/*",82);
+            else if(index==8)openEdu("grades");else if(index==9)openEdu("rooms");
         }).setNegativeButton("关闭",null).show();
     }
     /**
@@ -587,11 +586,8 @@ public final class TimetableActivity extends Activity {
         LinearLayout content=column();scroll.addView(content,new ScrollView.LayoutParams(-1,-2));
         root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
         shortcutsCard(content);gap(content,14);
-        academicCard(content);gap(content,14);
-        if(pickupWidget.hasPickup()){pickupCard(content);gap(content,14);}
-        todayCourses(content);gap(content,18);
-        if(!pickupWidget.hasPickup()){pickupCard(content);gap(content,14);}
-
+        todayCourses(content);gap(content,14);
+        academicCard(content);
     }
 
     /** Today's actual classes: the current week, the current weekday, in section order. */
@@ -679,7 +675,7 @@ public final class TimetableActivity extends Activity {
         row.addView(shortcutTile("user","教务系统","自动登录",()->startActivity(new Intent(this,EduPortalActivity.class))),new LinearLayout.LayoutParams(0,-2,1));
         card.addView(row);
         LinearLayout sites=new LinearLayout(this);
-        sites.addView(shortcutTile("web","大学官网","hebeu.edu.cn",()->openSchoolSite("河北工程大学官网","https://www.hebeu.edu.cn/")),new LinearLayout.LayoutParams(0,-2,1));
+        sites.addView(shortcutTile("web","河工程官网","hebeu.edu.cn",()->openSchoolSite("河北工程大学官网","https://www.hebeu.edu.cn/")),new LinearLayout.LayoutParams(0,-2,1));
         sites.addView(shortcutTile("web","科信官网","kexin.hebeu.edu.cn",()->openSchoolSite("科信学院官网","https://kexin.hebeu.edu.cn/")),new LinearLayout.LayoutParams(0,-2,1));
         card.addView(sites);parent.addView(card,new LinearLayout.LayoutParams(-1,-2));
     }

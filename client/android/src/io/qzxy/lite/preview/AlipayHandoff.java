@@ -34,6 +34,8 @@ final class AlipayHandoff {
     private static final String CALLBACK = "com.alipay.android.app.IRemoteServiceCallback";
     private static final Pattern STATUS = Pattern.compile("resultStatus=\\{([0-9]{1,4})\\}");
     private static final int TIMEOUT_MS = 12000;
+    /** How long Alipay may take to ask us for its cashier before we call the attempt failed. */
+    private static final int CASHIER_TIMEOUT_MS = 15000;
 
     interface Result {
         /** {@code paid} is only true when Alipay itself reports 9000. */
@@ -47,6 +49,10 @@ final class AlipayHandoff {
     private final Callback stub = new Callback();
     private IBinder binder;
     private boolean connected, finished, bound;
+    /** Set once Alipay asks this app to open the cashier; from then on the user is inside Alipay. */
+    private volatile boolean cashierOpened;
+    /** Alipay may report the final status through {@code payEnd} instead of the call's return value. */
+    private volatile String ended;
 
     private AlipayHandoff(Activity activity, String order, Result callback) {
         this.activity = activity;
@@ -87,8 +93,12 @@ final class AlipayHandoff {
             int version = version();
             if (version >= 3) registerCallback03(); else registerCallback();
             if (version >= 3) r03();
+            // pay02 blocks until the payment ends, so the only way to notice "the cashier never
+            // appeared" is a timer started before the call.
+            awaitCashier();
             String result = version >= 2 ? pay02() : payOrder();
             String text = result == null ? "" : result;
+            if (text.isEmpty() && ended != null) text = ended;
             Matcher status = STATUS.matcher(text);
             if (!status.find()) { finish(false, "支付宝没有返回支付结果。这笔订单未支付。"); return; }
             int code;
@@ -97,6 +107,18 @@ final class AlipayHandoff {
         } catch (RemoteException | RuntimeException failure) {
             finish(false, "支付宝拒绝了这笔支付请求（" + shortReason(failure) + "）。订单未支付。");
         }
+    }
+
+    /**
+     * Alipay opens its cashier by calling back into this app. Until that happens nothing is visible
+     * to the user, so a silent pay02 would leave the screen on "正在打开支付宝…" forever.
+     */
+    private void awaitCashier() {
+        main.postDelayed(() -> {
+            if (!cashierOpened && !finished) {
+                finish(false, "支付宝没有弹出收银台，这笔订单未支付。请确认支付宝已登录且是最新版本，再试一次。");
+            }
+        }, CASHIER_TIMEOUT_MS);
     }
 
     private static String describe(int code) {
@@ -224,29 +246,36 @@ final class AlipayHandoff {
                     return true;
                 }
                 case 2: {
+                    // payEnd(boolean, String): Alipay's own end-of-payment report.
                     data.enforceInterface(CALLBACK);
                     data.readInt();
-                    data.readString();
+                    String report = data.readString();
+                    if (report != null && ended == null) ended = report;
                     reply.writeNoException();
                     return true;
                 }
                 case 3: {
+                    // isHideLoadingScreen() -> false, exactly as the SDK's own stub answers.
                     data.enforceInterface(CALLBACK);
                     reply.writeNoException();
                     reply.writeInt(0);
                     return true;
                 }
                 case 4: {
+                    // getVersion(): 4 is what the SDK's stub reports. Answering 1 made Alipay treat
+                    // this app as an old client and skip starting the cashier.
                     data.enforceInterface(CALLBACK);
                     reply.writeNoException();
-                    reply.writeInt(1);
+                    reply.writeInt(4);
                     return true;
                 }
                 case 5: {
+                    // r03(String, String, Map): "ActivityStartSuccess" means the cashier is up.
                     data.enforceInterface(CALLBACK);
                     data.readString();
-                    data.readString();
+                    String event = data.readString();
                     data.readHashMap(Callback.class.getClassLoader());
+                    if ("ActivityStartSuccess".equals(event)) cashierOpened = true;
                     reply.writeNoException();
                     return true;
                 }
@@ -259,6 +288,7 @@ final class AlipayHandoff {
     /** The cashier is an activity inside Alipay; opening it is the actual "跳到支付宝" step. */
     private void open(String pkg, String cls, Bundle extras) {
         if (pkg == null || cls == null) return;
+        cashierOpened = true;
         Intent intent = new Intent(Intent.ACTION_MAIN);
         intent.setClassName(pkg, cls);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
