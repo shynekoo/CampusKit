@@ -11,6 +11,29 @@ final class AppUi {
  /** Destructive actions only: deleting a timetable, wiping local data. */
  static final int DANGER=0xffc0392b;
  static int dp(Context c,int n){return Math.round(n*c.getResources().getDisplayMetrics().density);}
+ /**
+  * The widest column of text the app draws. Past this, extra pixels become margin rather than
+  * longer lines: Chinese body text at 13sp stops being readable well before a tablet's 800dp.
+  */
+ static final int READABLE_WIDTH=560;
+ /** The screen's width in dp, which is what every layout decision below is actually about. */
+ static int widthDp(Context c){
+  android.util.DisplayMetrics m=c.getResources().getDisplayMetrics();
+  return Math.round(m.widthPixels/Math.max(1f,m.density));
+ }
+ /**
+  * Horizontal page margin for a content column. Small phones tighten the margin so the timetable's
+  * seven columns and the four shortcut tiles keep their width; tablets widen it so the content
+  * stays a readable column instead of stretching edge to edge.
+  */
+ static int side(Context c,int base){
+  int width=widthDp(c),margin=base;
+  if(width<340)margin=Math.max(6,base-4);
+  else if(width>READABLE_WIDTH+2*base)margin=base+(width-READABLE_WIDTH-2*base)/2;
+  return dp(c,margin);
+ }
+ /** True on the narrowest phones, where four-across rows and fixed icon sizes stop fitting. */
+ static boolean compact(Context c){return widthDp(c)<360;}
  /** The installed version, so footers never drift out of date. */
  static String version(Context c){try{return c.getPackageManager().getPackageInfo(c.getPackageName(),0).versionName;}catch(Exception unknown){return "";}}
  static GradientDrawable shape(Context c,int color,int radius){GradientDrawable g=new GradientDrawable();g.setColor(color);g.setCornerRadius(dp(c,radius));return g;}

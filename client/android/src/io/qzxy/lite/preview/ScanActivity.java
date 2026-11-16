@@ -79,12 +79,13 @@ public final class ScanActivity extends Activity implements SurfaceHolder.Callba
         super.onCreate(saved);
         life798=getIntent().getBooleanExtra("life798",false);
         LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(AppUi.BG);
-        root.setPadding(dp(16), dp(8), dp(16), dp(12));
+        final int side = AppUi.side(this, 16);
+        root.setPadding(side, dp(8), side, dp(12));
         if (android.os.Build.VERSION.SDK_INT >= 30) {
             getWindow().setDecorFitsSystemWindows(false);
             root.setOnApplyWindowInsetsListener((v, insets) -> {
                 android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
-                v.setPadding(dp(16) + bars.left, dp(8) + bars.top, dp(16) + bars.right, dp(12) + bars.bottom); return insets;
+                v.setPadding(side + bars.left, dp(8) + bars.top, side + bars.right, dp(12) + bars.bottom); return insets;
             });
         }
 

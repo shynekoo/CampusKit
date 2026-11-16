@@ -69,13 +69,14 @@ public final class AccountActivity extends Activity {
     }
     private void gap(LinearLayout panel, int size) { panel.addView(new View(this), new LinearLayout.LayoutParams(1, dp(size))); }
     private LinearLayout panel() {
+        final int side = AppUi.side(this, AppUi.compact(this) ? 20 : 24);
         LinearLayout panel = new LinearLayout(this); panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setPadding(dp(24), dp(20), dp(24), dp(24)); panel.setBackgroundColor(AppUi.BG);
+        panel.setPadding(side, dp(20), side, dp(24)); panel.setBackgroundColor(AppUi.BG);
         if (Build.VERSION.SDK_INT >= 30) {
             getWindow().setDecorFitsSystemWindows(false);
             panel.setOnApplyWindowInsetsListener((v, insets) -> {
                 android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.ime());
-                v.setPadding(dp(24) + bars.left, dp(20) + bars.top, dp(24) + bars.right, dp(24) + bars.bottom); return insets;
+                v.setPadding(side + bars.left, dp(20) + bars.top, side + bars.right, dp(24) + bars.bottom); return insets;
             });
         }
         ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true); scroll.addView(panel);

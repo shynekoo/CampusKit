@@ -362,6 +362,15 @@ public final class TimetableActivity extends Activity {
         out.putString("pendingNote", pendingNote);
         super.onSaveInstanceState(out);
     }
+    /**
+     * Declared with orientation|screenSize, so the framework does not recreate the activity on a
+     * rotation or a split-screen resize. Every margin here is computed for a width, so the view is
+     * rebuilt for the new one instead of keeping the old one stretched.
+     */
+    @Override public void onConfigurationChanged(android.content.res.Configuration config) {
+        super.onConfigurationChanged(config);
+        render();
+    }
     private static SimpleDateFormat dateFormat() {
         SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd", Locale.ROOT);
         format.setLenient(false); format.setTimeZone(TimeZone.getTimeZone("UTC")); return format;
@@ -682,6 +691,9 @@ public final class TimetableActivity extends Activity {
     private TextView tabItem(String label,boolean selected,Runnable action) {
         TextView item=bold(label,12);
         item.setTextColor(selected?AppUi.ACCENT:AppUi.MUTED);
+        // A minimum rather than a fixed height: the bar grows with the reader's font size instead of
+        // clipping the label under its icon.
+        item.setMinHeight(dp(56));
         item.setGravity(android.view.Gravity.CENTER);item.setSelected(selected);item.setCompoundDrawables(null,AppUi.icon(this,label.equals("今日")?"today":label.equals("课表")?"calendar":"user",selected?AppUi.ACCENT:AppUi.MUTED,22),null,null);item.setCompoundDrawablePadding(dp(4));item.setPadding(0,dp(6),0,dp(6));AppUi.press(item,selected?AppUi.SOFT:0x00ffffff,18);
         
         item.setOnClickListener(v->action.run());
@@ -690,10 +702,13 @@ public final class TimetableActivity extends Activity {
     }
     private void render() {
         pager=null;
-        root=column();root.setBackgroundColor(AppUi.BG);root.setPadding(dp(8),dp(8),dp(8),0);
+        // Margins come from the screen, not a constant: a 320dp phone gets 4dp back for its seven
+        // columns, and a tablet gets a centred column instead of body text running the full width.
+        final int side = AppUi.side(this, 8);
+        root=column();root.setBackgroundColor(AppUi.BG);root.setPadding(side,dp(8),side,0);
         if(android.os.Build.VERSION.SDK_INT>=30) {
             getWindow().setDecorFitsSystemWindows(false);
-            root.setOnApplyWindowInsetsListener((v,insets)->{android.graphics.Insets bars=insets.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());v.setPadding(dp(8)+bars.left,dp(8)+bars.top,dp(8)+bars.right,bars.bottom);return insets;});
+            root.setOnApplyWindowInsetsListener((v,insets)->{android.graphics.Insets bars=insets.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());v.setPadding(side+bars.left,dp(8)+bars.top,side+bars.right,bars.bottom);return insets;});
         }
         // One header shape for all three tabs, so 今日 / 课表 / 趣智校园 read as views of the same app.
         LinearLayout header=new LinearLayout(this);header.setGravity(android.view.Gravity.CENTER_VERTICAL);header.setPadding(dp(8),0,dp(8),0);
@@ -706,7 +721,9 @@ public final class TimetableActivity extends Activity {
             TextView pickerName=bold(TimetableStore.currentName(this),20);
             pickerName.setSingleLine(true);
             pickerName.setEllipsize(android.text.TextUtils.TruncateAt.END);
-            pickerName.setMaxWidth(dp(200));
+            // Whatever the header has left after the 管理 button, so a long table name ellipsizes
+            // instead of pushing the button off a narrow screen.
+            pickerName.setMaxWidth(Math.max(dp(120), getResources().getDisplayMetrics().widthPixels-2*side-dp(76)-dp(28)));
             picker.addView(pickerName,new LinearLayout.LayoutParams(-2,-2));
             android.widget.ImageView caret=new android.widget.ImageView(this);
             caret.setImageDrawable(AppUi.icon(this,"caret",AppUi.INK,13));
@@ -736,9 +753,9 @@ public final class TimetableActivity extends Activity {
         // under the two bottom corners while the top corners stay clean. The hairline border alone
         // separates the bar from the page, evenly on all four corners.
         LinearLayout bar=new LinearLayout(this);bar.setBackground(AppUi.outlined(this,0xffffffff,24,AppUi.LINE));bar.setPadding(dp(5),dp(5),dp(5),dp(5));
-        bar.addView(tabItem("今日",tab==0,()->{if(tab!=0){tab=0;campusView=0;render();}}),new LinearLayout.LayoutParams(0,dp(60),1));
-        bar.addView(tabItem("课表",tab==1,()->{if(tab!=1){tab=1;campusView=0;render();}}),new LinearLayout.LayoutParams(0,dp(60),1));
-        bar.addView(tabItem("账号",tab==2,()->{if(tab!=2){tab=2;render();}}),new LinearLayout.LayoutParams(0,dp(60),1));
+        bar.addView(tabItem("今日",tab==0,()->{if(tab!=0){tab=0;campusView=0;render();}}),new LinearLayout.LayoutParams(0,-2,1));
+        bar.addView(tabItem("课表",tab==1,()->{if(tab!=1){tab=1;campusView=0;render();}}),new LinearLayout.LayoutParams(0,-2,1));
+        bar.addView(tabItem("账号",tab==2,()->{if(tab!=2){tab=2;render();}}),new LinearLayout.LayoutParams(0,-2,1));
         holder.addView(bar,new LinearLayout.LayoutParams(-1,-2));root.addView(holder,new LinearLayout.LayoutParams(-1,-2));
         setContentView(root);root.requestApplyInsets();
     }
@@ -805,10 +822,10 @@ public final class TimetableActivity extends Activity {
         String time=ClassTimes.range(course.optInt("first"),course.optInt("last"));String[] span=time.split("[–—-]");
         LinearLayout times=column();TextView first=bold(span.length>0?span[0]:"",14);times.addView(first);
         if(span.length>1){TextView last=text(span[1],12);last.setTextColor(AppUi.MUTED);times.addView(last);}
-        row.addView(times,new LinearLayout.LayoutParams(dp(56),-2));
+        row.addView(times,new LinearLayout.LayoutParams(AppUi.compact(this)?dp(48):dp(56),-2));
         View marker=new View(this);marker.setBackground(AppUi.shape(this,ink,2));LinearLayout.LayoutParams ml=new LinearLayout.LayoutParams(dp(3),dp(40));ml.setMargins(0,dp(2),dp(12),0);row.addView(marker,ml);
-        LinearLayout labels=column();TextView name=bold(course.optString("name"),16);name.setTextColor(ink);if(ended)name.setPaintFlags(name.getPaintFlags()|android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);labels.addView(name);
-        String detail=course.optString("room")+" · 第 "+course.optInt("first")+"–"+course.optInt("last")+" 节";TextView room=text(detail,12);room.setTextColor(ink);room.setAlpha(.8f);room.setPadding(0,dp(2),0,0);labels.addView(room);
+        LinearLayout labels=column();TextView name=bold(course.optString("name"),16);name.setTextColor(ink);name.setMaxLines(2);name.setEllipsize(android.text.TextUtils.TruncateAt.END);if(ended)name.setPaintFlags(name.getPaintFlags()|android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);labels.addView(name);
+        String detail=course.optString("room")+" · 第 "+course.optInt("first")+"–"+course.optInt("last")+" 节";TextView room=text(detail,12);room.setTextColor(ink);room.setAlpha(.8f);room.setSingleLine(true);room.setEllipsize(android.text.TextUtils.TruncateAt.END);room.setPadding(0,dp(2),0,0);labels.addView(room);
         if(!ended&&status.equals("正在上课")){TextView current=bold("● 正在上课",12);current.setTextColor(ink);current.setPadding(0,dp(4),0,0);labels.addView(current);}
         row.addView(labels,new LinearLayout.LayoutParams(0,-2,1));if(ended)row.setAlpha(.55f);row.setContentDescription(course.optString("name")+"，"+time+"，"+detail+(ended?"，已结束":""));return row;
     }
@@ -851,10 +868,14 @@ public final class TimetableActivity extends Activity {
             .putExtra(SchoolSiteActivity.EXTRA_TITLE,title));}
         catch(RuntimeException unavailable){notice("无法打开学校网站。");}
     }
-    private View shortcutTile(String icon,String title,String subtitle,Runnable action) {        LinearLayout tile=column();tile.setGravity(android.view.Gravity.CENTER);tile.setPadding(dp(4),dp(10),dp(4),dp(10));tile.setMinimumHeight(dp(96));AppUi.press(tile,0xffffffff,10);tile.setOnClickListener(v->action.run());
-        android.widget.ImageView mark=new android.widget.ImageView(this);mark.setImageDrawable(AppUi.icon(this,icon,AppUi.ACCENT,24));mark.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);mark.setBackground(AppUi.shape(this,AppUi.SOFT,22));mark.setPadding(dp(10),dp(10),dp(10),dp(10));tile.addView(mark,new LinearLayout.LayoutParams(dp(44),dp(44)));
-        TextView name=bold(title,13);name.setGravity(android.view.Gravity.CENTER);name.setPadding(0,dp(8),0,0);tile.addView(name);
-        TextView hint=text(subtitle,12);hint.setTextColor(AppUi.MUTED);hint.setGravity(android.view.Gravity.CENTER);tile.addView(hint);tile.setContentDescription(title+"，"+subtitle);return tile;
+    private View shortcutTile(String icon,String title,String subtitle,Runnable action) {
+        // Four of these share the width of the card. On a narrow phone they lose a little icon and
+        // a point of type rather than letting the labels wrap into uneven columns.
+        boolean compact=AppUi.compact(this);int size=compact?dp(40):dp(44);
+        LinearLayout tile=column();tile.setGravity(android.view.Gravity.CENTER);tile.setPadding(dp(3),dp(10),dp(3),dp(10));tile.setMinimumHeight(dp(96));AppUi.press(tile,0xffffffff,10);tile.setOnClickListener(v->action.run());
+        android.widget.ImageView mark=new android.widget.ImageView(this);mark.setImageDrawable(AppUi.icon(this,icon,AppUi.ACCENT,24));mark.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);mark.setBackground(AppUi.shape(this,AppUi.SOFT,22));mark.setPadding(dp(9),dp(9),dp(9),dp(9));tile.addView(mark,new LinearLayout.LayoutParams(size,size));
+        TextView name=bold(title,compact?12:13);name.setGravity(android.view.Gravity.CENTER);name.setPadding(0,dp(8),0,0);name.setMaxLines(2);name.setEllipsize(android.text.TextUtils.TruncateAt.END);tile.addView(name);
+        TextView hint=text(subtitle,compact?11:12);hint.setTextColor(AppUi.MUTED);hint.setGravity(android.view.Gravity.CENTER);hint.setMaxLines(2);hint.setEllipsize(android.text.TextUtils.TruncateAt.END);tile.addView(hint);tile.setContentDescription(title+"，"+subtitle);return tile;
     }
 
     private Button weekAction(String label,Runnable action) {
@@ -863,14 +884,15 @@ public final class TimetableActivity extends Activity {
         AppUi.press(view,0x00ffffff,8);return view;
     }
     private void timetableContent() {
+        boolean compact=AppUi.compact(this);int arrow=compact?dp(44):dp(48);
         LinearLayout navigation=new LinearLayout(this);navigation.setGravity(android.view.Gravity.CENTER_VERTICAL);navigation.setPadding(dp(4),0,dp(4),dp(4));
-        Button selected=weekAction("第 "+week+" 周  ▾",this::selectWeek);selected.setTextSize(18);selected.setGravity(android.view.Gravity.LEFT|android.view.Gravity.CENTER_VERTICAL);selected.setContentDescription("选择周次，当前第"+week+"周");
+        Button selected=weekAction("第 "+week+" 周  ▾",this::selectWeek);selected.setTextSize(compact?17:18);selected.setGravity(android.view.Gravity.LEFT|android.view.Gravity.CENTER_VERTICAL);selected.setMaxLines(1);selected.setEllipsize(android.text.TextUtils.TruncateAt.END);selected.setContentDescription("选择周次，当前第"+week+"周");
         navigation.addView(selected,new LinearLayout.LayoutParams(0,dp(48),1));
         Button previous=weekAction("‹",()->shiftWeek(-1));previous.setTextSize(26);previous.setContentDescription("上一周");previous.setEnabled(week>1);
         Button next=weekAction("›",()->shiftWeek(1));next.setTextSize(26);next.setContentDescription("下一周");next.setEnabled(week<30);
-        navigation.addView(previous,new LinearLayout.LayoutParams(dp(48),dp(48)));
-        navigation.addView(next,new LinearLayout.LayoutParams(dp(48),dp(48)));
-        if(week!=currentWeek()&&currentWeek()>=1&&currentWeek()<=30)navigation.addView(weekAction("回本周",this::goCurrentWeek),new LinearLayout.LayoutParams(dp(76),dp(48)));
+        navigation.addView(previous,new LinearLayout.LayoutParams(arrow,dp(48)));
+        navigation.addView(next,new LinearLayout.LayoutParams(arrow,dp(48)));
+        if(week!=currentWeek()&&currentWeek()>=1&&currentWeek()<=30)navigation.addView(weekAction("回本周",this::goCurrentWeek),new LinearLayout.LayoutParams(compact?dp(64):dp(76),dp(48)));
         root.addView(navigation);
         List<JSONObject> visible=new ArrayList<>();for(JSONObject c:courses)if(appears(c))visible.add(c);
         WeekBoard.Listener listener=new WeekBoard.Listener(){

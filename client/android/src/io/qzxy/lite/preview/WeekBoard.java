@@ -5,6 +5,7 @@ import android.graphics.*;
 import android.graphics.drawable.GradientDrawable;
 import android.view.*;
 import android.widget.*;
+import io.qzxy.lite.core.BoardFit;
 import org.json.JSONObject;
 import java.util.*;
 
@@ -44,7 +45,9 @@ final class WeekBoard extends android.view.ViewGroup {
     /** Tap detection for empty cells, which are not child views. */
     private float downX, downY, tapSlop;
     private float axis, head, row, column;
-    private static final class Block { int day,first,last; LinearLayout view; TextView title; List<JSONObject> courses=new ArrayList<>(); }
+    /** The width the cell type was last sized for, so a rotation or split-screen resize re-fits it. */
+    private int fittedWidth;
+    private static final class Block { int day,first,last; LinearLayout view; TextView title,room; String roomText=""; List<JSONObject> courses=new ArrayList<>(); }
     private int dp(float n){return Math.round(n*getResources().getDisplayMetrics().density);}
 
     /** Palette index (0-based) for one course: explicit choice first, otherwise the name colour. */
@@ -95,25 +98,58 @@ final class WeekBoard extends android.view.ViewGroup {
         }
         for(Block block:blocks) {
             JSONObject c=block.courses.get(0);int color=colorIndex(c);
-            LinearLayout view=new LinearLayout(context);view.setOrientation(LinearLayout.VERTICAL);block.view=view;view.setPadding(dp(6),dp(7),dp(5),dp(6));
-            TextView title=new TextView(context);block.title=title;title.setTextSize(12);title.setTextColor(INKS[color]);title.setGravity(Gravity.TOP|Gravity.LEFT);
+            LinearLayout view=new LinearLayout(context);view.setOrientation(LinearLayout.VERTICAL);block.view=view;
+            TextView title=new TextView(context);block.title=title;title.setTextColor(INKS[color]);title.setGravity(Gravity.TOP|Gravity.LEFT);
             title.setTypeface(Typeface.DEFAULT,Typeface.BOLD);title.setIncludeFontPadding(false);title.setText(c.optString("name")+(block.courses.size()>1?" +"+(block.courses.size()-1):""));
             title.setEllipsize(android.text.TextUtils.TruncateAt.END);view.addView(title,new LinearLayout.LayoutParams(-1,0,1));
-            TextView room=new TextView(context);room.setTextSize(10);room.setTextColor(INKS[color]);room.setGravity(Gravity.LEFT);room.setMaxLines(2);room.setIncludeFontPadding(false);
-            room.setText(c.optString("room").replaceFirst("^([A-Za-z]+[0-9]+)[-－](.+)$","$1\n$2"));room.setEllipsize(android.text.TextUtils.TruncateAt.END);view.addView(room,new LinearLayout.LayoutParams(-1,-2));
+            TextView room=new TextView(context);block.room=room;room.setTextColor(INKS[color]);room.setGravity(Gravity.LEFT);room.setIncludeFontPadding(false);
+            block.roomText=c.optString("room").replaceFirst("^([A-Za-z]+[0-9]+)[-－](.+)$","$1\n$2");
+            room.setText(block.roomText);room.setEllipsize(android.text.TextUtils.TruncateAt.END);view.addView(room,new LinearLayout.LayoutParams(-1,-2));
             GradientDrawable bg=new GradientDrawable();bg.setColor(FILLS[color]);bg.setCornerRadius(dp(8));view.setBackground(bg);
             String description="周"+new String[]{"一","二","三","四","五","六","日"}[block.day]+" 第"+block.first+"至"+block.last+"节";
             for(JSONObject course:block.courses)description+="，"+course.optString("name")+"，"+course.optString("room");
             view.setContentDescription(description+"，点击查看详情");view.setOnClickListener(v->listener.open(block.courses));view.setFocusable(true);addView(view);
         }
     }
+    /**
+     * Sizes one week's cells to the width they actually got.
+     *
+     * <p>Geometry comes from {@link io.qzxy.lite.core.BoardFit}, so the gutter, the padding and the
+     * type shrink together on a narrow phone instead of leaving three characters per line. The type
+     * is set in px rather than sp on purpose: the board is a fixed seven-column matrix, and a reader
+     * who raises the system font size should still see seven columns, not four cells of clipping.
+     * Line counts are then taken from the measured line height, so nothing is cut off.</p>
+     */
+    private void fitCells(int width) {
+        float density=Math.max(1f,getResources().getDisplayMetrics().density);
+        int widthDp=Math.round(width/density), columnDp=Math.round(column/density);
+        int pad=dp(BoardFit.cellPad(columnDp)), titleSp=BoardFit.titleSize(columnDp), roomSp=BoardFit.roomSize(titleSp);
+        fittedWidth=width;
+        for(Block block:blocks) {
+            block.view.setPadding(pad,pad,pad,pad);
+            block.title.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,dp(titleSp));
+            block.room.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,dp(roomSp));
+        }
+    }
     @Override protected void onMeasure(int widthSpec,int heightSpec) {
         int width=MeasureSpec.getSize(widthSpec),height=Math.max(getMinimumHeight(),dp(56*sections+48));
         if(MeasureSpec.getMode(heightSpec)!=MeasureSpec.UNSPECIFIED)height=Math.max(height,MeasureSpec.getSize(heightSpec));
-        setMeasuredDimension(width,height);axis=dp(46);head=dp(48);row=(height-head)/sections;column=(width-axis)/7;
+        setMeasuredDimension(width,height);
+        float density=Math.max(1f,getResources().getDisplayMetrics().density);
+        axis=dp(BoardFit.axis(Math.round(width/density)));head=dp(48);row=(height-head)/sections;column=(width-axis)/7;
+        int columnDp=Math.round(column/density);
+        if(width!=fittedWidth)fitCells(width);
         for(Block b:blocks) {
             int h=Math.max(1,Math.round(row*(b.last-b.first+1))-dp(4));
-            b.title.setMaxLines(Math.max(1,(h-dp(40))/dp(14)));
+            int rooms=BoardFit.roomLines(Math.round(h/density),columnDp);
+            b.room.setVisibility(rooms==0?View.GONE:View.VISIBLE);
+            if(rooms==1)b.room.setText(b.roomText.replace('\n',' '));
+            else b.room.setText(b.roomText);
+            b.room.setMaxLines(Math.max(1,rooms));
+            int reserved=rooms==0?0:b.room.getLineHeight()*rooms;
+            int lineHeight=Math.max(1,b.title.getLineHeight());
+            int lines=(h-b.view.getPaddingTop()-b.view.getPaddingBottom()-reserved)/lineHeight;
+            b.title.setMaxLines(Math.max(1,Math.min(BoardFit.titleCap(columnDp),lines)));
             b.view.measure(MeasureSpec.makeMeasureSpec(Math.max(1,Math.round(column)-dp(4)),MeasureSpec.EXACTLY),MeasureSpec.makeMeasureSpec(h,MeasureSpec.EXACTLY));
         }
     }
@@ -164,9 +200,11 @@ final class WeekBoard extends android.view.ViewGroup {
             label(canvas,dates[n],x,dp(37),10,n==today?0xe6ffffff:AppUi.MUTED,false);}
         for(int n=1;n<=sections;n++) {
             float center=head+(n-.5f)*row;
+            // Times drop a step on a narrow gutter so 08:30 still fits between the rule and the axis.
+            int timeSize=(int)Math.round(axis/getResources().getDisplayMetrics().density)<36?9:10;
             label(canvas,String.valueOf(n),axis/2,center-dp(10),12,AppUi.INK,true);
-            label(canvas,ClassTimes.start(n),axis/2,center+dp(5),10,AppUi.MUTED,false);
-            label(canvas,ClassTimes.end(n),axis/2,center+dp(18),10,AppUi.MUTED,false);
+            label(canvas,ClassTimes.start(n),axis/2,center+dp(5),timeSize,AppUi.MUTED,false);
+            label(canvas,ClassTimes.end(n),axis/2,center+dp(18),timeSize,AppUi.MUTED,false);
         }
     }
 

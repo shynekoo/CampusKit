@@ -1042,6 +1042,46 @@ public final class CoreTests {
         equal(false, reloaded.remove("missing"));
         System.out.println("PASS: several timetables share one index without losing the original");
 
+        // Board geometry. The board is the one screen with seven fixed columns, so its type sizes
+        // cannot be constants: a 320dp phone and a 480dp phone both have to show a readable name.
+        // 320dp is the narrowest phone Android still ships; the other widths are the common ones.
+        int[] boards = {288, 304, 328, 344, 400, 464, 560, 900};
+        for (int board : boards) {
+            int axis = BoardFit.axis(board), column = BoardFit.column(board);
+            equal(true, axis >= BoardFit.MIN_AXIS && axis <= BoardFit.MAX_AXIS);
+            // Seven columns and the gutter never ask for more width than the board has.
+            equal(true, axis + 7 * column <= board);
+            equal(true, column >= 30);
+            int title = BoardFit.titleSize(column), pad = BoardFit.cellPad(column);
+            equal(true, title >= BoardFit.MIN_TITLE && title <= BoardFit.MAX_TITLE);
+            // At least two characters still fit on one line in the narrowest case.
+            equal(true, (column - 2 * pad) / title >= 2);
+            // A wider column never gets smaller type than a narrower one.
+            equal(true, title >= BoardFit.titleSize(Math.max(1, column - 1)));
+            equal(true, BoardFit.roomSize(title) < title);
+        }
+        // Concrete widths: the gutter shrinks on a narrow phone and stops growing on a wide one.
+        equal(33, BoardFit.axis(288));
+        equal(38, BoardFit.axis(328));
+        equal(46, BoardFit.axis(400));
+        equal(46, BoardFit.axis(900));
+        equal(36, BoardFit.column(288));
+        equal(12, BoardFit.titleSize(43));
+        equal(10, BoardFit.titleSize(36));
+        equal(13, BoardFit.titleSize(60));
+        equal(4, BoardFit.titleCap(43));
+        equal(3, BoardFit.titleCap(36));
+        equal(4, BoardFit.titleCap(60));
+        // A one-section block on a short screen drops the room line rather than squeezing the name.
+        equal(0, BoardFit.roomLines(30, 36));
+        equal(1, BoardFit.roomLines(53, 43));
+        equal(2, BoardFit.roomLines(110, 43));
+        equal(0, BoardFit.roomLines(10, 43));
+        // Degenerate input never produces a zero or negative size.
+        equal(BoardFit.MIN_AXIS, BoardFit.axis(0));
+        equal(1, BoardFit.column(0));
+        System.out.println("PASS: the timetable board scales its gutter, padding and type to the screen");
+
         System.out.println("All " + assertions + " assertions passed. Live API/Bluetooth compatibility is not tested here.");
     }
 

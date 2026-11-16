@@ -16,13 +16,16 @@ final class DeviceScreen {
     private final ProgressBar progress;
     DeviceScreen(Activity a,String name){
         activity=a;ScrollView scroll=new ScrollView(a);scroll.setFillViewport(true);
-        root=new LinearLayout(a);root.setOrientation(1);root.setPadding(dp(20),dp(8),dp(20),dp(24));root.setBackgroundColor(AppUi.BG);scroll.addView(root);a.setContentView(scroll);
+        // Wider screens centre the column instead of stretching the forms; narrow phones give the
+        // margin back to the content.
+        boolean compact=AppUi.compact(a);int side=AppUi.side(a,compact?16:20);
+        root=new LinearLayout(a);root.setOrientation(1);root.setPadding(side,dp(8),side,dp(24));root.setBackgroundColor(AppUi.BG);scroll.addView(root);a.setContentView(scroll);
         if(Build.VERSION.SDK_INT>=30){a.getWindow().setDecorFitsSystemWindows(false);scroll.setOnApplyWindowInsetsListener((v,i)->{android.graphics.Insets b=i.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());v.setPadding(b.left,b.top,b.right,b.bottom);return i;});}
-        toolbar=new LinearLayout(a);toolbar.setGravity(Gravity.CENTER_VERTICAL);root.addView(toolbar,new LinearLayout.LayoutParams(-1,dp(52)));
+        toolbar=new LinearLayout(a);toolbar.setGravity(Gravity.CENTER_VERTICAL);root.addView(toolbar,new LinearLayout.LayoutParams(-1,dp(compact?48:52)));
         icon("‹","返回",()->a.finish());Space spacer=new Space(a);toolbar.addView(spacer,new LinearLayout.LayoutParams(0,1,1));
         progress=new ProgressBar(a,null,android.R.attr.progressBarStyleHorizontal);progress.setIndeterminate(true);progress.setIndeterminateTintList(ColorStateList.valueOf(AppUi.ACCENT));progress.setVisibility(View.INVISIBLE);progress.setContentDescription("正在加载");root.addView(progress,new LinearLayout.LayoutParams(-1,dp(3)));
-        title=text(root,name,22);title.setTypeface(null,Typeface.BOLD);
-        card=new LinearLayout(a);card.setOrientation(1);card.setPadding(dp(20),dp(16),dp(20),dp(16));card.setBackground(background(0xffffffff,12));
+        title=text(root,name,AppUi.compact(a)?20:22);title.setTypeface(null,Typeface.BOLD);
+        card=new LinearLayout(a);card.setOrientation(1);card.setPadding(dp(compact?16:20),dp(16),dp(compact?16:20),dp(16));card.setBackground(background(0xffffffff,12));
         LinearLayout.LayoutParams cardParams=new LinearLayout.LayoutParams(-1,-2);cardParams.topMargin=dp(12);cardParams.bottomMargin=dp(20);root.addView(card,cardParams);
     }
     void loading(boolean value){progress.setVisibility(value?View.VISIBLE:View.INVISIBLE);}

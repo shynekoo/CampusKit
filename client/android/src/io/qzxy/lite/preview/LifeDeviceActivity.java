@@ -14,7 +14,7 @@ public final class LifeDeviceActivity extends Activity {
         if(deviceId!=null&&deviceId.matches("[A-Za-z0-9_-]{1,128}")){code=deviceId;direct=true;}
         else if(ticket!=null&&ticket.matches("[A-Za-z0-9_%+./=~?-]{1,300}")){code=ticket;direct=false;}
         else{finish();return;}
-        ScrollView scroll=new ScrollView(this);LinearLayout form=new LinearLayout(this);form.setOrientation(1);form.setPadding(dp(20),dp(18),dp(20),dp(18));form.setBackgroundColor(AppUi.BG);scroll.addView(form);setContentView(scroll);
+        ScrollView scroll=new ScrollView(this);LinearLayout form=new LinearLayout(this);form.setOrientation(1);int side=AppUi.side(this,20);form.setPadding(side,dp(18),side,dp(18));form.setBackgroundColor(AppUi.BG);scroll.addView(form);setContentView(scroll);
         if(Build.VERSION.SDK_INT>=30){getWindow().setDecorFitsSystemWindows(false);scroll.setOnApplyWindowInsetsListener((v,insets)->{android.graphics.Insets bars=insets.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());v.setPadding(bars.left,bars.top,bars.right,bars.bottom);return insets;});}
         button(form,"返回扫码",()->finish());text(form,"慧生活 · 设备",25);info=text(form,"已识别设备码。点击读取设备资料，使用本机保存的慧生活账号查询。",16);
         query=button(form,"读取设备资料",()->query());button(form,"账户信息",()->startActivity(new Intent(this,AccountInfoActivity.class).putExtra("life798",true)));

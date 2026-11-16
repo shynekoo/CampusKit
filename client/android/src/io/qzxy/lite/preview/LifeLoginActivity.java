@@ -21,7 +21,7 @@ public final class LifeLoginActivity extends Activity {
 
     private int dp(int n){return Math.round(n*getResources().getDisplayMetrics().density);}
     @Override public void onCreate(Bundle state){super.onCreate(state);if(state!=null)sentPhone=state.getString("sentPhone","");getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
-        ScrollView scroll=new ScrollView(this);LinearLayout form=new LinearLayout(this);form.setOrientation(1);form.setPadding(dp(22),dp(24),dp(22),dp(24));form.setBackgroundColor(AppUi.BG);scroll.addView(form);setContentView(scroll);
+        ScrollView scroll=new ScrollView(this);LinearLayout form=new LinearLayout(this);form.setOrientation(1);int side=AppUi.side(this,22);form.setPadding(side,dp(24),side,dp(24));form.setBackgroundColor(AppUi.BG);scroll.addView(form);setContentView(scroll);
         if(Build.VERSION.SDK_INT>=30){getWindow().setDecorFitsSystemWindows(false);scroll.setOnApplyWindowInsetsListener((v,insets)->{android.graphics.Insets bars=insets.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout()|WindowInsets.Type.ime());v.setPadding(bars.left,bars.top,bars.right,bars.bottom);return insets;});}
         Button back=new Button(this);back.setText("返回科信小助手");back.setOnClickListener(v->finish());form.addView(back);
         TextView title=new TextView(this);title.setText("登录慧生活798");title.setTextSize(24);form.addView(title);

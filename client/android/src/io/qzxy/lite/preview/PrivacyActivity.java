@@ -109,12 +109,13 @@ public final class PrivacyActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(AppUi.BG);
-        root.setPadding(dp(14), dp(8), dp(14), 0);
+        final int side = AppUi.side(this, 14);
+        root.setPadding(side, dp(8), side, 0);
         if (Build.VERSION.SDK_INT >= 30) {
             getWindow().setDecorFitsSystemWindows(false);
             root.setOnApplyWindowInsetsListener((v, insets) -> {
                 android.graphics.Insets bars = insets.getInsets(android.view.WindowInsets.Type.systemBars());
-                v.setPadding(dp(14) + bars.left, dp(8) + bars.top, dp(14) + bars.right, bars.bottom);
+                v.setPadding(side + bars.left, dp(8) + bars.top, side + bars.right, bars.bottom);
                 return insets;
             });
         }

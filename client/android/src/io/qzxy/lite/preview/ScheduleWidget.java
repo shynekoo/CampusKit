@@ -30,13 +30,24 @@ public class ScheduleWidget extends AppWidgetProvider {
             }else if(!monday.isEmpty())summary="今天不在学期课表范围内";
         }catch(Exception invalid){summary="课表无法读取，请打开应用检查";}
         for(int id:ids){RemoteViews view=new RemoteViews(context.getPackageName(),R.layout.schedule_widget);view.setTextViewText(R.id.widget_title,title);view.setTextViewText(R.id.widget_summary,summary);view.setTextViewText(R.id.widget_courses,content);
-            boolean compact=manager.getAppWidgetOptions(id).getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH,180)<180;
+            // A launcher cell is not a constant: the same widget is 110dp on a small phone and can
+            // be shorter than its own header once the reader's font size is raised. Both dimensions
+            // decide what is dropped — the footer first, then lines, then a size step.
+            android.os.Bundle options=manager.getAppWidgetOptions(id);
+            int width=options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH,180);
+            int height=options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT,110);
+            boolean narrow=width<180,shortWidget=height<120,compact=narrow||shortWidget;
             view.setTextViewText(R.id.widget_title,compact?"今日课程":title);
             view.setTextViewTextSize(R.id.widget_title,android.util.TypedValue.COMPLEX_UNIT_SP,compact?14:16);
+            view.setTextViewTextSize(R.id.widget_summary,android.util.TypedValue.COMPLEX_UNIT_SP,compact?12:14);
+            view.setTextViewTextSize(R.id.widget_courses,android.util.TypedValue.COMPLEX_UNIT_SP,compact?12:13);
             view.setViewVisibility(R.id.widget_courses,android.view.View.VISIBLE);
-            view.setInt(R.id.widget_courses,"setMaxLines",compact?3:8);
-            view.setInt(R.id.widget_summary,"setMaxLines",compact?2:2);
-            float density=context.getResources().getDisplayMetrics().density;view.setViewPadding(R.id.widget_root,Math.round(20*density),Math.round(8*density),Math.round(12*density),Math.round(8*density));
+            view.setInt(R.id.widget_courses,"setMaxLines",compact?2:6);
+            view.setInt(R.id.widget_summary,"setMaxLines",compact?1:2);
+            view.setViewVisibility(R.id.widget_footer,compact?android.view.View.GONE:android.view.View.VISIBLE);
+            float density=context.getResources().getDisplayMetrics().density;
+            int pad=Math.round((compact?12:20)*density);
+            view.setViewPadding(R.id.widget_root,pad,Math.round(8*density),pad,Math.round(8*density));
             Intent open=new Intent(context,TimetableActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP).putExtra("showToday",true);
             view.setOnClickPendingIntent(R.id.widget_root,PendingIntent.getActivity(context,10,open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE));
             Intent refresh=new Intent(context,ScheduleWidget.class).setAction("io.qzxy.lite.REFRESH_SCHEDULE");view.setOnClickPendingIntent(R.id.widget_refresh,PendingIntent.getBroadcast(context,11,refresh,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE));manager.updateAppWidget(id,view);}
