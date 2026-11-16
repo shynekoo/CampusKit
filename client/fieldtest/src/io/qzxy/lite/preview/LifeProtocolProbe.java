@@ -1,0 +1,75 @@
+package io.qzxy.lite.preview;
+import org.json.*;
+import java.io.*;
+import java.net.*;
+import java.util.*;
+/**
+ * 协议探测：一次把「服务端到底要什么」问清楚。
+ *
+ * <p>背景：官方 3.1.10 的包是加固的，真实代码取不出来；服务端对 {@code /api/v1/dev/start}
+ * 只给一句「请升级最新版APP」，而且把 {@code VersionCode} 抬到 50000 也一样。
+ * 同一份诊断里详情请求（同样的头、同样的 token）却是 {@code code:0}——
+ * 说明差异不在凭据，而在这条控制请求的「长相」：走的路径、带的参数、或者请求头。
+ *
+ * <p>于是这里把几种最可能的长相排成一列依次试，只做一件事：把服务端的**原话**原样记下来。
+ * 判据很简单——只要它不再说「升级」，就说明这道墙过了（那时即使回「参数错误」也是有价值的信息：
+ * 墙过了、参数不对）。命中即停，避免对设备重复下发；而且被墙挡回的请求根本没进业务逻辑，重试不会多开一次水。
+ */
+final class LifeProtocolProbe {
+ private LifeProtocolProbe(){}
+ static final class Attempt {
+  final String name,path;final Map<String,String> headers=new LinkedHashMap<>();
+  Attempt(String name,String path,String... pairs){this.name=name;this.path=path;for(int i=0;i+1<pairs.length;i+=2)headers.put(pairs[i],pairs[i+1]);}
+ }
+ static String run(JSONObject session,String did,int pay,int mode){
+  String token;
+  try{token=LifeAuthApi.credentials(session).getString("token");}catch(Exception e){return "凭据无效，无法探测";}
+  String start="/api/v1/dev/start?did="+did+"&upgrade=true&ptype="+pay+"&args=&rcp=false&cnt=1";
+  String modeWith="/api/v1/dev/mode/start?did="+did+"&mode="+mode+"&ptype="+pay+"&args=&rcp=false&cnt=1&upgrade=true";
+  String modePlain="/api/v1/dev/mode/start?did="+did+"&mode="+mode+"&ptype="+pay+"&rcp=false&cnt=1";
+  List<Attempt> tries=new ArrayList<>();
+  tries.add(new Attempt("旧路径 AT 1,1（基线）",start));
+  tries.add(new Attempt("旧路径 AT 1,2",start,"ApplicationType","1,2"));
+  tries.add(new Attempt("旧路径 AT 2,1",start,"ApplicationType","2,1"));
+  tries.add(new Attempt("旧路径 + VersionName",start,"VersionName","3.1.10"));
+  tries.add(new Attempt("旧路径 + App-Ver",start,"App-Ver","3.1.10"));
+  tries.add(new Attempt("旧路径 + X-Api-Version",start,"X-Api-Version","3"));
+  tries.add(new Attempt("旧路径 + UA=okhttp",start,"User-Agent","okhttp/4.12.0"));
+  tries.add(new Attempt("mode/start 带 args",modeWith));
+  tries.add(new Attempt("mode/start 不带 args",modePlain));
+  tries.add(new Attempt("旧路径 + mode 参数",start+"&mode="+mode));
+  StringBuilder out=new StringBuilder();
+  boolean passed=false;int hit=0;
+  for(int i=0;i<tries.size()&&!passed;i++){
+   Attempt a=tries.get(i);String line;
+   try{
+    JSONObject reply=request(a.path,token,a.headers);
+    int code=LifeAuthApi.resultCode(reply);String msg=LifeAuthApi.message(reply);
+    passed=!LifeVersion.upgradeRequired(reply);
+    line=(i+1)+". "+a.name+" → "+code+(msg.isEmpty()?"":"："+msg)+(passed?"   ★ 过了这道墙":"");
+    if(passed)hit=i+1;
+   }catch(Exception e){
+    line=(i+1)+". "+a.name+" → "+LifeDeviceFailure.describe(e);
+   }
+   out.append(line).append('\n');
+  }
+  out.append('\n');
+  if(passed)out.append("第 ").append(hit).append(" 条不再被「请升级」挡住，改用它。");
+  else out.append("全部被同一句话挡住：说明它看的不是路径/这些头，而是请求签名一类的协商（需要官方新版本的密钥）。");
+  return out.toString();
+ }
+ static JSONObject request(String path,String token,Map<String,String> headers)throws Exception{
+  HttpURLConnection c=(HttpURLConnection)new URL(LifeAuthApi.HOST+path).openConnection();
+  c.setInstanceFollowRedirects(false);c.setConnectTimeout(15000);c.setReadTimeout(15000);c.setUseCaches(false);
+  c.setRequestProperty("Authorization",token);
+  c.setRequestProperty("ApplicationType",LifeVersion.APPLICATION_TYPE);
+  c.setRequestProperty("VersionCode",String.valueOf(LifeVersion.CODE));
+  c.setRequestProperty("User-Agent","CampusKit/0.9.18 (Android; independent client)");
+  for(Map.Entry<String,String> e:headers.entrySet())c.setRequestProperty(e.getKey(),e.getValue());
+  try{
+   int http=c.getResponseCode();
+   if(http!=200)return new JSONObject().put("code",-1).put("msg","HTTP "+http);
+   return new JSONObject(new String(TimetableBackup.read(c.getInputStream(),1024*1024),"UTF-8"));
+  }finally{c.disconnect();}
+ }
+}

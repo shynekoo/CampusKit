@@ -18,17 +18,16 @@ public final class LifeWaterTests {
   for(String id:new String[]{"x&cmd=start","","x?y"}){rejected=false;try{LifeWaterProtocol.startPath(id,91);}catch(Exception e){rejected=true;}check(rejected);}
   rejected=false;try{LifeWaterProtocol.startPath("test",21);}catch(Exception e){rejected=true;}check(rejected);
   android.content.Context c=runner.getTargetContext();
-  // 服务器按 VersionCode 请求头拦版本：官方 3.1.5 的 31005 打 dev/start 回的是
-  // {"code":-1,"msg":"请升级最新版APP"}，而同一台设备的详情请求（同样的头）却是 code:0。
-  // 官方现役 3.1.10 → 31010，所以梯子从 31010 起，并记住第一次被接受的那一档。
-  int[] ladder=LifeVersion.order(c);check(ladder[0]==LifeVersion.FLOOR&&ladder[0]==31010&&ladder.length>1&&ladder[ladder.length-1]>ladder[0]);
+  // 官方 3.1.10 的 versionCode 就是 31010；把它原样报上去，dev/start 仍然回「请升级最新版APP」，
+  // 所以那道门不是「版本号小于某个数」——2.3.5 抬到 50000 也是同一句。这里只保留判据本身：
+  // 「请升级」是协议墙，其它负数（-1 参数错、-99 过期）是业务/凭据问题，两者不能混为一谈。
+  check(LifeVersion.CODE==31010);
+  check("1,1".equals(LifeVersion.APPLICATION_TYPE));
   check(LifeVersion.upgradeRequired(new JSONObject().put("code",-1).put("msg","请升级最新版APP")));
   check(!LifeVersion.upgradeRequired(new JSONObject().put("code",-1).put("msg","请求参数错误")));
   check(!LifeVersion.upgradeRequired(new JSONObject().put("code",-99).put("msg","登录状态已过期")));
   check(!LifeVersion.upgradeRequired(new JSONObject().put("code",0)));
   check(!LifeVersion.upgradeRequired(null));
-  LifeVersion.remember(c,32000);int[] remembered=LifeVersion.order(c);check(remembered[0]==32000&&remembered[1]>32000);
-  LifeVersion.remember(c,31010);check(LifeVersion.order(c)[0]==31010);
   rejected=false;
   try{LifeDeviceFailure.success(new JSONObject().put("code",-1).put("msg","请求参数错误"));}
   catch(LifeDeviceFailure e){rejected=e instanceof LifeDeviceFailure.Rejected&&((LifeDeviceFailure.Rejected)e).code==-1&&e.getMessage().contains("-1")&&e.getMessage().contains("请求参数错误");}

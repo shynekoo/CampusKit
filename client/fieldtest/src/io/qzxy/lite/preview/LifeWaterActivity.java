@@ -62,7 +62,29 @@ public final class LifeWaterActivity extends Activity {
  }
  /** 身份字段一律不copy出去：诊断要的是设备结构与参数名，不是账号。 */
  private static final Set<String> SENSITIVE=new HashSet<>(Arrays.asList("token","uid","user","telephone","telphone","tel","phone","logincode","idcard","idcardno","pwd","password","opencode"));
- private void details(){AlertDialog.Builder b=new AlertDialog.Builder(this).setTitle("设备详情").setMessage(deviceDetails).setNegativeButton("关闭",null);if(rawDetail!=null)b.setNeutralButton("复制诊断信息",(d,w)->copyDiagnostics());b.show();}
+ private void details(){
+  AlertDialog.Builder b=new AlertDialog.Builder(this).setTitle("设备详情").setMessage(deviceDetails).setNegativeButton("关闭",null);
+  if(rawDetail!=null)b.setNeutralButton("诊断…",(d,w)->new AlertDialog.Builder(this).setItems(new String[]{"复制诊断信息","协议探测（会尝试开启一次）"},(x,which)->{if(which==0)copyDiagnostics();else probe();}).show());
+  b.show();
+ }
+ /** 一次把「服务端到底要什么」问清楚：试几种请求长相，把每一条的服务端原话都带出来。 */
+ private void probe(){
+  if(busy)return;busy=true;disable();status.setText("正在探测接口要求…");
+  worker.execute(()->{
+   String report;
+   try{
+    JSONObject s=session();JSONObject data=rawDetail.getJSONObject("data");
+    int mode=data.getJSONObject("device").getJSONObject("gene").optInt("mode",0);
+    report=LifeProtocolProbe.run(s,did,pays.isEmpty()?91:pays.get(0),mode);
+   }catch(Exception e){report="探测未完成："+LifeDeviceFailure.describe(e);}
+   final String text=report;
+   post(()->{busy=false;screen.loading(false);refresh.setEnabled(true);status.setText("探测结果见弹窗，点「复制」发我。");
+    new AlertDialog.Builder(this).setTitle("协议探测结果").setMessage(text).setPositiveButton("复制",(d,w)->{
+     ((ClipboardManager)getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("慧生活协议探测",text));
+     Toast.makeText(this,"已复制",Toast.LENGTH_SHORT).show();
+    }).setNegativeButton("关闭",null).show();});
+  });
+ }
  /**
   * 把这次请求和服务器原文交出去。业务码 -1 只说明「它没接受」，服务端不会告诉我们缺什么，
   * 而这半年的两次翻车（登录、开用水）都是靠原始返回定下来的，留着它比继续猜有用。
@@ -71,7 +93,7 @@ public final class LifeWaterActivity extends Activity {
   String text;
   try{JSONObject out=new JSONObject();
    out.put("app",getPackageManager().getPackageInfo(getPackageName(),0).versionName);out.put("did",did==null?"":did);out.put("sent",lastPath);
-   out.put("versionCode",LifeVersion.known(this)>0?LifeVersion.known(this):LifeVersion.FLOOR);
+   out.put("versionCode",LifeVersion.CODE);
    out.put("detail",scrub(rawDetail));out.put("reply",lastReply==null?JSONObject.NULL:scrub(lastReply));text=out.toString(2);
   }catch(Exception e){text="诊断信息生成失败："+LifeDeviceFailure.describe(e);}
   if(text.length()>12000)text=text.substring(0,12000)+"…";

@@ -1,13 +1,12 @@
 {
-  "version": "2.3.5",
-  "versionCode": 163,
+  "version": "2.3.6",
+  "versionCode": 165,
   "notes": [
-    "开启用水失败的真正原因找到了：服务器按 VersionCode 请求头拦版本，我们报的是 3.1.5 的 31005，它回「请升级最新版APP」。现在按官方 3.1.10 的 31010 请求，再被拦会自动往上抬版本号重试",
-    "「核实并归档」整套去掉了。扫码进页面就是「开启用水」，不再因为本机留过一条记录就把按钮藏起来",
-    "设备空着就只给「开启用水」，本账号正在用就只给「结束用水」，不会再两个都不给",
-    "被服务器拒绝时会明说设备状态没变、可以直接重试；结果未知的那种才提示刷新核实"
+    "官方 3.1.10 的包取回来了，确认 versionCode 就是 31010——但我们照它报，dev/start 仍回「请升级最新版APP」，所以那道门不是比版本号，抬高数字已经证明无用，版本号阶梯已撤掉",
+    "新增「协议探测」：设备详情 ⓘ → 诊断… → 协议探测，一次试几种请求长相（新路径 dev/mode/start、ApplicationType 变体、几个可疑请求头），把每条的服务端原话列出来",
+    "开启用水失败时不再自动重试，直接说明这条控制接口要求官方新协议，并提示先跑一次探测"
   ],
-  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.3.5.apk?sharecode=BZD63HRP4B",
+  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.3.6.apk?sharecode=BZD63HRP4B",
   "bytes": 5338780,
-  "sha256": "c935f232a7709b597e9afa98016a480e707bba196cdea541f7c4768ebd09e98d"
+  "sha256": "d0af9eecd300d4c1b5dba66d44454fa8bcbc468c5b7d7e6dae4afc813dfea74f"
 }
