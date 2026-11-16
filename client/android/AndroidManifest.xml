@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="io.qzxy.lite.preview" android:versionCode="147" android:versionName="1.5.3-readonly">
+    package="io.qzxy.lite.preview" android:versionCode="148" android:versionName="1.5.4-readonly">
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="36" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CAMERA" />
@@ -38,6 +38,7 @@
         <activity android:name=".LifeDeviceActivity" android:exported="false" />
         <activity android:name=".LifeLoginActivity" android:exported="false" />
         <activity android:name=".ScanActivity" android:exported="false" />
+        <activity android:name=".PrivacyActivity" android:exported="false" android:configChanges="orientation|screenSize" />
 
         <receiver android:name=".ScheduleWidget" android:exported="false" android:label="CampusKit 2×2 课表">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/><action android:name="android.intent.action.DATE_CHANGED"/><action android:name="android.intent.action.TIME_SET"/><action android:name="android.intent.action.TIMEZONE_CHANGED"/></intent-filter>

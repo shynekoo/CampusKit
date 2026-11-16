@@ -373,6 +373,8 @@ public final class TimetableActivity extends Activity {
             pendingNote = saved.getString("pendingNote");
         }
         render();
+        // A fresh process shows the notice; a restored one does not pop it again mid-session.
+        if (saved == null) NoticeDialog.showIfNeeded(this);
     }
     @Override protected void onSaveInstanceState(Bundle out) {
         out.putString("lastDay",lastDay);
@@ -528,11 +530,11 @@ public final class TimetableActivity extends Activity {
     private TextView bold(String value,int size){TextView view=text(value,size);view.setTypeface(null,android.graphics.Typeface.BOLD);return view;}
 
     /** One row of the 趣智校园 list: badge, title, description, chevron. */
-    private void campusEntry(LinearLayout parent,String badge,int tint,String title,String subtitle,Runnable action,boolean divider) {
+    private void campusEntry(LinearLayout parent,String icon,int tint,String title,String subtitle,Runnable action,boolean divider) {
         LinearLayout line=new LinearLayout(this);line.setGravity(android.view.Gravity.CENTER_VERTICAL);
         line.setPadding(dp(16),dp(14),dp(14),dp(14));
         line.setOnClickListener(v->action.run());line.setFocusable(true);
-        android.widget.ImageView mark=new android.widget.ImageView(this);mark.setImageDrawable(AppUi.icon(this,badge.equals("慧")?"water":"user",tint,24));mark.setBackground(AppUi.shape(this,AppUi.SOFT,12));mark.setPadding(dp(8),dp(8),dp(8),dp(8));mark.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);line.addView(mark,new LinearLayout.LayoutParams(dp(40),dp(40)));AppUi.press(line,0xffffffff,8);
+        android.widget.ImageView mark=new android.widget.ImageView(this);mark.setImageDrawable(AppUi.icon(this,icon,tint,24));mark.setBackground(AppUi.shape(this,AppUi.SOFT,12));mark.setPadding(dp(8),dp(8),dp(8),dp(8));mark.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);line.addView(mark,new LinearLayout.LayoutParams(dp(40),dp(40)));AppUi.press(line,0xffffffff,8);
         LinearLayout labels=column();labels.setPadding(dp(14),0,0,0);
         labels.addView(bold(title,16));
         TextView caption=text(subtitle,12);caption.setTextColor(AppUi.MUTED);caption.setPadding(0,dp(2),0,0);labels.addView(caption);
@@ -770,9 +772,10 @@ public final class TimetableActivity extends Activity {
     private void campusContent() {
         ScrollView scroll=new ScrollView(this);LinearLayout content=column();scroll.addView(content);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
         LinearLayout card=whiteCard();
-        campusEntry(card,"账",AppUi.ACCENT,"趣智校园","浴室、吹风机",()->startActivity(new Intent(this,AccountInfoActivity.class)),true);
-        campusEntry(card,"慧",0xff37668b,"慧生活798","饮水",()->startActivity(new Intent(this,AccountInfoActivity.class).putExtra("life798",true)),false);
-        gap(card,10);card.addView(body("CampusKit 1.0.9 · 第三方校园客户端"));content.addView(card);
+        campusEntry(card,"user",AppUi.ACCENT,"趣智校园","浴室、吹风机",()->startActivity(new Intent(this,AccountInfoActivity.class)),true);
+        campusEntry(card,"water",0xff37668b,"慧生活798","饮水",()->startActivity(new Intent(this,AccountInfoActivity.class).putExtra("life798",true)),true);
+        campusEntry(card,"info",0xff4a5b70,"数据与隐私","本机存了什么、发到哪里、怎么清除",()->startActivity(new Intent(this,PrivacyActivity.class)),false);
+        gap(card,10);card.addView(body("CampusKit "+AppUi.version(this)+" · 第三方校园客户端"));content.addView(card);
     }
 
     private void records(LinearLayout parent) {
