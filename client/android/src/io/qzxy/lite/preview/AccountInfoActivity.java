@@ -13,24 +13,23 @@ import org.json.JSONObject;
 public final class AccountInfoActivity extends Activity {
     private final java.util.concurrent.ExecutorService worker=java.util.concurrent.Executors.newSingleThreadExecutor();
     private boolean life,busy; private int generation;
-    private TextView identity,state;private Button login,refresh,logout,recharge;
+    private TextView identity,state;private Button login,refresh,logout;
     private int dp(int n){return Math.round(n*getResources().getDisplayMetrics().density);}
     @Override public void onCreate(Bundle saved){super.onCreate(saved);life=getIntent().getBooleanExtra("life798",false);
         DeviceScreen screen=new DeviceScreen(this,life?"慧生活798":"趣智校园");
         refresh=screen.icon("↻","刷新账户",()->load());
         identity=screen.text(screen.card,"正在读取账号…",18);state=screen.text(screen.card,"",14);state.setTextColor(AppUi.MUTED);
         login=screen.primary("登录",()->startActivity(new Intent(this,life?LifeLoginActivity.class:AccountActivity.class).putExtra("returnToAccountInfo",true)));
-        // Recharge is account-scoped and only implemented for the 趣智校园 wallet.
-        recharge=life?null:screen.primary("充值",()->startActivity(new Intent(this,RechargeActivity.class)));
-        if(recharge!=null)recharge.setVisibility(View.GONE);
+        // Recharge was removed in 1.4.8: the SDK channel never opened Alipay's cashier for this app,
+        // and a recharge that cannot finish is worse than no recharge button at all.
         logout=button(screen.root,"退出登录",()->signOut());AppUi.press(logout,AppUi.SURFACE,10);
         screen.note("登录信息加密保存在此设备。");login.setVisibility(View.GONE);logout.setVisibility(View.GONE);
     }
     private TextView label(LinearLayout root,String text,int size){TextView v=new TextView(this);v.setText(text);v.setTextSize(size);v.setTextColor(AppUi.INK);v.setPadding(0,dp(10),0,dp(10));root.addView(v);return v;}
     private Button button(LinearLayout root,String text,Runnable action){Button b=new Button(this);b.setText(text);b.setAllCaps(false);b.setTextColor(AppUi.ACCENT);b.setOnClickListener(v->action.run());LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(54));lp.topMargin=dp(12);root.addView(b,lp);return b;}
     @Override protected void onResume(){super.onResume();load();}
-    private void busy(boolean value){busy=value;login.setEnabled(!value);refresh.setEnabled(!value);logout.setEnabled(!value);if(recharge!=null)recharge.setEnabled(!value);}
-    private void present(boolean signed,String info,String message){login.setVisibility(signed?View.GONE:View.VISIBLE);logout.setVisibility(signed?View.VISIBLE:View.GONE);refresh.setVisibility(signed?View.VISIBLE:View.GONE);if(recharge!=null)recharge.setVisibility(signed?View.VISIBLE:View.GONE);identity.setText(info);state.setText(message);}
+    private void busy(boolean value){busy=value;login.setEnabled(!value);refresh.setEnabled(!value);logout.setEnabled(!value);}
+    private void present(boolean signed,String info,String message){login.setVisibility(signed?View.GONE:View.VISIBLE);logout.setVisibility(signed?View.VISIBLE:View.GONE);refresh.setVisibility(signed?View.VISIBLE:View.GONE);identity.setText(info);state.setText(message);}
     private void post(int ticket,Runnable task){runOnUiThread(()->{if(!isDestroyed()&&!isFinishing()&&ticket==generation)task.run();});}
     private void load(){if(busy)return;busy(true);final int ticket=++generation;
         worker.execute(()->{

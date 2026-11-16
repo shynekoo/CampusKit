@@ -2,6 +2,7 @@ package io.qzxy.lite.preview;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.ImageFormat;
@@ -15,6 +16,7 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.WindowInsets;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -110,7 +112,9 @@ public final class ScanActivity extends Activity implements SurfaceHolder.Callba
         scroll.addView(status); root.addView(scroll, new LinearLayout.LayoutParams(-1, dp(56)));
         if(life798) {
             query.setVisibility(android.view.View.GONE); order.setVisibility(android.view.View.GONE);
-            status.setText("对准设备二维码，轻点画面对焦。");
+            status.setText("对准设备二维码，轻点画面对焦。识别不出来时可以手动输入设备编号。");
+            Button manual = button("手动输入设备编号", this::manualEntry);
+            root.addView(manual);
         }
         if(BuildFlags.WATER_CONTROL) { query.setVisibility(android.view.View.GONE); order.setVisibility(android.view.View.GONE); }
         if(!life798&&BuildFlags.WATER_CONTROL)status.setText("对准设备二维码，轻点画面对焦。");
@@ -238,13 +242,13 @@ public final class ScanActivity extends Activity implements SurfaceHolder.Callba
         if(life798) {
             scanning=false;stopCamera();
             try {
-                final String id=io.qzxy.lite.core.Life798Qr.parse(raw);
-                scanFeedback();
-                status.setText("已识别慧生活设备码，正在打开设备页。");
-                returningFromDevice=true;
-                if(BuildFlags.WATER_CONTROL)startActivity(new Intent().setClassName(this,"io.qzxy.lite.preview.LifeWaterActivity").putExtra("qrId",id));
-                else startActivity(new Intent(this,LifeDeviceActivity.class).putExtra("qrId",id));
-            } catch(IllegalArgumentException invalid){status.setText(invalid.getMessage());}
+                openLife(io.qzxy.lite.core.Life798Qr.parse(raw));
+            } catch(IllegalArgumentException invalid){
+                // Show what the sticker actually said: without it "扫不出来" is undebuggable, and the
+                // raw text is what tells us whether this is an unknown URL shape or a foreign code.
+                status.setText(invalid.getMessage()+"\n\n识别到的内容："+clipCode(raw)
+                    +"\n\n可以点「重新扫描」，或直接手动输入设备上的编号。");
+            }
             return;
         }
         scanning = false; stopCamera(); recognized = null; recognizedRaw = null; lookup = null;
@@ -256,6 +260,35 @@ public final class ScanActivity extends Activity implements SurfaceHolder.Callba
         }
         catch (IllegalArgumentException invalid) { status.setText(invalid.getMessage() + "。可点击重新扫描。"); }
     }
+    /** Shared by the camera and the manual field, so both reach the device page the same way. */
+    private void openLife(String id) {
+        scanFeedback();
+        status.setText("已识别慧生活设备码，正在打开设备页。");
+        returningFromDevice = true;
+        if (BuildFlags.WATER_CONTROL)
+            startActivity(new Intent().setClassName(this, "io.qzxy.lite.preview.LifeWaterActivity").putExtra("qrId", id));
+        else startActivity(new Intent(this, LifeDeviceActivity.class).putExtra("qrId", id));
+    }
+
+    private void manualEntry() {
+        final EditText input = new EditText(this);
+        input.setHint("设备上的编号，例如 2000123456");
+        input.setSingleLine(true);
+        new AlertDialog.Builder(this).setTitle("手动输入设备编号")
+            .setMessage("编号一般印在二维码下方或设备面板上。")
+            .setView(input)
+            .setNegativeButton("取消", null)
+            .setPositiveButton("继续", (d, w) -> {
+                try { openLife(io.qzxy.lite.core.Life798Qr.parse(input.getText().toString())); }
+                catch (IllegalArgumentException invalid) { status.setText(invalid.getMessage()); }
+            }).show();
+    }
+
+    private static String clipCode(String raw) {
+        String text = raw == null ? "" : raw.trim();
+        return text.length() > 120 ? text.substring(0, 120) + "…" : text;
+    }
+
     private void setBusy(boolean value) {
         busy = value; retry.setEnabled(!value);
         query.setEnabled(!value && recognized != null);

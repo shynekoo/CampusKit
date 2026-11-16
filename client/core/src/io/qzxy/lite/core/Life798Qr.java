@@ -1,24 +1,113 @@
 package io.qzxy.lite.core;
 
-/** Narrow original numeric-code/NFC contracts; reject unrelated service and payment codes. */
+import java.net.URI;
+import java.net.URLDecoder;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * Turns whatever a 慧生活798 device sticker encodes into the device id the API expects.
+ *
+ * <p>The first version only accepted a bare number and two URL shapes. Real stickers also carry
+ * {@code ?did=}, {@code /device/<id>}, {@code /bind/...}, JSON payloads and plain {@code ilife://}
+ * links, so that whitelist rejected codes the official app reads without complaint. The rules below
+ * follow the unofficial client {@code nocookies111/life-798} (MIT): look for a
+ * {@code did/deviceId/device_id/id/q} key first, then a device-bearing path segment, then a bare
+ * code — and reject anything that still does not look like a device id.</p>
+ */
 public final class Life798Qr {
+    /** Path segments whose neighbour is the device id. */
+    private static final String[] MARKERS = {"device", "devices", "did", "bind", "binding", "q", "qr"};
+    private static final Pattern KEY = Pattern.compile(
+        "(?:[?&#;,\\s{]|^)[\"']?(?:did|deviceId|device_id|id|q)[\"']?\\s*(?:=|:)\\s*[\"']?([^&#/,\\}\\s\"']+)",
+        Pattern.CASE_INSENSITIVE);
+    private static final Pattern STRONG = Pattern.compile("\\d{8,32}");
+    private static final Pattern FLEXIBLE = Pattern.compile("[A-Za-z0-9][A-Za-z0-9_-]{5,63}");
+    private static final Pattern DEVICE_ID = Pattern.compile("[A-Za-z0-9_-]{1,64}");
+
     private Life798Qr() { }
+
     public static String parse(String raw) {
-        if(raw == null || raw.length()>1024)throw new IllegalArgumentException("二维码无效");
-        String value=raw.trim();
-        if(value.matches("[0-9]{1,64}"))return value;
-        try {
-            java.net.URI uri=new java.net.URI(value);
-            if(!("https".equals(uri.getScheme())||"http".equals(uri.getScheme()))
-                || uri.getUserInfo()!=null || uri.getPort()!=-1 || uri.getFragment()!=null
-                || !java.util.Arrays.asList("i.ilife798.com","i.hnkzy.com","act.hnkzy.com","act2.hnkzy.com").contains(uri.getHost())
-                )throw new IllegalArgumentException();
-            if(uri.getRawQuery()==null && uri.getPath().matches("/q/[0-9]+/[A-Za-z0-9-]{1,64}"))
-                return uri.getPath().substring(uri.getPath().lastIndexOf('/')+1);
-            if(!"/nfc.html".equals(uri.getPath()))throw new IllegalArgumentException();
-            String query=uri.getRawQuery();
-            if(query!=null && query.matches("q=[A-Za-z0-9_-]{1,64}"))return query.substring(2);
-        } catch(Exception invalid) { }
-        throw new IllegalArgumentException("暂不支持此慧生活二维码格式，请使用原版扫码");
+        if (raw == null) throw new IllegalArgumentException("二维码内容为空");
+        String value = raw.trim();
+        if (value.isEmpty()) throw new IllegalArgumentException("二维码内容为空");
+        if (value.length() > 1024) throw new IllegalArgumentException("二维码内容过长");
+        for (int i = 0; i < value.length(); i++)
+            if (Character.isISOControl(value.charAt(i))) throw new IllegalArgumentException("二维码包含无效字符");
+
+        String fromKey = first(KEY.matcher(value));
+        String fromPath = fromKey == null ? fromPath(value) : null;
+        String candidate = tidy(fromKey != null ? fromKey : fromPath != null ? fromPath : value);
+
+        if (!DEVICE_ID.matcher(candidate).matches())
+            throw new IllegalArgumentException("这个二维码里没有设备编号，可能不是慧生活设备码");
+        // A bare word is far more likely a web link fragment than a device id; require a digit.
+        if (!hasDigit(candidate))
+            throw new IllegalArgumentException("这个二维码里没有设备编号，可能不是慧生活设备码");
+        return candidate;
+    }
+
+    private static boolean hasDigit(String value) {
+        for (int i = 0; i < value.length(); i++) if (Character.isDigit(value.charAt(i))) return true;
+        return false;
+    }
+
+    private static String first(Matcher matcher) {
+        return matcher.find() ? matcher.group(1) : null;
+    }
+
+    /** Path rules: hnkzy hosts, a marker segment, or a trailing numeric id. */
+    private static String fromPath(String value) {
+        URI uri;
+        try { uri = new URI(value); } catch (Exception notUrl) { return null; }
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
+        if (!("http".equals(scheme) || "https".equals(scheme) || "ilife".equals(scheme))) return null;
+        String path = uri.getPath();
+        String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
+        List<String> segments = new ArrayList<>();
+        // ilife://device/<id> puts the marker in the authority, so keep the host as a segment too;
+        // for http(s) a hostname never looks like a marker, so this changes nothing there.
+        if (!host.isEmpty()) segments.add(host);
+        if (path != null) for (String part : path.split("/")) {
+            String decoded = decode(part).trim();
+            if (!decoded.isEmpty()) segments.add(decoded);
+        }
+        if (segments.size() <= 1) return null;
+
+        if (host.equals("hnkzy.com") || host.endsWith(".hnkzy.com")) {
+            for (int i = segments.size() - 1; i >= 0; i--)
+                if (STRONG.matcher(segments.get(i)).matches()) return segments.get(i);
+        }
+        for (int i = segments.size() - 1; i >= 0; i--) {
+            if (!isMarker(segments.get(i))) continue;
+            for (int j = segments.size() - 1; j > i; j--) {
+                String part = segments.get(j);
+                if (FLEXIBLE.matcher(part).matches() && hasDigit(part)) return part;
+            }
+        }
+        String last = segments.get(segments.size() - 1);
+        return STRONG.matcher(last).matches() ? last : null;
+    }
+
+    private static boolean isMarker(String segment) {
+        String lower = segment.toLowerCase(Locale.ROOT);
+        for (String marker : MARKERS) if (marker.equals(lower)) return true;
+        return false;
+    }
+
+    private static String tidy(String value) {
+        String text = value.trim();
+        while (text.length() >= 2 && ((text.startsWith("\"") && text.endsWith("\""))
+            || (text.startsWith("'") && text.endsWith("'"))))
+            text = text.substring(1, text.length() - 1).trim();
+        if (text.toLowerCase(Locale.ROOT).startsWith("did:")) text = text.substring(4);
+        return text.length() > 160 ? text.substring(0, 160) : text;
+    }
+
+    private static String decode(String value) {
+        try { return URLDecoder.decode(value, "UTF-8"); } catch (Exception plain) { return value; }
     }
 }

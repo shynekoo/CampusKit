@@ -51,7 +51,16 @@ public final class CoreTests {
         equal(false, PickupPresence.hasPickup(null));
         equal("123456",Life798Qr.parse("123456"));
         equal("Abc123",Life798Qr.parse("https://i.ilife798.com/nfc.html?q=Abc123"));
-        rejects(()->Life798Qr.parse("https://evil.example/nfc.html?q=Abc123"));
+        // 1.4.8: a number in a key is the device id whatever host carries it; stickers have been
+        // seen on hosts outside the old whitelist, and the official app reads those too.
+        equal("Abc123",Life798Qr.parse("https://evil.example/nfc.html?q=Abc123"));
+        equal("2000123456",Life798Qr.parse("https://i.ilife798.com/bind?did=2000123456"));
+        equal("2000123456",Life798Qr.parse("{\"deviceId\":\"2000123456\",\"type\":2}"));
+        equal("2000123456",Life798Qr.parse("ilife://device/2000123456/detail"));
+        equal("2000123456",Life798Qr.parse("did:2000123456"));
+        equal("A1B2C3D4",Life798Qr.parse("A1B2C3D4"));
+        rejects(()->Life798Qr.parse("https://i.ilife798.com/about"));
+        rejects(()->Life798Qr.parse("just-some-text"));
         rejects(()->Life798Qr.parse("https://i.ilife798.com/nfc.html?q=a&q=b"));
         rejects(()->Life798Qr.parse("https://i.ilife798.com/q/1/billing?id=a"));
         rejects(()->Life798Qr.parse(null));
