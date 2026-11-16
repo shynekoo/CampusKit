@@ -1082,6 +1082,73 @@ public final class CoreTests {
         equal(1, BoardFit.column(0));
         System.out.println("PASS: the timetable board scales its gutter, padding and type to the screen");
 
+        // Update manifest. The file is public and hand-written, so every malformed shape must be
+        // turned away here rather than reaching the download code with half its fields missing.
+        UpdateManifest release = UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,"
+            + "\"notes\":[\"课表右侧的三角形放大了\",\"   \",\"其它页面按屏幕宽度留白\"],"
+            + "\"url\":\"https://example.edu/app/campuskit-2.3.0.apk\",\"bytes\":5242880,"
+            + "\"sha256\":\"" + repeat('a', 64) + "\"}");
+        equal("2.3.0", release.version);
+        equal(158, release.versionCode);
+        // A blank entry is spacing in the source file, not a bullet point in the dialog.
+        equal(2, release.notes.size());
+        equal("课表右侧的三角形放大了", release.notes.get(0));
+        equal(5242880L, release.bytes);
+        equal(repeat('a', 64), release.sha256);
+        equal(true, release.newerThan(157));
+        equal(false, release.newerThan(158));
+        equal(false, release.newerThan(159));
+
+        // The name only decides what the dialog says about itself; the code decides that it appears.
+        equal(false, UpdateManifest.parse("{\"version\":\"9.9.9\",\"versionCode\":3,"
+            + "\"notes\":[\"x\"],\"url\":\"https://example.edu/a.apk\"}").newerThan(158));
+
+        // Optional fields stay absent instead of being invented.
+        UpdateManifest bare = UpdateManifest.parse("{\"version\":\"2.3\",\"versionCode\":158,"
+            + "\"notes\":[\"x\"],\"url\":\"https://example.edu/a.apk\"}");
+        equal(0L, bare.bytes);
+        equal("", bare.sha256);
+        // An unknown key is left for a future field and does not invalidate the release.
+        UpdateManifest extended = UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,"
+            + "\"notes\":[\"x\"],\"url\":\"https://example.edu/a.apk\",\"channel\":\"beta\"}");
+        equal(158, extended.versionCode);
+
+        // Escapes survive, because a note may quote itself. A newline does not: every note is one
+        // bullet in the dialog, so a two-line entry is rejected rather than drawn half-height.
+        equal("他说" + '"' + "好了" + '"',
+            UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,"
+                + "\"notes\":[\"他说\\\"好了\\\"\"],\"url\":\"https://example.edu/a.apk\"}").notes.get(0));
+        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,"
+            + "\"notes\":[\"第一行\\n第二行\"],\"url\":\"https://example.edu/a.apk\"}"));
+
+        String ok = "\"version\":\"2.3.0\",\"versionCode\":158,\"notes\":[\"x\"]";
+        rejects(() -> UpdateManifest.parse(""));
+        rejects(() -> UpdateManifest.parse("null"));
+        rejects(() -> UpdateManifest.parse("[]"));
+        rejects(() -> UpdateManifest.parse("{" + ok + "} trailing"));
+        rejects(() -> UpdateManifest.parse("{" + ok + ",\"url\":\"http://example.edu/a.apk\"}"));
+        rejects(() -> UpdateManifest.parse("{" + ok + ",\"url\":\"file:///sdcard/a.apk\"}"));
+        rejects(() -> UpdateManifest.parse("{" + ok + ",\"url\":\"https://example.edu/../a.apk\"}"));
+        rejects(() -> UpdateManifest.parse("{" + ok + ",\"url\":\"\"}"));
+        // Missing pieces of every kind.
+        rejects(() -> UpdateManifest.parse("{\"versionCode\":158,\"notes\":[\"x\"],\"url\":\"https://e.cn/a.apk\"}"));
+        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"notes\":[\"x\"],\"url\":\"https://e.cn/a.apk\"}"));
+        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,\"url\":\"https://e.cn/a.apk\"}"));
+        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,\"notes\":[\"x\"]}"));
+        // Values that would break the dialog or the download.
+        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0-beta\",\"versionCode\":158,\"notes\":[\"x\"],\"url\":\"https://e.cn/a.apk\"}"));
+        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":0,\"notes\":[\"x\"],\"url\":\"https://e.cn/a.apk\"}"));
+        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":15.5,\"notes\":[\"x\"],\"url\":\"https://e.cn/a.apk\"}"));
+        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,\"notes\":[],\"url\":\"https://e.cn/a.apk\"}"));
+        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,\"notes\":[\"x\"],\"url\":\"https://e.cn/a.apk\",\"bytes\":-1}"));
+        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,\"notes\":[\"x\"],\"url\":\"https://e.cn/a.apk\",\"sha256\":\"zz\"}"));
+        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,\"notes\":[\"a\",\"b\",\"c\",\"d\",\"e\",\"f\",\"g\",\"h\",\"i\"],\"url\":\"https://e.cn/a.apk\"}"));
+        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,\"notes\":[\"x\"],\"url\":\"https://e.cn/a.apk\",}"));
+        rejects(() -> UpdateManifest.parse("{version:\"2.3.0\",\"versionCode\":158,\"notes\":[\"x\"],\"url\":\"https://e.cn/a.apk\"}"));
+        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,\"notes\":\"x\",\"url\":\"https://e.cn/a.apk\"}"));
+        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,\"notes\":[\"x\",1],\"url\":\"https://e.cn/a.apk\"}"));
+        System.out.println("PASS: an update manifest is accepted only when every field it will use is sound");
+
         System.out.println("All " + assertions + " assertions passed. Live API/Bluetooth compatibility is not tested here.");
     }
 

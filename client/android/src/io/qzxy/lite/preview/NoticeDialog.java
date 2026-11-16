@@ -29,6 +29,9 @@ final class NoticeDialog {
     /** Raise this when the text below changes enough that it should be read again. */
     private static final int VERSION = 2;
 
+    /** Set while the dialog is on screen, so the update check can wait its turn behind it. */
+    private static volatile boolean showing;
+
     private static final String HEADLINE = "使用公告";
     private static final String SUBHEAD = "科信小助手是个人开发的第三方客户端";
 
@@ -60,6 +63,9 @@ final class NoticeDialog {
     };
 
     private NoticeDialog() {}
+
+    /** True while a notice dialog is up. Two dialogs stacked on the first screen is one too many. */
+    static boolean showing() { return showing; }
 
     /** True until the reader has ticked 以后不再提醒 for the current wording. */
     static boolean wanted(Context context) {
@@ -155,6 +161,8 @@ final class NoticeDialog {
             }
             dialog.dismiss();
         });
+        dialog.setOnDismissListener(d -> showing = false);
+        showing = true;
         dialog.show();
     }
 

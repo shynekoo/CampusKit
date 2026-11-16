@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="io.qzxy.lite.preview" android:versionCode="156" android:versionName="2.2.1-readonly">
+    package="io.qzxy.lite.preview" android:versionCode="157" android:versionName="2.3.0-readonly">
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="36" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- The only way to apply an update is to hand a package to the system installer;
+         the app never installs anything the reader has not agreed to. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <!-- Android 11+ hides other packages unless they are declared here; without this,
          getLaunchIntentForPackage() returns null for the pickup-code fallbacks. -->
@@ -38,6 +41,10 @@
         <activity android:name=".LifeDeviceActivity" android:exported="false" />
         <activity android:name=".LifeLoginActivity" android:exported="false" />
         <activity android:name=".ScanActivity" android:exported="false" />
+        <!-- Hands one downloaded package to the installer. Not exported: a URI minted here is
+             only readable while the install intent carrying it is being handled. -->
+        <provider android:name=".ApkProvider" android:authorities="io.qzxy.lite.preview.apk"
+            android:exported="false" android:grantUriPermissions="true" />
         <activity android:name=".PrivacyActivity" android:exported="false" android:configChanges="orientation|screenSize" />
 
         <receiver android:name=".ScheduleWidget" android:exported="false" android:label="科信小助手 2×2 课表">

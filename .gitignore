@@ -20,3 +20,7 @@ __pycache__/
 /analysis/
 /delivery/*
 !/delivery/release-1.0.0.md
+# The update manifest and its landing page are source for the release channel; the packages
+# beside them are build output and stay out of the repository.
+!/delivery/update/
+/delivery/update/*.apk

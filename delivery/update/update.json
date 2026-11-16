@@ -1,0 +1,12 @@
+{
+  "version": "2.3.0",
+  "versionCode": 158,
+  "notes": [
+    "打开应用时检查新版本，有更新会先列出改了什么，再由你决定装不装",
+    "课表标题右边的三角形放大了，更容易看出「这里能点」",
+    "其它页面按屏幕宽度调整留白，窄屏不再贴边、宽屏不再铺满"
+  ],
+  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.3.0.apk?sharecode=BZD63HRP4B",
+  "bytes": 5170844,
+  "sha256": "1b95cb983db268376d3653264fb0d2b013f7f0fb42a394faad3a26f7aacf7436"
+}

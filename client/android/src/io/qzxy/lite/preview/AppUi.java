@@ -63,8 +63,10 @@ final class AppUi {
     // Two official sites, two different marks: a portico for the university, a globe for the college.
     case "school":line(c,3.2f,9.6f,12,3.6f);line(c,12,3.6f,20.8f,9.6f);line(c,4.2f,9.6f,19.8f,9.6f);line(c,6.6f,11.4f,6.6f,18.6f);line(c,12,11.4f,12,18.6f);line(c,17.4f,11.4f,17.4f,18.6f);line(c,3.8f,20.4f,20.2f,20.4f);break;
     case "globe":c.drawCircle(12,12,8.6f,p);line(c,3.4f,12,20.6f,12);c.drawOval(7.6f,3.5f,16.4f,20.5f,p);break;
-    // Solid triangle, not the outline chevron: it has to read as "this opens a list".
-    case "caret":p.setStyle(Paint.Style.FILL);Path tri=new Path();tri.moveTo(8,9.5f);tri.lineTo(16,9.5f);tri.lineTo(12,15f);tri.close();c.drawPath(tri,p);break;
+    // Solid triangle, not the outline chevron: it has to read as "this opens a list". It fills most
+    // of the 24dp box rather than a corner of it — a triangle that only spans a third of its frame
+    // disappears next to 20sp text, which is exactly what happened at the old 8×5.5 shape.
+    case "caret":p.setStyle(Paint.Style.FILL);Path tri=new Path();tri.moveTo(6.6f,8.4f);tri.lineTo(17.4f,8.4f);tri.lineTo(12,16.4f);tri.close();c.drawPath(tri,p);break;
     default:line(c,3,9,3,3);line(c,3,3,9,3);line(c,15,3,21,3);line(c,21,3,21,9);line(c,3,15,3,21);line(c,3,21,9,21);line(c,15,21,21,21);line(c,21,21,21,15);line(c,7,12,17,12);
    }c.restoreToCount(save);
   }

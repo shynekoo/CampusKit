@@ -78,6 +78,8 @@ public final class TimetableActivity extends Activity {
         super.onResume();
         accountVisible=true;checkQzxySession();
         refreshClock();clockHandler.removeCallbacks(clockTick);clockHandler.postDelayed(clockTick,30000);
+        // Coming back from「允许安装未知应用」finishes the install that was waiting on it.
+        UpdateCheck.resume(this);
 
     }
 
@@ -354,7 +356,11 @@ public final class TimetableActivity extends Activity {
         }
         render();
         // A fresh process shows the notice; a restored one does not pop it again mid-session.
-        if (saved == null) NoticeDialog.showIfNeeded(this);
+        if (saved == null) {
+            NoticeDialog.showIfNeeded(this);
+            // Checked once per process, on a background thread, and only after this screen exists.
+            UpdateCheck.onStart(this);
+        }
     }
     @Override protected void onSaveInstanceState(Bundle out) {
         out.putString("lastDay",lastDay);
@@ -726,10 +732,10 @@ public final class TimetableActivity extends Activity {
             pickerName.setMaxWidth(Math.max(dp(120), getResources().getDisplayMetrics().widthPixels-2*side-dp(76)-dp(28)));
             picker.addView(pickerName,new LinearLayout.LayoutParams(-2,-2));
             android.widget.ImageView caret=new android.widget.ImageView(this);
-            caret.setImageDrawable(AppUi.icon(this,"caret",AppUi.INK,13));
+            caret.setImageDrawable(AppUi.icon(this,"caret",AppUi.INK,17));
             caret.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-            LinearLayout.LayoutParams caretParams=new LinearLayout.LayoutParams(dp(13),dp(13));
-            caretParams.setMargins(dp(6),dp(3),0,0);
+            LinearLayout.LayoutParams caretParams=new LinearLayout.LayoutParams(dp(17),dp(17));
+            caretParams.setMargins(dp(5),dp(4),0,0);
             picker.addView(caret,caretParams);
             picker.setPadding(dp(2),dp(2),dp(6),dp(2));
             picker.setOnClickListener(v->chooseTable());
@@ -939,7 +945,16 @@ public final class TimetableActivity extends Activity {
         campusEntry(card,"user",AppUi.ACCENT,"趣智校园","浴室、吹风机",()->startActivity(new Intent(this,AccountInfoActivity.class)),true);
         campusEntry(card,"water",0xff37668b,"慧生活798","饮水",()->startActivity(new Intent(this,AccountInfoActivity.class).putExtra("life798",true)),true);
         campusEntry(card,"info",0xff4a5b70,"数据与隐私","本机存了什么、发到哪里、怎么清除",()->startActivity(new Intent(this,PrivacyActivity.class)),false);
-        gap(card,10);card.addView(body("科信小助手 "+AppUi.version(this)+" · 第三方校园客户端"));content.addView(card);
+        gap(card,10);
+        // The version line doubles as the manual entry: the start-up check fails silently, so this
+        // is where someone goes when they want to know for certain whether a release exists.
+        LinearLayout about=new LinearLayout(this);about.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        about.addView(body("科信小助手 "+AppUi.version(this)+" · 第三方校园客户端"),new LinearLayout.LayoutParams(0,-2,1));
+        TextView check=text("检查更新",13);check.setTextColor(AppUi.ACCENT);check.setPadding(dp(10),dp(6),0,dp(6));
+        about.addView(check);AppUi.press(about,0x00ffffff,8);
+        about.setOnClickListener(v->UpdateCheck.checkManually(this));
+        about.setContentDescription("检查更新，当前版本 "+AppUi.version(this));
+        card.addView(about);content.addView(card);
     }
 
     private void records(LinearLayout parent) {
