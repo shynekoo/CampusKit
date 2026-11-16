@@ -2,7 +2,6 @@ package io.qzxy.lite.preview;
 
 import android.Manifest;
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.ImageFormat;
@@ -14,14 +13,15 @@ import android.view.Gravity;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.View;
 import android.view.WindowInsets;
 import android.widget.Button;
-import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
-import android.widget.TextView;
 import android.widget.SeekBar;
+import android.widget.TextView;
 import io.qzxy.lite.core.AccountSession;
 import io.qzxy.lite.core.DeviceQr;
 import io.qzxy.lite.core.PendingUse;
@@ -39,8 +39,10 @@ public final class ScanActivity extends Activity implements SurfaceHolder.Callba
     private final AtomicBoolean decoding = new AtomicBoolean();
     private SurfaceView preview;
     private FrameLayout viewport;
-    private TextView status;
-    private Button query, order, retry, torch;
+    private TextView status, hint;
+    private Button query, order, retry;
+    private ImageView torch;
+    private LinearLayout zoomRow;
     private boolean torchOn;
     private SeekBar zoom;
     private TextView zoomLabel;
@@ -56,38 +58,87 @@ public final class ScanActivity extends Activity implements SurfaceHolder.Callba
     private String recognizedRaw;
     private boolean life798;
     private boolean returningFromDevice;
+    /** Restored whenever the camera restarts, so the panel never keeps a stale result. */
+    private String idleStatus = "";
 
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
     private TextView label(String value, int size) {
         TextView text = new TextView(this); text.setText(value); text.setTextSize(size); text.setTextColor(AppUi.INK);
         text.setPadding(0, dp(8), 0, dp(8)); return text;
     }
+    private TextView heading(String value) {
+        TextView text = new TextView(this); text.setText(value); text.setTextSize(20); text.setTextColor(AppUi.INK);
+        text.setTypeface(null, android.graphics.Typeface.BOLD); return text;
+    }
     private Button button(String title, Runnable action) {
         Button button = new Button(this); button.setText(title); button.setAllCaps(false); button.setMinHeight(dp(48));
         button.setOnClickListener(v -> action.run()); return button;
     }
+
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
         life798=getIntent().getBooleanExtra("life798",false);
         LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(AppUi.BG);
-        root.setPadding(dp(20), dp(16), dp(20), dp(16));
+        root.setPadding(dp(16), dp(8), dp(16), dp(12));
         if (android.os.Build.VERSION.SDK_INT >= 30) {
             getWindow().setDecorFitsSystemWindows(false);
             root.setOnApplyWindowInsetsListener((v, insets) -> {
                 android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
-                v.setPadding(dp(20) + bars.left, dp(16) + bars.top, dp(20) + bars.right, dp(16) + bars.bottom); return insets;
+                v.setPadding(dp(16) + bars.left, dp(8) + bars.top, dp(16) + bars.right, dp(12) + bars.bottom); return insets;
             });
         }
-        TextView back = label("返回", 16); back.setOnClickListener(v -> finish()); root.addView(back);
-        root.addView(label(life798?"慧生活 · 扫码":"趣智校园 · 扫码", 22));
-        viewport = new FrameLayout(this); viewport.setBackgroundColor(0xff101820); viewport.setClipChildren(true);
+
+        // Header: one back link and one line naming the campus app this camera is aimed at.
+        LinearLayout header = new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL);
+        TextView back = label("‹ 返回", 15); back.setTextColor(AppUi.ACCENT);
+        back.setPadding(dp(6), dp(12), dp(8), dp(12)); back.setContentDescription("返回");
+        back.setOnClickListener(v -> finish()); header.addView(back, new LinearLayout.LayoutParams(-2, -2));
+        LinearLayout titles = new LinearLayout(this); titles.setOrientation(LinearLayout.VERTICAL);
+        titles.setPadding(0, dp(2), 0, dp(6));
+        titles.addView(heading("扫一扫"));
+        TextView mode = new TextView(this);
+        mode.setText(life798 ? "慧生活798 · 对准设备上的二维码" : "趣智校园 · 对准设备上的二维码");
+        mode.setTextSize(12); mode.setTextColor(AppUi.MUTED); mode.setPadding(0, dp(1), 0, 0);
+        titles.addView(mode); header.addView(titles, new LinearLayout.LayoutParams(0, -2, 1));
+        root.addView(header);
+
+        // Camera: a dark rounded stage, the preview letterboxed inside it, and the target on top.
+        viewport = new FrameLayout(this);
+        viewport.setBackground(AppUi.shape(this, 0xff101820, 20));
+        viewport.setClipToOutline(true);
         preview = new SurfaceView(this); preview.getHolder().addCallback(this);
         viewport.addView(preview, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
-        root.addView(viewport, new LinearLayout.LayoutParams(-1, 0, 1));
+        viewport.addView(new ScanFrame(this), new FrameLayout.LayoutParams(-1, -1));
         preview.setOnClickListener(v -> focusCamera());
-        LinearLayout magnification = new LinearLayout(this); magnification.setGravity(Gravity.CENTER_VERTICAL);
-        zoomLabel = label("1.0×", 14); magnification.addView(zoomLabel, new LinearLayout.LayoutParams(dp(52), -2));
-        zoom = new SeekBar(this); zoom.setEnabled(false); magnification.addView(zoom, new LinearLayout.LayoutParams(0, -2, 1)); root.addView(magnification);
+
+        hint = new TextView(this);
+        hint.setText(life798 ? "把设备码放进框内" : "把趣智校园设备码放进框内");
+        hint.setTextSize(12); hint.setTextColor(0xffffffff);
+        hint.setBackground(AppUi.shape(this, 0x59000000, 14));
+        hint.setPadding(dp(12), dp(6), dp(12), dp(7));
+        hint.setGravity(Gravity.CENTER);
+        FrameLayout.LayoutParams hintParams = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+        hintParams.bottomMargin = dp(14); viewport.addView(hint, hintParams);
+
+        // The torch used to be a full-width button; inside the stage it is where the thumb already is.
+        torch = new ImageView(this);
+        torch.setPadding(dp(11), dp(11), dp(11), dp(11));
+        torch.setVisibility(View.GONE);
+        torch.setOnClickListener(v -> toggleTorch());
+        paintTorch();
+        FrameLayout.LayoutParams torchParams = new FrameLayout.LayoutParams(dp(44), dp(44), Gravity.TOP | Gravity.END);
+        torchParams.topMargin = dp(12); torchParams.rightMargin = dp(12);
+        viewport.addView(torch, torchParams);
+        root.addView(viewport, new LinearLayout.LayoutParams(-1, 0, 1));
+
+        // Only shown when the sensor actually zooms; a dead slider was pure clutter.
+        zoomRow = new LinearLayout(this); zoomRow.setGravity(Gravity.CENTER_VERTICAL);
+        zoomRow.setPadding(dp(2), dp(6), dp(2), 0); zoomRow.setVisibility(View.GONE);
+        zoomLabel = label("1.0×", 12); zoomLabel.setTextColor(AppUi.MUTED);
+        zoomRow.addView(zoomLabel, new LinearLayout.LayoutParams(dp(44), -2));
+        zoom = new SeekBar(this); zoom.setEnabled(false);
+        zoomRow.addView(zoom, new LinearLayout.LayoutParams(0, -2, 1));
+        root.addView(zoomRow);
         zoom.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             public void onStartTrackingTouch(SeekBar bar) { }
             public void onStopTrackingTouch(SeekBar bar) { focusCamera(); }
@@ -98,26 +149,38 @@ public final class ScanActivity extends Activity implements SurfaceHolder.Callba
                 } catch (RuntimeException ignored) { }
             }
         });
-        LinearLayout actions = new LinearLayout(this);
+
+        idleStatus = life798
+            ? "对准设备二维码，轻点画面可对焦。识别后自动打开设备页。"
+            : BuildFlags.WATER_CONTROL
+                ? "对准设备二维码，轻点画面可对焦。识别后进入支付宝用水。"
+                : "将设备二维码放入画面。识别后核对设备，再前往支付宝用水。";
+        // Selectable, because the failure text is what gets reported back verbatim.
+        ScrollView panel = new ScrollView(this);
+        panel.setBackground(AppUi.outlined(this, AppUi.SURFACE, 12, AppUi.LINE));
+        panel.setPadding(dp(12), dp(8), dp(12), dp(8));
+        status = label(idleStatus, 13); status.setTextColor(AppUi.INK);
+        status.setTextIsSelectable(true); status.setLineSpacing(dp(2), 1f);
+        panel.addView(status);
+        root.addView(panel, new LinearLayout.LayoutParams(-1, -2));
+
+        // Device lookup only exists in the read-only build; the water build goes straight to 支付宝.
+        boolean deviceActions = !life798 && !BuildFlags.WATER_CONTROL;
+        LinearLayout actionRow = new LinearLayout(this);
         retry = button("重新扫描", this::rescan);
-        actions.addView(retry, new LinearLayout.LayoutParams(0, -2, 1));
-        torch = button("打开手电筒", this::toggleTorch); torch.setEnabled(false);LinearLayout.LayoutParams lightParams=new LinearLayout.LayoutParams(0,-2,1);lightParams.leftMargin=dp(8);actions.addView(torch,lightParams);root.addView(actions);
-        query = button("查询设备资料", this::lookup); query.setEnabled(false); root.addView(query);
-        order = button("查询订单状态（只读）", this::orderLookup); order.setEnabled(false); root.addView(order);
-        // Compile-time switch: in a read-only build javac removes this branch, so neither the button nor
-        // the activity name exists in the dex. See scripts/build_preview.py.
-        ScrollView scroll = new ScrollView(this); status = label("将设备二维码放入画面。\n"
-            + (BuildFlags.WATER_CONTROL ? "识别后核对设备，再前往支付宝用水。"
-                : "本版本只读取设备资料和订单状态，不会开启用水。"), 14);
-        scroll.addView(status); root.addView(scroll, new LinearLayout.LayoutParams(-1, dp(56)));
-        if(life798) {
-            query.setVisibility(android.view.View.GONE); order.setVisibility(android.view.View.GONE);
-            status.setText("对准设备二维码，轻点画面对焦。识别不出来时可以手动输入设备编号。");
-            Button manual = button("手动输入设备编号", this::manualEntry);
-            root.addView(manual);
+        retry.setTextSize(15);
+        actionRow.addView(retry, new LinearLayout.LayoutParams(0, -2, 1));
+        query = button("查询设备资料", this::lookup); query.setEnabled(false);
+        query.setVisibility(deviceActions ? View.VISIBLE : View.GONE);
+        order = button("查询订单状态（只读）", this::orderLookup); order.setEnabled(false); order.setTextSize(14);
+        order.setVisibility(deviceActions ? View.VISIBLE : View.GONE);
+        if (deviceActions) {
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, -2, 1);
+            params.leftMargin = dp(8); actionRow.addView(query, params);
         }
-        if(BuildFlags.WATER_CONTROL) { query.setVisibility(android.view.View.GONE); order.setVisibility(android.view.View.GONE); }
-        if(!life798&&BuildFlags.WATER_CONTROL)status.setText("对准设备二维码，轻点画面对焦。");
+        root.addView(actionRow);
+        if (deviceActions) root.addView(order);
+
         setContentView(root); root.requestApplyInsets();
         if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[]{Manifest.permission.CAMERA}, CAMERA_PERMISSION);
@@ -156,7 +219,8 @@ public final class ScanActivity extends Activity implements SurfaceHolder.Callba
                 List<Integer> ratios=parameters.getZoomRatios();int max=0;
                 for(int i=0;i<ratios.size();i++)if(ratios.get(i)<=300)max=i;
                 zoom.setMax(max);zoom.setProgress(0);zoom.setEnabled(max>0);parameters.setZoom(0);zoomLabel.setText("1.0×");
-            }
+                zoomRow.setVisibility(max>0?View.VISIBLE:View.GONE);
+            } else zoomRow.setVisibility(View.GONE);
             camera.setParameters(parameters);
             int rotation = getWindowManager().getDefaultDisplay().getRotation();
             int degrees = rotation == Surface.ROTATION_90 ? 90 : rotation == Surface.ROTATION_180 ? 180 : rotation == Surface.ROTATION_270 ? 270 : 0;
@@ -182,8 +246,10 @@ public final class ScanActivity extends Activity implements SurfaceHolder.Callba
             camera.startPreview();
             if(autoFocusMode)main.postDelayed(focusAgain,300);
             List<String> flashes = parameters.getSupportedFlashModes();
-            torch.setEnabled(flashes != null && flashes.contains(Camera.Parameters.FLASH_MODE_TORCH) && flashes.contains(Camera.Parameters.FLASH_MODE_OFF));
-            torch.setText(torch.isEnabled()?"打开手电筒":"此相机不支持手电筒");
+            boolean torchReady = flashes != null && flashes.contains(Camera.Parameters.FLASH_MODE_TORCH) && flashes.contains(Camera.Parameters.FLASH_MODE_OFF);
+            torch.setEnabled(torchReady);
+            torch.setVisibility(torchReady ? View.VISIBLE : View.GONE);
+            paintTorch();
         } catch (Exception failure) { stopCamera(); status.setText("相机暂时无法打开，请关闭其他占用相机的应用后重试。"); }
     }
     private void focusCamera() {
@@ -201,6 +267,13 @@ public final class ScanActivity extends Activity implements SurfaceHolder.Callba
             });
         } catch(RuntimeException ignored){focusing=false;if(autoFocusMode){main.removeCallbacks(focusAgain);main.postDelayed(focusAgain,1800);}}
     }
+    /** Lit looks like a filled lens, unlit like a dark one, so the state needs no text. */
+    private void paintTorch() {
+        if (torch == null) return;
+        torch.setImageDrawable(AppUi.icon(this, "torch", torchOn ? 0xff275dad : 0xffffffff, 22));
+        torch.setBackground(AppUi.shape(this, torchOn ? 0xffffffff : 0x59000000, 22));
+        torch.setContentDescription(torchOn ? "关闭手电筒" : "打开手电筒");
+    }
     private void toggleTorch() {
         if (camera == null || !scanning) return;
         try {
@@ -209,7 +282,7 @@ public final class ScanActivity extends Activity implements SurfaceHolder.Callba
             parameters.setFlashMode(next ? Camera.Parameters.FLASH_MODE_TORCH : Camera.Parameters.FLASH_MODE_OFF);
             camera.setParameters(parameters);
             torchOn = next;
-            torch.setText(torchOn ? "关闭手电筒" : "打开手电筒");
+            paintTorch();
         } catch (RuntimeException failure) {
             android.widget.Toast.makeText(this,"手电筒暂不可用，请重新扫描后重试。",android.widget.Toast.LENGTH_SHORT).show();
         }
@@ -224,12 +297,13 @@ public final class ScanActivity extends Activity implements SurfaceHolder.Callba
             camera.release(); camera = null;
         }
         torchOn=false;
-        if(torch!=null){torch.setText("打开手电筒");torch.setEnabled(false);}
+        if(torch!=null){torch.setEnabled(false);torch.setVisibility(View.GONE);paintTorch();}
     }
     private void rescan() {
         if (busy) return;
         recognized = null; recognizedRaw = null; lookup = null; query.setEnabled(false); order.setEnabled(false); scanning = true;
-        status.setText("将设备二维码放入画面。");
+        status.setText(idleStatus);
+        hint.setVisibility(View.VISIBLE);
         if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[]{Manifest.permission.CAMERA}, CAMERA_PERMISSION);
         else startCamera();
@@ -241,18 +315,20 @@ public final class ScanActivity extends Activity implements SurfaceHolder.Callba
         if (!scanning) return;
         if(life798) {
             scanning=false;stopCamera();
+            hint.setVisibility(View.GONE);
             try {
                 openLife(io.qzxy.lite.core.Life798Qr.parse(raw));
             } catch(IllegalArgumentException invalid){
                 // Show what the sticker actually said: without it "扫不出来" is undebuggable, and the
                 // raw text is what tells us whether this is an unknown URL shape or a foreign code.
                 status.setText(invalid.getMessage()+"\n\n识别到的内容："+clipCode(raw)
-                    +"\n\n可以点「重新扫描」，或直接手动输入设备上的编号。");
+                    +"\n\n点「重新扫描」再对准一次。");
             }
             return;
         }
         scanning = false; stopCamera(); recognized = null; recognizedRaw = null; lookup = null;
         query.setEnabled(false); order.setEnabled(false);
+        hint.setVisibility(View.GONE);
         try {
             recognized = DeviceQr.parse(raw); recognizedRaw = raw; query.setEnabled(true); scanFeedback();
             if(BuildFlags.WATER_CONTROL){returningFromDevice=true;startActivity(new Intent(this,QzxyAlipayActivity.class).putExtra("qr",raw));}
@@ -261,7 +337,7 @@ public final class ScanActivity extends Activity implements SurfaceHolder.Callba
         catch (IllegalArgumentException invalid) { status.setText(invalid.getMessage() + "。可点击重新扫描。"); }
     }
     /**
-     * Shared by the camera and the manual field, so both reach the device page the same way.
+     * Hands the parsed code to the device page.
      *
      * <p>Current 慧生活 stickers carry a server ticket instead of a device id, so the two cases are
      * handed over with different keys: {@code did} skips the exchange, {@code qrId} means the device
@@ -280,20 +356,6 @@ public final class ScanActivity extends Activity implements SurfaceHolder.Callba
         else target = new Intent(this, LifeDeviceActivity.class);
         target.putExtra(direct ? "did" : "qrId", value);
         startActivity(target);
-    }
-
-    private void manualEntry() {
-        final EditText input = new EditText(this);
-        input.setHint("设备上的编号，例如 2000123456");
-        input.setSingleLine(true);
-        new AlertDialog.Builder(this).setTitle("手动输入设备编号")
-            .setMessage("编号一般印在二维码下方或设备面板上。")
-            .setView(input)
-            .setNegativeButton("取消", null)
-            .setPositiveButton("继续", (d, w) -> {
-                try { openLife(io.qzxy.lite.core.Life798Qr.parse(input.getText().toString())); }
-                catch (IllegalArgumentException invalid) { status.setText(invalid.getMessage()); }
-            }).show();
     }
 
     private static String clipCode(String raw) {

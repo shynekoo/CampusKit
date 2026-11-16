@@ -108,11 +108,11 @@ public final class SchoolSiteActivity extends Activity {
             });
         }
 
+        // No browser escape hatch: the pages stay here. Outbound links still leave by themselves.
         LinearLayout bar = new LinearLayout(this);
         action(bar, "‹ 返回", this::finish);
         action(bar, "首页", () -> web.loadUrl(home));
         action(bar, "刷新", () -> web.reload());
-        action(bar, "浏览器", () -> handOff(web.getUrl() == null ? home : web.getUrl()));
         root.addView(bar);
 
         TextView heading = new TextView(this);

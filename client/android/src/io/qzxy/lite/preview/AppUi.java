@@ -31,6 +31,7 @@ final class AppUi {
     case "water":Path drop=new Path();drop.moveTo(12,2);drop.cubicTo(9,7,5,10,5,15);drop.cubicTo(5,24,19,24,19,15);drop.cubicTo(19,10,15,7,12,2);c.drawPath(drop,p);break;
     case "score":rect(c,4,3,20,21);line(c,8,9,16,9);line(c,8,13,13,13);line(c,8,17,13,17);line(c,15,16,16.6f,18);line(c,16.6f,18,19,15);break;
     case "room":rect(c,3,4,21,20);line(c,13,4,13,20);c.drawCircle(16.5f,12,.9f,p);line(c,3,20,21,20);break;
+    case "torch":Path bolt=new Path();bolt.moveTo(13.4f,2.5f);bolt.lineTo(6.6f,13.2f);bolt.lineTo(11,13.2f);bolt.lineTo(10.2f,21.5f);bolt.lineTo(17.4f,10.6f);bolt.lineTo(12.8f,10.6f);bolt.close();c.drawPath(bolt,p);break;
     default:line(c,3,9,3,3);line(c,3,3,9,3);line(c,15,3,21,3);line(c,21,3,21,9);line(c,3,15,3,21);line(c,3,21,9,21);line(c,15,21,21,21);line(c,21,21,21,15);line(c,7,12,17,12);
    }c.restoreToCount(save);
   }
