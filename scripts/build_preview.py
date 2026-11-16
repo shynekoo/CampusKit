@@ -28,7 +28,7 @@ CONTROL_ROUTES = (
     "/api/v1/dev/start",
     "/api/v1/dev/end",
 )
-FIELD_VERSION_NAME = "2.3.1"
+FIELD_VERSION_NAME = "2.3.2"
 FIELD_LABEL = "科信小助手"
 
 # Classes that only exist in the field-test source root. The check uses their dex type descriptors,
@@ -95,6 +95,12 @@ def main():
     zxing = ROOT / "tools/zxing/core-3.5.3.jar"
     if not zxing.exists() or hashlib.sha256(zxing.read_bytes()).hexdigest() != "8d8064c1636fdaef7189dd9055c7d59950a8940a12f2293956446ec3c109fd82":
         raise RuntimeError("Download the pinned ZXing core dependency documented in client/THIRD_PARTY.md")
+    # Alipay's official Android SDK, pinned by hash: the login page hands the reader to the Alipay
+    # app, and only this SDK speaks its bound-service protocol. Its manifest, resource ids and
+    # classes are merged below by hand because there is no Gradle here.
+    alipay_aar = ROOT / "tools/alipay/alipaysdk-android-15.8.42.aar"
+    if not alipay_aar.exists() or hashlib.sha256(alipay_aar.read_bytes()).hexdigest() != "a6c301708b59a3a7cda843cf02e7b3b0b44afd96819f0a18890322e9868abf28":
+        raise RuntimeError("Download the pinned Alipay SDK documented in client/THIRD_PARTY.md")
     pdf_hashes = {'bcpkix-jdk15to18-1.72.jar': 'd9b97477b72499bcee02f5a906510810257ff36a94bf69fbca0b1e65e7ffdb6e', 'bcprov-jdk15to18-1.72.jar': 'ea66ea8a450810b2193e8bf9a7ad3e46307c9896224c0f407d1b7d96ba1221cc', 'bcutil-jdk15to18-1.72.jar': 'd92184bdeb3105a11ad9e36acbd66b5f8eed091b08b9c8f3e2549e42b7f131f1', 'classes.jar': '35f592ed840ec0903546b086e6181589796edcf0a142e2a5d5f3a3cf1e74739c', 'pdfbox-android-2.0.27.0.aar': '30277f879cfd571db2a137582c95516a0d4ea6778e945519bc58ca93d57d88c7'}
     pdf_dir = ROOT / "tools/pdfbox"
     for name, digest in pdf_hashes.items():
@@ -111,6 +117,9 @@ def main():
         shutil.rmtree(BUILD)
     for name in ("classes", "generated", "dex"):
         (BUILD / name).mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(alipay_aar) as aar:
+        alipay_jar = BUILD / "alipay-classes.jar"
+        alipay_jar.write_bytes(aar.read("classes.jar"))
     app = ROOT / "client/android"
     manifest = app / "AndroidManifest.xml"
     android_ns = "{http://schemas.android.com/apk/res/android}"
@@ -118,7 +127,7 @@ def main():
     version = manifest_root.get(android_ns + "versionName")
     if not re.fullmatch(r"[0-9A-Za-z.-]+", version or ""):
         raise RuntimeError("Unsafe version name")
-    input_files = sorted(app.rglob("*.java")) + sorted((app / "res").rglob("*")) + sorted((ROOT / "client/core/src").rglob("*.java")) + [manifest, zxing, Path(__file__).resolve()] + list(pdf_dir.iterdir())
+    input_files = sorted(app.rglob("*.java")) + sorted((app / "res").rglob("*")) + sorted((ROOT / "client/core/src").rglob("*.java")) + [manifest, zxing, alipay_aar, Path(__file__).resolve()] + list(pdf_dir.iterdir())
     if field_water:
         input_files += sorted(FIELD.rglob("*.java"))
     input_hashes = {str(p.relative_to(ROOT)).replace("\\", "/"): hashlib.sha256(p.read_bytes()).hexdigest()
@@ -160,7 +169,9 @@ def main():
     write_build_flags(field_water, device_tests)
     run([tools / "aapt2.exe", "compile", "--dir", app / "res", "-o", BUILD / "resources.zip"])
     run([tools / "aapt2.exe", "link", "-I", android, "--manifest", manifest,
-         "--java", BUILD / "generated", "--custom-package", "io.qzxy.lite.preview", "-o", BUILD / "resources.apk", BUILD / "resources.zip"])
+         "--java", BUILD / "generated", "--custom-package", "io.qzxy.lite.preview",
+         "--extra-packages", "com.alipay.sdk",
+         "-o", BUILD / "resources.apk", BUILD / "resources.zip"])
     sources = sorted((app / "src").rglob("*.java")) + sorted((ROOT / "client/core/src").rglob("*.java")) + sorted((BUILD / "generated").rglob("*.java"))
     if device_tests:
         sources += sorted((ROOT / "client/androidTest/src").rglob("*.java"))
@@ -168,14 +179,14 @@ def main():
         sources += sorted(FIELD.rglob("*.java"))
         if device_tests:
             sources += sorted((ROOT / "client/fieldtestTest/src").rglob("*.java"))
-    run([jdk / "bin/javac.exe", "-J-Duser.language=en", "--release", "8", "-Xlint:-options", "-encoding", "UTF-8", "-classpath", os.pathsep.join(str(p) for p in [android, zxing] + pdf_jars),
+    run([jdk / "bin/javac.exe", "-J-Duser.language=en", "--release", "8", "-Xlint:-options", "-encoding", "UTF-8", "-classpath", os.pathsep.join(str(p) for p in [android, zxing, alipay_jar] + pdf_jars),
          "-d", BUILD / "classes"] + sources)
     classes = BUILD / "classes.jar"
     with zipfile.ZipFile(classes, "w", zipfile.ZIP_DEFLATED) as jar:
         for path in (BUILD / "classes").rglob("*.class"):
             jar.write(path, path.relative_to(BUILD / "classes").as_posix())
     run([jdk / "bin/java.exe", "-cp", tools / "lib/d8.jar", "com.android.tools.r8.D8", "--lib", android,
-         "--min-api", "24", "--output", BUILD / "dex", classes, zxing] + pdf_jars)
+         "--min-api", "24", "--output", BUILD / "dex", classes, zxing, alipay_jar] + pdf_jars)
     route_hits = check_route_boundary(BUILD / "dex", field_water)
     unsigned = BUILD / "unsigned.apk"
     shutil.copyfile(BUILD / "resources.apk", unsigned)

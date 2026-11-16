@@ -1,13 +1,13 @@
 {
-  "version": "2.3.1",
-  "versionCode": 159,
+  "version": "2.3.2",
+  "versionCode": 160,
   "notes": [
-    "慧生活登录页重做：一进来就显示图形验证码，图片按比例显示，不再是拉满整屏的一条糊图",
-    "登录失败时直接说原因（例如「图片验证码错误」），不再一律「请求未完成」",
-    "「检查更新」移到账号页列表里，在「数据与隐私」下面",
-    "课表周次只到 20 周，5 列 4 行，不再有 25–30 周"
+    "慧生活登录页最上面加了「支付宝一键登录」：点一下跳到支付宝，确认后直接回来登录，不用等短信、不用认图片字符",
+    "授权页会显示「慧生活798」，那是官方应用名，因为走的是官方应用的登录授权，登录的仍是你自己的支付宝账号",
+    "手机号验证码登录原样留在下面，支付宝不可用时照旧走短信",
+    "授权没完成会说清原因（取消、未安装支付宝、服务器不接受），不再只显示「请求未完成」"
   ],
-  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.3.1.apk?sharecode=BZD63HRP4B",
-  "bytes": 5170844,
-  "sha256": "2db675d108150639412aac3aafeeae61aec153af3f43d40d8f6e84ba696d9f46"
+  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.3.2.apk?sharecode=BZD63HRP4B",
+  "bytes": 5338780,
+  "sha256": "ce458ce62c3bca4ed7e9c3494edccef4a625ba36a32fc8f84327b93ad76893db"
 }

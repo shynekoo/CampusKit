@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Strings the Alipay SDK resolves through its own R class; keep the names exactly as shipped. -->
+<resources>
+    <string name="alipay_standard_sdk_loading">Loading</string>
+    <string name="alipay_standard_sdk_loading_go_auth">Go to Alipay for authorization</string>
+    <string name="alipay_standard_sdk_loading_go_pay">Go to Alipay for payment</string>
+</resources>

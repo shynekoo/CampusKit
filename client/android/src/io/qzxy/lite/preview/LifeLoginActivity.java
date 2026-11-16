@@ -17,7 +17,7 @@ import org.json.*;
  */
 public final class LifeLoginActivity extends Activity {
     private final java.util.concurrent.ExecutorService worker=java.util.concurrent.Executors.newSingleThreadExecutor();
-    private EditText phone,captcha,code;private ImageView picture;private TextView status;private Button send,login,refresh,clear,verify;
+    private EditText phone,captcha,code;private ImageView picture;private TextView status;private Button alipay,send,login,refresh,clear,verify;
     private boolean busy,ready;private double seed;private String sentPhone="";
     private CheckBox consent;
     private volatile boolean closed;
@@ -33,6 +33,19 @@ public final class LifeLoginActivity extends Activity {
     private void gap(LinearLayout form,int n){form.addView(new View(this),new LinearLayout.LayoutParams(-1,dp(n)));}
     private TextView text(String value,int size){TextView v=new TextView(this);v.setText(value);v.setTextSize(size);return v;}
     private TextView muted(String value,int size){TextView v=text(value,size);v.setTextColor(AppUi.MUTED);v.setLineSpacing(dp(3),1f);return v;}
+
+    /** A hairline with a word in the middle, separating the two ways in. */
+    private View divider(String label){
+        LinearLayout row=new LinearLayout(this);row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        row.setPadding(0,dp(18),0,dp(2));
+        View left=new View(this);left.setBackgroundColor(AppUi.LINE);
+        View right=new View(this);right.setBackgroundColor(AppUi.LINE);
+        TextView caption=text(label,12);caption.setTextColor(AppUi.MUTED);caption.setPadding(dp(10),0,dp(10),0);
+        row.addView(left,new LinearLayout.LayoutParams(0,Math.max(1,dp(1)),1));
+        row.addView(caption);
+        row.addView(right,new LinearLayout.LayoutParams(0,Math.max(1,dp(1)),1));
+        return row;
+    }
 
     @Override public void onCreate(Bundle state){
         super.onCreate(state);
@@ -55,9 +68,20 @@ public final class LifeLoginActivity extends Activity {
         TextView back=text("‹ 返回科信小助手",14);back.setTextColor(AppUi.ACCENT);back.setPadding(0,dp(8),0,dp(8));
         back.setOnClickListener(v->finish());form.addView(back);
         TextView title=text("登录慧生活798",24);title.setTypeface(null,Typeface.BOLD);form.addView(title);
-        TextView intro=muted("第三方客户端。手机号和验证码用于登录慧生活，登录信息加密保存在本机。",13);
-        intro.setPadding(0,dp(6),0,dp(18));form.addView(intro);
+        TextView intro=muted("第三方客户端。用支付宝授权登录，或改走手机号验证码；登录凭据加密保存在本机。",13);
+        intro.setPadding(0,dp(6),0,dp(16));form.addView(intro);
 
+        consent=new CheckBox(this);consent.setText("我了解这是第三方客户端，同意把手机号或支付宝授权码发送给慧生活用于登录");
+        consent.setTextSize(13);consent.setTextColor(AppUi.MUTED);form.addView(consent);
+        gap(form,10);
+
+        // 支付宝优先：这是官方现在的登录方式，一次确认就回来，不用等短信，也不用认图片字符。
+        alipay=primary(form,"支付宝一键登录",()->alipaySignIn());
+        TextView hint=muted("会跳到支付宝。授权页显示的是官方应用名「慧生活798」，登录的是你自己的账号。",12);
+        hint.setPadding(dp(2),dp(8),dp(2),dp(4));form.addView(hint);
+
+        form.addView(divider("或使用手机号验证码"));
+        gap(form,8);
         phone=input(form,"手机号",android.text.InputType.TYPE_CLASS_PHONE);
         phone.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(11)});
         gap(form,12);
@@ -79,11 +103,8 @@ public final class LifeLoginActivity extends Activity {
         pictureParams.leftMargin=dp(10);captchaRow.addView(picture,pictureParams);
         form.addView(captchaRow);
         refresh=quiet(form,"看不清？换一张",()->loadCaptcha());
-        gap(form,6);
+        gap(form,8);
 
-        consent=new CheckBox(this);consent.setText("我了解第三方身份，同意将上述信息发送至慧生活用于登录");
-        consent.setTextSize(13);consent.setTextColor(AppUi.MUTED);form.addView(consent);
-        gap(form,6);
         send=primary(form,"获取短信验证码",()->sendSms());
         gap(form,12);
 
@@ -97,7 +118,7 @@ public final class LifeLoginActivity extends Activity {
         secondary.setBackground(AppUi.outlined(this,0xffffffff,10,AppUi.LINE));
         form.addView(secondary,new LinearLayout.LayoutParams(-1,-2));
         verify=quiet(secondary,"检查登录状态",()->run(()->{
-            JSONObject session=new LifeSessionVault(this).load();if(session==null)return "尚未登录，请先完成短信验证";
+            JSONObject session=new LifeSessionVault(this).load();if(session==null)return "尚未登录，请先完成支付宝授权或短信验证";
             int result=LifeAuthApi.verify(session);return result>=0?"服务器确认登录有效。请从今日页扫码进入设备。":"服务器未确认登录有效（状态码 "+result+"），暂不能判断是否过期；本机登录已保留。";
         }));
         clear=quiet(secondary,"清除本机慧生活登录",()->run(()->{new LifeSessionVault(this).clear();sentPhone="";runOnUiThread(()->{if(!isDestroyed()){phone.setText("");code.setText("");captcha.setText("");picture.setImageDrawable(null);ready=false;}});return "本机登录已清除";}));
@@ -141,7 +162,7 @@ public final class LifeLoginActivity extends Activity {
         if(text!=null&&text.matches(".*[\\u4e00-\\u9fa5].*"))return text;
         return "网络不通或服务器没有响应，请检查网络后重试。";
     }
-    private void enable(boolean value){send.setEnabled(value);login.setEnabled(value);refresh.setEnabled(value);clear.setEnabled(value);verify.setEnabled(value);consent.setEnabled(value);updateSend();phone.setEnabled(value);captcha.setEnabled(value);code.setEnabled(value);}
+    private void enable(boolean value){alipay.setEnabled(value);send.setEnabled(value);login.setEnabled(value);refresh.setEnabled(value);clear.setEnabled(value);verify.setEnabled(value);consent.setEnabled(value);updateSend();phone.setEnabled(value);captcha.setEnabled(value);code.setEnabled(value);}
     private void loadCaptcha(){
         if(busy)return;
         ready=false;captcha.setText("");
@@ -151,7 +172,27 @@ public final class LifeLoginActivity extends Activity {
             Bitmap bitmap=BitmapFactory.decodeByteArray(bytes,0,bytes.length);
             if(bitmap==null)throw new java.io.IOException("验证码图片无法识别，请点「换一张」重试");
             runOnUiThread(()->{if(!isDestroyed()){seed=current;ready=true;picture.setImageBitmap(bitmap);}});
-            return "请填写图片中的字符，再获取短信验证码";
+            return "已加载图形验证码。可直接用支付宝登录，或填写图中字符获取短信验证码。";
+        });
+    }
+    /**
+     * 支付宝授权登录：唤起支付宝，拿回 auth_code，再交给慧生活换登录凭据。
+     *
+     * <p>整段放在工作线程：SDK 是同步阻塞的，会绑定支付宝的服务；把它放主线程会卡住界面，
+     * 也可能直接抛 NetworkOnMainThread。授权失败时手机号表单原样留着，读者可以立刻改走短信。</p>
+     */
+    private void alipaySignIn(){
+        if(busy)return;
+        if(!consent.isChecked()){status.setText("请先确认登录信息用途");return;}
+        run(()->{
+            String openCode=AlipayLogin.code(this);
+            JSONObject response=LifeAuthApi.post("/api/v1/acc/login",LifeAuthApi.alipay(openCode));
+            if(LifeAuthApi.resultCode(response)<0){String why=LifeAuthApi.message(response);return why.isEmpty()?"支付宝授权成功，但慧生活没有接受这次登录":why;}
+            JSONObject session=LifeAuthApi.session(response);
+            if(closed||isFinishing()||isDestroyed())return "已取消保存";
+            new LifeSessionVault(this).save(session);
+            runOnUiThread(()->{if(!isDestroyed()&&getIntent().getBooleanExtra("returnToAccountInfo",false))finish();});
+            return "已通过支付宝登录，凭据已加密保存在本机。";
         });
     }
     private void sendSms(){

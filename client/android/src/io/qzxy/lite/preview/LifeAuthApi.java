@@ -9,6 +9,15 @@ final class LifeAuthApi {
         return new JSONObject().put("un",phone).put("authCode",captcha).put("s",seed);
     }
     static JSONObject login(String phone,String code)throws Exception{phone(phone);if(code==null||!code.matches("[0-9]{4,8}"))throw new IllegalArgumentException("请填写短信验证码");return new JSONObject().put("un",phone).put("authCode",code);}
+    /**
+     * 支付宝授权码换登录：官方登录页把它叫 openCode，服务器拿它去支付宝换取账号。
+     * 这里只挡住空值和明显不是 token 的输入，真正的校验在服务器那边。
+     */
+    static JSONObject alipay(String openCode)throws Exception{
+        String code=openCode==null?"":openCode.trim();
+        if(code.length()<8||code.length()>512||!code.matches("[!-~]+"))throw new IllegalArgumentException("支付宝没有返回可用的授权码，请重试");
+        return new JSONObject().put("openCode",code);
+    }
     static void phone(String phone){if(phone==null||!phone.matches("1[3-9][0-9]{9}"))throw new IllegalArgumentException("请填写正确的手机号");}
     static int resultCode(JSONObject response)throws Exception{
         Object value=response.opt("code");if(!(value instanceof Number))throw new IOException("响应缺少状态码");double code=((Number)value).doubleValue();if(Double.isNaN(code)||Double.isInfinite(code)||code!=Math.rint(code)||code<Integer.MIN_VALUE||code>Integer.MAX_VALUE)throw new IOException("响应状态码无效");return (int)code;
