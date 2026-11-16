@@ -11,4 +11,10 @@ final class LifeWaterRecord {
  synchronized JSONObject load()throws Exception{try{return new JSONObject(new String(TimetableBackup.read(file.openRead(),16384),"UTF-8"));}catch(FileNotFoundException e){return null;}}
  synchronized void save(String uid,String did,String phase)throws Exception{JSONObject v=new JSONObject().put("uid",uid).put("did",LifeWaterProtocol.id(did)).put("phase",phase).put("time",System.currentTimeMillis());FileOutputStream out=null;try{out=file.startWrite();out.write(v.toString().getBytes("UTF-8"));file.finishWrite(out);}catch(Exception e){file.failWrite(out);throw e;}}
  synchronized void archive(Context c)throws Exception{JSONObject v=load();if(v==null)return;AtomicFile history=new AtomicFile(new File(c.getNoBackupFilesDir(),"life-water-last-reviewed.json"));FileOutputStream out=null;try{out=history.startWrite();out.write(v.put("reviewedByUser",true).toString().getBytes("UTF-8"));history.finishWrite(out);}catch(Exception e){history.failWrite(out);throw e;}file.delete();}
+ /**
+  * 撤销一条记录。只在服务器明确拒绝（业务码 -1，参数没通过校验，指令没有下发）时使用：
+  * 这种情况下留着记录只会让下一次进页面被自己挡住，设备那边其实什么都没发生。
+  * 结果未知（超时、HTTP 错误、其它负数码）时必须留着，那是这个记录存在的意义。
+  */
+ static synchronized void discard(Context c){new LifeWaterRecord(c).file.delete();}
 }

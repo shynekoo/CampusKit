@@ -22,11 +22,12 @@ final class LifeWaterProtocol {
  static void canStop(JSONObject reply,String did,String uid)throws Exception{
   LifeDeviceProfile.refreshed(reply,did);String user=owner(reply.getJSONObject("data"));if(!uid.equals(user))throw new LifeDeviceFailure("未确认设备属于当前账号，未发送停止请求");
  }
+ /** 只负责把请求发出去并解析回来；「拒没拒绝」由调用方判定，这样它能拿到原始响应做诊断。 */
  static JSONObject send(String path,JSONObject session)throws Exception{
   String didPattern="[A-Za-z0-9_-]{1,128}";
   if(!path.matches("/api/v1/dev/start\\?did="+didPattern+"&upgrade=true&ptype=(91|92)&args=&rcp=false&cnt=1")&&!path.matches("/api/v1/dev/end\\?did="+didPattern+"&rcp=false"))throw new IllegalArgumentException();
   String token=LifeAuthApi.credentials(session).getString("token");HttpURLConnection c=(HttpURLConnection)new URL(LifeAuthApi.HOST+path).openConnection();c.setInstanceFollowRedirects(false);c.setConnectTimeout(15000);c.setReadTimeout(15000);c.setUseCaches(false);
   c.setRequestProperty("Authorization",token);c.setRequestProperty("ApplicationType","1,1");c.setRequestProperty("VersionCode","31005");c.setRequestProperty("User-Agent","CampusKit/0.9.16 (Android; independent client)");
-  try{int http=c.getResponseCode();if(http!=200)throw new LifeDeviceFailure("控制请求返回 HTTP "+http+"，结果需核实");JSONObject r=new JSONObject(new String(TimetableBackup.read(c.getInputStream(),1024*1024),"UTF-8"));LifeDeviceFailure.success(r);return r;}finally{c.disconnect();}
+  try{int http=c.getResponseCode();if(http!=200)throw new LifeDeviceFailure("控制请求返回 HTTP "+http+"，结果需核实");return new JSONObject(new String(TimetableBackup.read(c.getInputStream(),1024*1024),"UTF-8"));}finally{c.disconnect();}
  }
 }

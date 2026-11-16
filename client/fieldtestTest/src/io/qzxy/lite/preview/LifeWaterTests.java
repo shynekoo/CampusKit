@@ -24,6 +24,17 @@ public final class LifeWaterTests {
   LifeWaterRecord.claim(c,"user","test",false);check(new LifeWaterRecord(c).load().getString("phase").equals("STOP_SENT"));
   rejected=false;try{LifeWaterRecord.claim(c,"user","test",false);}catch(Exception e){rejected=true;}check(rejected);
   new LifeWaterRecord(c).archive(c);check(new LifeWaterRecord(c).load()==null);f.delete();new java.io.File(c.getNoBackupFilesDir(),"life-water-last-reviewed.json").delete();
+  // A record the server provably refused (业务码 -1, the request never reached its business logic)
+  // must be droppable; leaving it behind is what strands the page on "上次开启没有完成".
+  LifeWaterRecord.claim(c,"user","test",true);LifeWaterRecord.discard(c);check(new LifeWaterRecord(c).load()==null);
+  rejected=false;
+  try{LifeDeviceFailure.success(new JSONObject().put("code",-1).put("msg","请求参数错误"));}
+  catch(LifeDeviceFailure e){rejected=e instanceof LifeDeviceFailure.Rejected&&((LifeDeviceFailure.Rejected)e).code==-1&&e.getMessage().contains("-1")&&e.getMessage().contains("请求参数错误");}
+  check(rejected);
+  rejected=false;
+  try{LifeDeviceFailure.success(new JSONObject().put("code",-99));}
+  catch(LifeDeviceFailure e){rejected=e instanceof LifeDeviceFailure.Rejected&&((LifeDeviceFailure.Rejected)e).code==-99&&e.getMessage().contains("-99");}
+  check(rejected);
   // Scan-to-water must accept a QR id before a device id has been resolved. With no account,
   // it stays on the page and asks for login; it must not create a control journal or enable start.
   new LifeSessionVault(c).clear();
