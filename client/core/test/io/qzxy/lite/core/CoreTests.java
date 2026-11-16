@@ -976,6 +976,26 @@ public final class CoreTests {
         equal("cainiao://desktop/station_code", PickupCodeLinks.CAINIAO_IDENTITY);
         System.out.println("PASS: identity-code bridge links keep the Taobao page address intact");
 
+        // Term start date. The stored text is one canonical format because the week counter parses
+        // it; what is typed may drop the zero in front of a month or a day, which is the whole point.
+        equal("2026-08-31", TermDate.normalize("2026-08-31"));
+        equal("2026-08-31", TermDate.normalize("2026-8-31"));
+        equal("2026-08-31", TermDate.normalize("  2026-8-31  "));
+        equal("2026-09-07", TermDate.normalize("2026-9-7"));
+        equal("2026-12-28", TermDate.normalize("2026-12-28"));
+        equal("2026-01-05", TermDate.normalize("2026-1-5"));
+        // Not a Monday, not a real day, not this shape: refused rather than guessed.
+        rejects(() -> TermDate.normalize("2026-8-30"));
+        rejects(() -> TermDate.normalize("2026-2-30"));
+        rejects(() -> TermDate.normalize("2026-13-07"));
+        rejects(() -> TermDate.normalize("2026/8/31"));
+        rejects(() -> TermDate.normalize("2026-08-31 08:00"));
+        rejects(() -> TermDate.normalize("26-8-31"));
+        rejects(() -> TermDate.normalize("2026-08-32"));
+        rejects(() -> TermDate.normalize(""));
+        rejects(() -> TermDate.normalize(null));
+        System.out.println("PASS: a term date may omit the leading zero, and still has to be a real Monday");
+
         // Timetables. The index is the only place that knows the list and the pointer; an install
         // from before multiple timetables has no index at all, so empty input has to produce the one
         // "main" table whose storage the old code already wrote to — no migration, no lost timetable.

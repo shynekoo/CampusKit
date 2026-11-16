@@ -1,6 +1,10 @@
 # 科信小助手（原名 CampusKit，趣智校园第三方安卓客户端）
 
-当前版本：科信小助手 2.1.1（`delivery/科信小助手-2.1.1.apk`，版本代码 155）。**清掉没用完的残留**：取件组件整条链（`PickupWidget`、无人调用的 `pickupCard()`、`onStart`/`onStop`/`onActivityResult` 的取件分支、core 的 `PickupPresence`）删除——首页取件卡 1.5.3 就下线了，实现一直挂着；「网页手动导入」删掉后遗留的 `choosePdf()`、`request 40/41` 两个无发起方的分支、`TimetablePdfReader` 一并删除（`TimetablePdfParser` 保留，教务导入还在用）；`pdfWorker` 改名 `backgroundWorker`。**纠正 2.1 的误判**：`LifeWaterActivity` 在 `client/fieldtest/src`，`--field-water` 构建会编译进去，APK 里确实存在且已注册，扫码进独立用水是通的，入口未删。908 项核心断言通过，v2/v3 签名通过，**本版未经真机验证**。[发布说明](delivery/release-2.1.1.md)。
+当前版本：科信小助手 2.2.0（`delivery/科信小助手-2.2.0.apk`，版本代码 156）。**课表列表回到直觉**：整行（含名字）点一下就是切换，「重命名」与「删除」并排放在行右边，当前那张标浅蓝「当前」且不再响应点击——2.0 把点名字给了重命名，想换课表的人先看到改名框。**删除确认去掉「背景图片是全局的，会保留」**：背景不归某张课表所有，这句只是在解释实现，删掉。**学期设置认 2026-8-31**：月份、日期的前导 0 可写可不写，保存统一成 `yyyy-MM-dd`；规则收进 core 的 `TermDate`，仍要求真实存在的日期与周一，界面上不加说明；例子换成 2026-08-31。923 项核心断言通过，v2/v3 签名通过，**本版未经真机验证**。[发布说明](delivery/release-2.2.0.md)。
+
+2026-11-16：2.2.0 课表点一下即切换并把重命名做成按钮，删除确认少一句，开学日期可省略前导 0。
+
+上一版：科信小助手 2.1.1（`delivery/科信小助手-2.1.1.apk`，版本代码 155）。**清掉没用完的残留**：取件组件整条链（`PickupWidget`、无人调用的 `pickupCard()`、`onStart`/`onStop`/`onActivityResult` 的取件分支、core 的 `PickupPresence`）删除——首页取件卡 1.5.3 就下线了，实现一直挂着；「网页手动导入」删掉后遗留的 `choosePdf()`、`request 40/41` 两个无发起方的分支、`TimetablePdfReader` 一并删除（`TimetablePdfParser` 保留，教务导入还在用）；`pdfWorker` 改名 `backgroundWorker`。**纠正 2.1 的误判**：`LifeWaterActivity` 在 `client/fieldtest/src`，`--field-water` 构建会编译进去，APK 里确实存在且已注册，扫码进独立用水是通的，入口未删。908 项核心断言通过，v2/v3 签名通过，**本版未经真机验证**。[发布说明](delivery/release-2.1.1.md)。
 
 2026-11-16：2.1.1 删除取件组件与 PDF 导入的死代码，纠正用水页不存在的误判。
 

@@ -366,12 +366,13 @@ public final class TimetableActivity extends Activity {
         SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd", Locale.ROOT);
         format.setLenient(false); format.setTimeZone(TimeZone.getTimeZone("UTC")); return format;
     }
+    /**
+     * Reads a stored or typed term start. {@link io.qzxy.lite.core.TermDate} owns the rules — it
+     * accepts 2026-8-31 as well as 2026-08-31 and still insists on a real Monday — and hands back
+     * the canonical text this class then parses.
+     */
     static Date parseMonday(String value) throws Exception {
-        if (!value.matches("20[0-9]{2}-[0-9]{2}-[0-9]{2}")) throw new IllegalArgumentException();
-        Date date = dateFormat().parse(value);
-        Calendar calendar = Calendar.getInstance(TimeZone.getTimeZone("UTC")); calendar.setTime(date);
-        if (calendar.get(Calendar.DAY_OF_WEEK) != Calendar.MONDAY) throw new IllegalArgumentException();
-        return date;
+        return dateFormat().parse(io.qzxy.lite.core.TermDate.normalize(value));
     }
     private int currentWeek() {
         if (monday.isEmpty()) return 0;
@@ -460,9 +461,9 @@ public final class TimetableActivity extends Activity {
 
     /**
      * The table picker behind the heading: the name of every table, the current one marked, and
-     * 新建课表 at the bottom. Tapping a name renames that table; tapping the rest of the row (or the
-     * 切换 label) switches to it. Delete is a labelled button on every row — a long press was
-     * undiscoverable, and on a list this short a visible button costs nothing.
+     * 新建课表 at the bottom. Tapping anywhere on a row switches to that table — the name used to be
+     * a rename target, which made the obvious gesture (tap the table you want) do something else.
+     * Renaming is now a labelled button beside 删除, next to the row it belongs to.
      */
     private void chooseTable() {
         List<TimetableIndex.Table> tables = TimetableStore.tables(this);
@@ -470,7 +471,7 @@ public final class TimetableActivity extends Activity {
         final AlertDialog[] holder = new AlertDialog[1];
         LinearLayout list = column();
         list.setPadding(dp(4), dp(4), dp(4), dp(6));
-        TextView hint = text("点名字可重命名，点右侧可切换或删除。", 12);
+        TextView hint = text("点一下课表即可切换，右侧可重命名或删除。", 12);
         hint.setTextColor(AppUi.MUTED);
         hint.setPadding(dp(14), dp(2), dp(14), dp(10));
         list.addView(hint, new LinearLayout.LayoutParams(-1, -2));
@@ -481,17 +482,22 @@ public final class TimetableActivity extends Activity {
             row.setPadding(dp(14), dp(8), dp(8), dp(8));
             AppUi.press(row, 0xffffffff, 10);
             TextView name = text(table.name, 16);
-            if (active) {
-                name.setTextColor(AppUi.ACCENT);
-                name.setTypeface(null, android.graphics.Typeface.BOLD);
-            }
+            name.setTextColor(active ? AppUi.ACCENT : AppUi.INK);
+            if (active) name.setTypeface(null, android.graphics.Typeface.BOLD);
             name.setPadding(0, dp(3), dp(8), dp(3));
-            name.setOnClickListener(v -> {
+            name.setSingleLine(true);
+            name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            row.addView(name, new LinearLayout.LayoutParams(0, -2, 1));
+            TextView rename = text("重命名", 13);
+            rename.setTextColor(AppUi.ACCENT);
+            rename.setPadding(dp(10), dp(8), dp(10), dp(8));
+            AppUi.press(rename, 0x00ffffff, 8);
+            rename.setOnClickListener(v -> {
                 if (holder[0] != null) holder[0].dismiss();
                 renameTable(table);
             });
-            name.setContentDescription(table.name + "，点按重命名");
-            row.addView(name, new LinearLayout.LayoutParams(0, -2, 1));
+            rename.setContentDescription("重命名" + table.name);
+            row.addView(rename);
             TextView remove = text("删除", 13);
             remove.setTextColor(AppUi.DANGER);
             remove.setPadding(dp(10), dp(8), dp(10), dp(8));
@@ -502,23 +508,23 @@ public final class TimetableActivity extends Activity {
             });
             remove.setContentDescription("删除" + table.name);
             row.addView(remove);
-            TextView mark = text(active ? "当前" : "切换", 13);
-            mark.setTextColor(AppUi.ACCENT);
-            if (!active) {
-                mark.setPadding(dp(10), dp(8), dp(10), dp(8));
-                AppUi.press(mark, 0x00ffffff, 8);
-                mark.setOnClickListener(v -> {
+            // The current table needs no switch button, but saying so keeps the list readable.
+            if (active) {
+                TextView mark = text("当前", 12);
+                mark.setTextColor(AppUi.ACCENT);
+                mark.setBackground(AppUi.shape(this, AppUi.SOFT, 8));
+                mark.setPadding(dp(7), dp(2), dp(7), dp(2));
+                LinearLayout.LayoutParams markParams = new LinearLayout.LayoutParams(-2, -2);
+                markParams.rightMargin = dp(6);
+                row.addView(mark, 1, markParams);
+                row.setContentDescription(table.name + "，当前课表");
+            } else {
+                row.setContentDescription(table.name + "，点按切换");
+                row.setOnClickListener(v -> {
                     if (holder[0] != null) holder[0].dismiss();
                     switchTable(table.id);
                 });
-                mark.setContentDescription("切换到" + table.name);
-            } else mark.setPadding(dp(10), dp(8), dp(10), dp(8));
-            row.addView(mark);
-            row.setContentDescription(table.name + (active ? "，当前课表" : "，点按切换"));
-            row.setOnClickListener(v -> {
-                if (holder[0] != null) holder[0].dismiss();
-                switchTable(table.id);
-            });
+            }
             list.addView(row, new LinearLayout.LayoutParams(-1, -2));
             View rule = new View(this); rule.setBackgroundColor(AppUi.LINE);
             list.addView(rule, new LinearLayout.LayoutParams(-1, Math.max(1, dp(1))));
@@ -587,7 +593,8 @@ public final class TimetableActivity extends Activity {
     private void removeTable(final TimetableIndex.Table table) {
         if (TimetableStore.tables(this).size() <= 1) { notice("至少要保留一个课表。"); return; }
         boolean wasCurrent = table.id.equals(TimetableStore.currentId(this));
-        String message = "这个课表的课程和导入记录会一起删除，无法恢复。背景图片是全局的，会保留。";
+        // The board picture is not part of a timetable, so it is not part of the question either.
+        String message = "这个课表的课程和导入记录会一起删除，无法恢复。";
         if (wasCurrent) {
             // Say which table the screen will land on, so deleting the one you are looking at is not
             // a jump into the unknown.
@@ -1064,13 +1071,14 @@ public final class TimetableActivity extends Activity {
     }
     private void semester() {
         LinearLayout form = column(); form.setPadding(dp(20), dp(8), dp(20), dp(8));
-        EditText date = input(form, "第一周的周一（例如 2026-09-07，以学校安排为准）", monday, false);
+        EditText date = input(form, "第一周的周一（例如 2026-08-31）", monday, false);
         TextView error = text("", 14); form.addView(error);
         AlertDialog dialog = new AlertDialog.Builder(this).setTitle("学期设置").setView(form)
             .setPositiveButton("保存", null).setNegativeButton("取消", null).create();
         dialog.setOnShowListener(d -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             try {
-                String value = date.getText().toString().trim(); parseMonday(value);
+                // Stored canonical whatever was typed, so every reader keeps one format.
+                String value = io.qzxy.lite.core.TermDate.normalize(date.getText().toString());
                 if (!save(new ArrayList<>(courses), value)) { error.setText("保存失败，请重试。"); return; }
                 week = Math.max(1, Math.min(30, currentWeek())); dialog.dismiss(); render();
             } catch (Exception invalid) { error.setText("请输入有效的周一日期，格式为 年-月-日。"); }
