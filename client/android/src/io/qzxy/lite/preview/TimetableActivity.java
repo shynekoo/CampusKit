@@ -866,8 +866,8 @@ public final class TimetableActivity extends Activity {
         row.addView(shortcutTile("user","教务系统","自动登录",()->startActivity(new Intent(this,EduPortalActivity.class))),new LinearLayout.LayoutParams(0,-2,1));
         card.addView(row);
         LinearLayout sites=new LinearLayout(this);
-        sites.addView(shortcutTile("web","河工程官网","hebeu.edu.cn",()->openSchoolSite("河北工程大学官网","https://www.hebeu.edu.cn/")),new LinearLayout.LayoutParams(0,-2,1));
-        sites.addView(shortcutTile("web","科信官网","kexin.hebeu.edu.cn",()->openSchoolSite("科信学院官网","https://kexin.hebeu.edu.cn/")),new LinearLayout.LayoutParams(0,-2,1));
+        sites.addView(shortcutTile("school","河工程官网","hebeu.edu.cn",()->openSchoolSite("河北工程大学官网","https://www.hebeu.edu.cn/")),new LinearLayout.LayoutParams(0,-2,1));
+        sites.addView(shortcutTile("globe","科信官网","kexin.hebeu.edu.cn",()->openSchoolSite("科信学院官网","https://kexin.hebeu.edu.cn/")),new LinearLayout.LayoutParams(0,-2,1));
         card.addView(sites);parent.addView(card,new LinearLayout.LayoutParams(-1,-2));
     }
     private void openEdu(String mode){
