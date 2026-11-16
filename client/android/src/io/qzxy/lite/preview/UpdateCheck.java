@@ -71,8 +71,20 @@ final class UpdateCheck {
         if (BuildFlags.DEVICE_TESTS) return;
         final View root = activity.getWindow().getDecorView();
         root.postDelayed(new Runnable() {
-            @Override public void run() { check(activity, false); }
+            @Override public void run() { tidy(activity); check(activity, false); }
         }, 1200);
+    }
+
+    /**
+     * Deletes downloads older than a day. A package is otherwise only cleared when the next download
+     * starts, so an update that was downloaded but never installed would keep five megabytes for
+     * good; a day is long enough not to race the install prompt that may still be on screen.
+     */
+    private static void tidy(Activity activity) {
+        File[] old = ApkProvider.directory(activity).listFiles();
+        if (old == null) return;
+        long staleBefore = System.currentTimeMillis() - 24L * 60 * 60 * 1000;
+        for (File file : old) if (file.lastModified() < staleBefore) file.delete();
     }
 
     /** Called from 账号 so the check can also be asked for, and then it always answers. */
@@ -137,7 +149,15 @@ final class UpdateCheck {
 
     private static void offer(final Activity activity, final UpdateManifest manifest) {
         if (activity.isFinishing()) return;
-        ScrollView scroll = new ScrollView(activity);
+        // Capped like the notice dialog: eight notes on a 5-inch screen would otherwise push the
+        // two buttons past the bottom edge, leaving the reader with a dialog they cannot answer.
+        final int cap = Math.max(AppUi.dp(activity, 180),
+            (int) (activity.getResources().getDisplayMetrics().heightPixels * 0.52));
+        ScrollView scroll = new ScrollView(activity) {
+            @Override protected void onMeasure(int widthSpec, int heightSpec) {
+                super.onMeasure(widthSpec, MeasureSpec.makeMeasureSpec(cap, MeasureSpec.AT_MOST));
+            }
+        };
         LinearLayout body = new LinearLayout(activity);
         body.setOrientation(LinearLayout.VERTICAL);
         body.setPadding(AppUi.dp(activity, 20), AppUi.dp(activity, 2), AppUi.dp(activity, 20), 0);

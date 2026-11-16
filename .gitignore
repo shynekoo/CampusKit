@@ -17,6 +17,8 @@ __pycache__/
 .env.*
 /tmp/
 /.workbuddy-ai/
+/.workbuddy/
+/.wbapp_*.genie
 /analysis/
 /delivery/*
 !/delivery/release-1.0.0.md
