@@ -13,6 +13,15 @@ final class LifeAuthApi {
     static int resultCode(JSONObject response)throws Exception{
         Object value=response.opt("code");if(!(value instanceof Number))throw new IOException("响应缺少状态码");double code=((Number)value).doubleValue();if(Double.isNaN(code)||Double.isInfinite(code)||code!=Math.rint(code)||code<Integer.MIN_VALUE||code>Integer.MAX_VALUE)throw new IOException("响应状态码无效");return (int)code;
     }
+    /**
+     * The server's own explanation, when it gave one. 慧生活 answers a rejected request with
+     * {@code {"code":-2,"msg":"图片验证码错误"}}, and that sentence is worth far more to the reader
+     * than "请求未完成"; it is trimmed and capped because it is remote text going into a TextView.
+     */
+    static String message(JSONObject response){
+        Object value=response.opt("msg");if(!(value instanceof String))return "";
+        String text=((String)value).trim();return text.length()>80?text.substring(0,80):text;
+    }
     static JSONObject credentials(JSONObject al)throws Exception{
         if(!(al.opt("uid") instanceof String)||!(al.opt("token") instanceof String))throw new IOException("凭据格式无效");
         String uid=al.getString("uid"),token=al.getString("token");

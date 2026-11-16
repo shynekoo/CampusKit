@@ -1,12 +1,13 @@
 {
-  "version": "2.3.0",
-  "versionCode": 158,
+  "version": "2.3.1",
+  "versionCode": 159,
   "notes": [
-    "打开应用时检查新版本，有更新会先列出改了什么，再由你决定装不装",
-    "课表标题右边的三角形放大了，更容易看出「这里能点」",
-    "其它页面按屏幕宽度调整留白，窄屏不再贴边、宽屏不再铺满"
+    "慧生活登录页重做：一进来就显示图形验证码，图片按比例显示，不再是拉满整屏的一条糊图",
+    "登录失败时直接说原因（例如「图片验证码错误」），不再一律「请求未完成」",
+    "「检查更新」移到账号页列表里，在「数据与隐私」下面",
+    "课表周次只到 20 周，5 列 4 行，不再有 25–30 周"
   ],
-  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.3.0.apk?sharecode=BZD63HRP4B",
+  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.3.1.apk?sharecode=BZD63HRP4B",
   "bytes": 5170844,
-  "sha256": "48b2955b10b4f46442a0e60c194f1e847d060b418882f66c7b3ee0927d21be4a"
+  "sha256": "2db675d108150639412aac3aafeeae61aec153af3f43d40d8f6e84ba696d9f46"
 }

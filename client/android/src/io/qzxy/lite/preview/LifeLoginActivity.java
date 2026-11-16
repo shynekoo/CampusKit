@@ -5,6 +5,16 @@ import android.view.*;
 import android.widget.*;
 import android.graphics.*;
 import org.json.*;
+/**
+ * 慧生活798 的登录页。
+ *
+ * <p>图形验证码一进页面就加载并显示，不再要求先点一次「获取短信验证码」才出现——那一步什么都不发送，
+ * 只是把隐藏的图片和输入框露出来，读者看到的是「按了没反应」，然后发现手机号下面突然多出三个控件。
+ * 现在输入框和图片一进来就在，图片按控件尺寸居中显示，不再是 120×40 原图被拉成整屏宽。</p>
+ *
+ * <p>失败时把服务端原话显示出来（例如「图片验证码错误」），而不是一律「请求未完成」：
+ * 读者需要知道是验证码看错了、手机号填错了，还是网络不通，这三种情况的下一步完全不同。</p>
+ */
 public final class LifeLoginActivity extends Activity {
     private final java.util.concurrent.ExecutorService worker=java.util.concurrent.Executors.newSingleThreadExecutor();
     private EditText phone,captcha,code;private ImageView picture;private TextView status;private Button send,login,refresh,clear,verify;
@@ -20,35 +30,169 @@ public final class LifeLoginActivity extends Activity {
     @Override protected void onSaveInstanceState(Bundle state){state.putString("sentPhone",sentPhone);super.onSaveInstanceState(state);}
 
     private int dp(int n){return Math.round(n*getResources().getDisplayMetrics().density);}
-    @Override public void onCreate(Bundle state){super.onCreate(state);if(state!=null)sentPhone=state.getString("sentPhone","");getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
-        ScrollView scroll=new ScrollView(this);LinearLayout form=new LinearLayout(this);form.setOrientation(1);int side=AppUi.side(this,22);form.setPadding(side,dp(24),side,dp(24));form.setBackgroundColor(AppUi.BG);scroll.addView(form);setContentView(scroll);
-        if(Build.VERSION.SDK_INT>=30){getWindow().setDecorFitsSystemWindows(false);scroll.setOnApplyWindowInsetsListener((v,insets)->{android.graphics.Insets bars=insets.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout()|WindowInsets.Type.ime());v.setPadding(bars.left,bars.top,bars.right,bars.bottom);return insets;});}
-        Button back=new Button(this);back.setText("返回科信小助手");back.setOnClickListener(v->finish());form.addView(back);
-        TextView title=new TextView(this);title.setText("登录慧生活798");title.setTextSize(24);form.addView(title);
-        TextView intro=new TextView(this);intro.setText("第三方客户端。手机号和验证码用于登录慧生活，登录信息加密保存在本机。");intro.setTextSize(14);intro.setPadding(0,dp(12),0,dp(12));form.addView(intro);
-        phone=input(form,"手机号",3);picture=new ImageView(this);picture.setAdjustViewBounds(true);form.addView(picture,new LinearLayout.LayoutParams(-1,dp(72)));
-        refresh=button(form,"加载 / 更换图形验证码",()->loadCaptcha());captcha=input(form,"图形验证码",1);picture.setVisibility(View.GONE);refresh.setVisibility(View.GONE);captcha.setVisibility(View.GONE);
-        consent=new CheckBox(this);consent.setText("我了解第三方身份，同意将上述信息发送至慧生活用于登录");form.addView(consent);
-        send=button(form,"获取短信验证码",()->sendSms());code=input(form,"短信验证码",2);login=button(form,"登录并保存到本机",()->signIn());
-        verify=button(form,"检查登录状态",()->run(()->{
+    private void gap(LinearLayout form,int n){form.addView(new View(this),new LinearLayout.LayoutParams(-1,dp(n)));}
+    private TextView text(String value,int size){TextView v=new TextView(this);v.setText(value);v.setTextSize(size);return v;}
+    private TextView muted(String value,int size){TextView v=text(value,size);v.setTextColor(AppUi.MUTED);v.setLineSpacing(dp(3),1f);return v;}
+
+    @Override public void onCreate(Bundle state){
+        super.onCreate(state);
+        if(state!=null)sentPhone=state.getString("sentPhone","");
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);
+        // Page margins come from the screen; the form keeps its own inset so a 320dp phone still
+        // leaves the code field a usable width beside the captcha picture.
+        int side=AppUi.side(this,20);
+        LinearLayout form=new LinearLayout(this);form.setOrientation(1);
+        form.setPadding(side,dp(10),side,dp(24));form.setBackgroundColor(AppUi.BG);
+        scroll.addView(form);setContentView(scroll);
+        if(Build.VERSION.SDK_INT>=30){
+            getWindow().setDecorFitsSystemWindows(false);
+            scroll.setOnApplyWindowInsetsListener((v,insets)->{
+                android.graphics.Insets bars=insets.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout()|WindowInsets.Type.ime());
+                v.setPadding(bars.left,bars.top,bars.right,bars.bottom);return insets;});
+        }
+
+        TextView back=text("‹ 返回科信小助手",14);back.setTextColor(AppUi.ACCENT);back.setPadding(0,dp(8),0,dp(8));
+        back.setOnClickListener(v->finish());form.addView(back);
+        TextView title=text("登录慧生活798",24);title.setTypeface(null,Typeface.BOLD);form.addView(title);
+        TextView intro=muted("第三方客户端。手机号和验证码用于登录慧生活，登录信息加密保存在本机。",13);
+        intro.setPadding(0,dp(6),0,dp(18));form.addView(intro);
+
+        phone=input(form,"手机号",android.text.InputType.TYPE_CLASS_PHONE);
+        phone.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(11)});
+        gap(form,12);
+
+        // The picture sits beside the field it answers. On the narrowest phones it gives way (96dp
+        // instead of 120dp) so the field keeps enough width to show what was typed.
+        LinearLayout captchaRow=new LinearLayout(this);captchaRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        captcha=new EditText(this);captcha.setHint("图形验证码");captcha.setSingleLine(true);
+        captcha.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        captcha.setSaveEnabled(false);if(Build.VERSION.SDK_INT>=26)captcha.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
+        captcha.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(12)});
+        captchaRow.addView(captcha,new LinearLayout.LayoutParams(0,-2,1));
+        picture=new ImageView(this);
+        // FIT_CENTER, not a stretched full-width strip: the picture is 120×40, and the old
+        // match-parent 72dp box turned it into a blurry banner nobody could read the code off.
+        picture.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        picture.setContentDescription("图形验证码图片");
+        LinearLayout.LayoutParams pictureParams=new LinearLayout.LayoutParams(AppUi.compact(this)?dp(96):dp(120),dp(44));
+        pictureParams.leftMargin=dp(10);captchaRow.addView(picture,pictureParams);
+        form.addView(captchaRow);
+        refresh=quiet(form,"看不清？换一张",()->loadCaptcha());
+        gap(form,6);
+
+        consent=new CheckBox(this);consent.setText("我了解第三方身份，同意将上述信息发送至慧生活用于登录");
+        consent.setTextSize(13);consent.setTextColor(AppUi.MUTED);form.addView(consent);
+        gap(form,6);
+        send=primary(form,"获取短信验证码",()->sendSms());
+        gap(form,12);
+
+        code=input(form,"短信验证码",android.text.InputType.TYPE_CLASS_NUMBER);
+        code.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(8)});
+        gap(form,12);
+        login=primary(form,"登录并保存到本机",()->signIn());
+
+        status=text("",13);status.setTextColor(AppUi.MUTED);status.setPadding(0,dp(12),0,dp(10));form.addView(status);
+        LinearLayout secondary=new LinearLayout(this);secondary.setOrientation(1);
+        secondary.setBackground(AppUi.outlined(this,0xffffffff,10,AppUi.LINE));
+        form.addView(secondary,new LinearLayout.LayoutParams(-1,-2));
+        verify=quiet(secondary,"检查登录状态",()->run(()->{
             JSONObject session=new LifeSessionVault(this).load();if(session==null)return "尚未登录，请先完成短信验证";
             int result=LifeAuthApi.verify(session);return result>=0?"服务器确认登录有效。请从今日页扫码进入设备。":"服务器未确认登录有效（状态码 "+result+"），暂不能判断是否过期；本机登录已保留。";
         }));
-        clear=button(form,"清除本机慧生活登录",()->run(()->{new LifeSessionVault(this).clear();sentPhone="";runOnUiThread(()->{if(!isDestroyed()){phone.setText("");code.setText("");captcha.setText("");picture.setImageDrawable(null);ready=false;}});return "本机登录已清除";}));
-        status=new TextView(this);status.setTextSize(14);form.addView(status);run(()->new LifeSessionVault(this).exists()?"已保存账号，可检查登录状态":"填写手机号并获取短信验证码");
+        clear=quiet(secondary,"清除本机慧生活登录",()->run(()->{new LifeSessionVault(this).clear();sentPhone="";runOnUiThread(()->{if(!isDestroyed()){phone.setText("");code.setText("");captcha.setText("");picture.setImageDrawable(null);ready=false;}});return "本机登录已清除";}));
+
+        // Load the picture at once: it is the first thing the reader needs, and a page whose only
+        // visible field is a phone number looks like it is missing half of itself.
+        // A saved session is worth saying before the picture arrives, but it is only a hint: an
+        // unreadable vault must not stop the page from opening.
+        try{if(new LifeSessionVault(this).exists())status.setText("已保存账号，可检查登录状态或重新登录。");}catch(Exception ignored){}
+        loadCaptcha();
     }
-    private EditText input(LinearLayout form,String hint,int type){EditText e=new EditText(this);e.setHint(hint);e.setSingleLine();e.setInputType(type);e.setSaveEnabled(false);if(Build.VERSION.SDK_INT>=26)e.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);form.addView(e);return e;}
-    private Button button(LinearLayout form,String label,Runnable action){Button b=new Button(this);b.setText(label);b.setOnClickListener(v->action.run());form.addView(b);return b;}
+    private EditText input(LinearLayout form,String hint,int type){
+        EditText e=new EditText(this);e.setHint(hint);e.setSingleLine(true);e.setInputType(type);e.setSaveEnabled(false);
+        if(Build.VERSION.SDK_INT>=26)e.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
+        form.addView(e,new LinearLayout.LayoutParams(-1,-2));return e;
+    }
+    private Button primary(LinearLayout form,String label,Runnable action){
+        Button b=new Button(this);b.setText(label);b.setAllCaps(false);b.setTextSize(16);b.setTextColor(0xffffffff);
+        b.setBackground(AppUi.shape(this,AppUi.ACCENT,12));b.setOnClickListener(v->action.run());
+        form.addView(b,new LinearLayout.LayoutParams(-1,dp(48)));return b;
+    }
+    private Button quiet(LinearLayout form,String label,Runnable action){
+        Button b=new Button(this);b.setText(label);b.setAllCaps(false);b.setTextSize(14);b.setTextColor(AppUi.ACCENT);
+        AppUi.press(b,0x00ffffff,10);b.setOnClickListener(v->action.run());
+        form.addView(b,new LinearLayout.LayoutParams(-1,dp(44)));return b;
+    }
     private interface Job{String execute()throws Exception;}
-    private void run(Job job){if(busy||closed)return;busy=true;status.setText("正在处理…");enable(false);worker.execute(()->{String message;try{message=job.execute();}catch(Exception error){message=error instanceof IllegalArgumentException?error.getMessage():"请求未完成或返回异常，请检查网络和验证码后重试。";}final String result=message;runOnUiThread(()->{if(isDestroyed())return;busy=false;enable(true);status.setText(result);});});}
+    private void run(Job job){
+        if(busy||closed)return;
+        busy=true;status.setText("正在处理…");enable(false);
+        worker.execute(()->{
+            String message;try{message=job.execute();}catch(Exception error){message=explain(error);}
+            final String result=message;
+            runOnUiThread(()->{if(isDestroyed())return;busy=false;enable(true);status.setText(result);});
+        });
+    }
+    /** The server's own words when it spoke Chinese, otherwise a sentence about the network. */
+    private static String explain(Exception error){
+        if(error instanceof IllegalArgumentException&&error.getMessage()!=null)return error.getMessage();
+        String text=error.getMessage();
+        if(text!=null&&text.matches(".*[\\u4e00-\\u9fa5].*"))return text;
+        return "网络不通或服务器没有响应，请检查网络后重试。";
+    }
     private void enable(boolean value){send.setEnabled(value);login.setEnabled(value);refresh.setEnabled(value);clear.setEnabled(value);verify.setEnabled(value);consent.setEnabled(value);updateSend();phone.setEnabled(value);captcha.setEnabled(value);code.setEnabled(value);}
-    private void loadCaptcha(){if(busy)return;ready=false;captcha.setText("");final double current=new java.security.SecureRandom().nextDouble();run(()->{byte[] bytes=LifeAuthApi.request(LifeAuthApi.captchaPath(current,System.currentTimeMillis()),null);Bitmap bitmap=BitmapFactory.decodeByteArray(bytes,0,bytes.length);if(bitmap==null)throw new java.io.IOException();runOnUiThread(()->{if(!isDestroyed()){seed=current;ready=true;picture.setImageBitmap(bitmap);}});return "请填写图片中的验证码，然后获取短信验证码";});}
-    private void sendSms(){if(busy)return;if(!consent.isChecked()){status.setText("请先确认登录信息用途");return;}if(!ready){picture.setVisibility(View.VISIBLE);refresh.setVisibility(View.VISIBLE);captcha.setVisibility(View.VISIBLE);loadCaptcha();return;}
+    private void loadCaptcha(){
+        if(busy)return;
+        ready=false;captcha.setText("");
+        final double current=new java.security.SecureRandom().nextDouble();
+        run(()->{
+            byte[] bytes=LifeAuthApi.request(LifeAuthApi.captchaPath(current,System.currentTimeMillis()),null);
+            Bitmap bitmap=BitmapFactory.decodeByteArray(bytes,0,bytes.length);
+            if(bitmap==null)throw new java.io.IOException("验证码图片无法识别，请点「换一张」重试");
+            runOnUiThread(()->{if(!isDestroyed()){seed=current;ready=true;picture.setImageBitmap(bitmap);}});
+            return "请填写图片中的字符，再获取短信验证码";
+        });
+    }
+    private void sendSms(){
+        if(busy)return;
+        if(!consent.isChecked()){status.setText("请先确认登录信息用途");return;}
+        if(!ready){status.setText("验证码图片还没加载好，请点「换一张」重试");return;}
         if(remaining()>0){status.setText("请稍后再获取验证码");return;}
         final String number=phone.getText().toString().trim(),answer=captcha.getText().toString().trim();final double current=seed;
-        try{final JSONObject body=LifeAuthApi.sms(number,answer,current);if(!getSharedPreferences("life798-login-ui",MODE_PRIVATE).edit().putLong("smsAttemptAt",System.currentTimeMillis()).commit()){status.setText("无法保存请求状态，请重试");return;}run(()->{JSONObject r=LifeAuthApi.post("/api/v1/acc/login/code",body);if(LifeAuthApi.resultCode(r)<0)return "验证码未发送成功，请更换图形验证码后重试";sentPhone=number;return "短信验证码已发送，请在下方输入";});}catch(Exception e){status.setText("请核对手机号和图形验证码");}
+        try{
+            final JSONObject body=LifeAuthApi.sms(number,answer,current);
+            if(!getSharedPreferences("life798-login-ui",MODE_PRIVATE).edit().putLong("smsAttemptAt",System.currentTimeMillis()).commit()){status.setText("无法保存请求状态，请重试");return;}
+            run(()->{
+                JSONObject r=LifeAuthApi.post("/api/v1/acc/login/code",body);
+                if(LifeAuthApi.resultCode(r)<0){
+                    String why=LifeAuthApi.message(r);
+                    // A rejected picture is stale by definition; hand out a fresh one instead of
+                    // letting the reader retype into an image the server no longer expects.
+                    ready=false;loadCaptcha();
+                    return why.isEmpty()?"验证码未发送成功，请更换图形验证码后重试":why;
+                }
+                sentPhone=number;return "短信验证码已发送，请在下方输入";
+            });
+        }catch(Exception e){status.setText(explain(e));}
     }
-    private void signIn(){if(busy)return;if(!consent.isChecked()){status.setText("请先确认登录信息用途");return;}final String number=phone.getText().toString().trim();if(!number.equals(sentPhone)){status.setText("请先为此手机号获取短信验证码");return;}
-        try{final JSONObject body=LifeAuthApi.login(number,code.getText().toString().trim());run(()->{JSONObject session=LifeAuthApi.session(LifeAuthApi.post("/api/v1/acc/login",body));if(closed||isFinishing()||isDestroyed())return "已取消保存";new LifeSessionVault(this).save(session);runOnUiThread(()->{if(!isDestroyed()){code.setText("");if(getIntent().getBooleanExtra("returnToAccountInfo",false))finish();}});return "登录成功，凭据已加密保存在本机。可从今日页扫码进入设备。";});}catch(Exception e){status.setText("请填写有效的短信验证码");}}
+    private void signIn(){
+        if(busy)return;
+        if(!consent.isChecked()){status.setText("请先确认登录信息用途");return;}
+        final String number=phone.getText().toString().trim();
+        if(!number.equals(sentPhone)){status.setText("请先为此手机号获取短信验证码");return;}
+        try{
+            final JSONObject body=LifeAuthApi.login(number,code.getText().toString().trim());
+            run(()->{
+                JSONObject response=LifeAuthApi.post("/api/v1/acc/login",body);
+                if(LifeAuthApi.resultCode(response)<0){String why=LifeAuthApi.message(response);return why.isEmpty()?"登录未成功，请核对短信验证码后重试":why;}
+                JSONObject session=LifeAuthApi.session(response);
+                if(closed||isFinishing()||isDestroyed())return "已取消保存";
+                new LifeSessionVault(this).save(session);
+                runOnUiThread(()->{if(!isDestroyed()){code.setText("");if(getIntent().getBooleanExtra("returnToAccountInfo",false))finish();}});
+                return "登录成功，凭据已加密保存在本机。可从今日页扫码进入设备。";
+            });
+        }catch(Exception e){status.setText(explain(e));}
+    }
     @Override protected void onDestroy(){closed=true;timer.removeCallbacks(countdown);worker.shutdown();super.onDestroy();}
 }

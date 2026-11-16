@@ -7,6 +7,12 @@ import android.widget.*;
 
 /** Draft values only become visible to the editor when the user confirms. */
 final class CoursePickers {
+ /**
+  * The last week a term here can have, and the number of cells per row. Twenty weeks in five
+  * columns is exactly four rows, so the whole term is one glance instead of a list that scrolled
+  * past weeks the calendar never reaches.
+  */
+ static final int LAST_WEEK=20, WEEK_COLUMNS=5;
  interface TimeResult {void accept(int day,int first,int last);}
  interface WeekResult {void accept(boolean[] weeks);}
  static int dp(Activity a,int n){return AppUi.dp(a,n);}
@@ -56,12 +62,14 @@ final class CoursePickers {
   * does not have stay visible but cannot be picked, which is clearer than hiding them.
   */
  static Dialog selectWeek(Activity a,int current,java.util.List<Integer> allowed,int thisWeek,SingleWeekResult result){
-  LinearLayout body=column(a);int columns=Math.max(3,Math.min(6,(a.getResources().getDisplayMetrics().widthPixels-dp(a,64))/dp(a,56)));
+  // Five columns, not a count derived from the width: the term is a 5×4 block, and a grid that
+  // reflows between four and six columns makes the same week move every time it is opened.
+  LinearLayout body=column(a);int columns=WEEK_COLUMNS;
   AlertDialog dialog=new AlertDialog.Builder(a).setTitle("选择周次").setView(body).setNegativeButton("取消",null).create();
   body.setPadding(dp(a,12),dp(a,8),dp(a,12),dp(a,8));
   int last=Math.max(1,Math.max(current,thisWeek));
   if(allowed!=null&&!allowed.isEmpty())for(int week:allowed)last=Math.max(last,week);
-  else last=Math.max(last,30);
+  else last=Math.max(last,LAST_WEEK);
   boolean bounded=allowed!=null&&!allowed.isEmpty();
   for(int start=1;start<=last;start+=columns){LinearLayout row=new LinearLayout(a);body.addView(row);for(int col=0;col<columns;col++){final int week=start+col;LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(a,48),1);p.setMargins(dp(a,4),dp(a,4),dp(a,4),dp(a,4));if(week>last){row.addView(new View(a),p);continue;}
     boolean open=!bounded||allowed.contains(week);
@@ -85,10 +93,10 @@ final class CoursePickers {
   Dialog dialog=sheet(a,"选择上课时间",body);Button done=button(a,"确定",true);LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-1,dp(a,52));bp.topMargin=dp(a,20);body.addView(done,bp);done.setOnClickListener(v->{result.accept(d.getValue(),f.getValue(),l.getValue());dialog.dismiss();});dialog.show();return dialog;
  }
  static Dialog weeks(Activity a,boolean[] current,WeekResult result){
-  boolean[] draft=current.clone();LinearLayout body=column(a);int width=a.getResources().getDisplayMetrics().widthPixels;int columns=Math.max(3,Math.min(6,(width-dp(a,32))/dp(a,56)));Button[] cells=new Button[30];
-  Runnable paint=()->{for(int i=0;i<30;i++){Button b=cells[i];b.setSelected(draft[i]);b.setTextColor(draft[i]?Color.WHITE:AppUi.INK);AppUi.press(b,draft[i]?AppUi.ACCENT:AppUi.SOFT,10);b.setContentDescription("第"+(i+1)+"周，"+(draft[i]?"已选":"未选"));}};
-  for(int start=0;start<30;start+=columns){LinearLayout row=new LinearLayout(a);body.addView(row);for(int col=0;col<columns;col++){int i=start+col;LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(a,48),1);p.setMargins(dp(a,4),dp(a,4),dp(a,4),dp(a,4));if(i>=30){row.addView(new View(a),p);continue;}Button b=button(a,String.valueOf(i+1),false);b.setPadding(0,0,0,0);b.setMinWidth(0);cells[i]=b;row.addView(b,p);b.setOnClickListener(v->{draft[i]=!draft[i];paint.run();});}}
-  paint.run();LinearLayout presets=new LinearLayout(a);body.addView(presets);String[] labels={"全选","单周","双周"};for(int mode=0;mode<3;mode++){final int m=mode;Button b=button(a,labels[mode],false);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(a,48),1);p.setMargins(dp(a,4),dp(a,12),dp(a,4),0);presets.addView(b,p);b.setOnClickListener(v->{for(int i=0;i<30;i++)draft[i]=m==0||(i+1)%2==(m==1?1:0);paint.run();});}
+  boolean[] draft=current.clone();LinearLayout body=column(a);int columns=WEEK_COLUMNS;Button[] cells=new Button[LAST_WEEK];
+  Runnable paint=()->{for(int i=0;i<LAST_WEEK;i++){Button b=cells[i];b.setSelected(draft[i]);b.setTextColor(draft[i]?Color.WHITE:AppUi.INK);AppUi.press(b,draft[i]?AppUi.ACCENT:AppUi.SOFT,10);b.setContentDescription("第"+(i+1)+"周，"+(draft[i]?"已选":"未选"));}};
+  for(int start=0;start<LAST_WEEK;start+=columns){LinearLayout row=new LinearLayout(a);body.addView(row);for(int col=0;col<columns;col++){int i=start+col;LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(a,48),1);p.setMargins(dp(a,4),dp(a,4),dp(a,4),dp(a,4));if(i>=LAST_WEEK){row.addView(new View(a),p);continue;}Button b=button(a,String.valueOf(i+1),false);b.setPadding(0,0,0,0);b.setMinWidth(0);cells[i]=b;row.addView(b,p);b.setOnClickListener(v->{draft[i]=!draft[i];paint.run();});}}
+  paint.run();LinearLayout presets=new LinearLayout(a);body.addView(presets);String[] labels={"全选","单周","双周"};for(int mode=0;mode<3;mode++){final int m=mode;Button b=button(a,labels[mode],false);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(a,48),1);p.setMargins(dp(a,4),dp(a,12),dp(a,4),0);presets.addView(b,p);b.setOnClickListener(v->{for(int i=0;i<draft.length;i++)draft[i]=i<LAST_WEEK&&(m==0||(i+1)%2==(m==1?1:0));paint.run();});}
   TextView error=text(a,"",14);error.setTextColor(0xffb3261e);body.addView(error);Dialog dialog=sheet(a,"选择上课周次",body);LinearLayout actions=new LinearLayout(a);body.addView(actions);Button cancel=button(a,"取消",false),done=button(a,"确定",true);for(Button b:new Button[]{cancel,done}){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(a,52),1);p.setMargins(dp(a,4),0,dp(a,4),0);actions.addView(b,p);}cancel.setOnClickListener(v->dialog.dismiss());done.setOnClickListener(v->{boolean any=false;for(boolean chosen:draft)any|=chosen;if(!any){error.setText("至少选择一周");return;}result.accept(draft.clone());dialog.dismiss();});dialog.show();return dialog;
  }
 }

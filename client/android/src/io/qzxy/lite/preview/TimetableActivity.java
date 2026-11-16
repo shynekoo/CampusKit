@@ -42,7 +42,7 @@ public final class TimetableActivity extends Activity {
     private final SharedPreferences.OnSharedPreferenceChangeListener timetableChanged=(prefs,key)->ScheduleWidget.updateAll(this);
     private void refreshClock(){
         boolean changed=!todayIso().equals(lastDay);lastDay=todayIso();
-        if(changed)week=Math.max(1,Math.min(30,currentWeek()));
+        if(changed)week=Math.max(1,Math.min(CoursePickers.LAST_WEEK,currentWeek()));
         if(root!=null&&(changed||tab==0)){
             int scroll=0;for(int i=0;i<root.getChildCount();i++)if(root.getChildAt(i) instanceof ScrollView)scroll=root.getChildAt(i).getScrollY();
             render();final int y=scroll;for(int i=0;i<root.getChildCount();i++)if(root.getChildAt(i) instanceof ScrollView){View v=root.getChildAt(i);v.post(()->v.scrollTo(0,y));}
@@ -336,7 +336,7 @@ public final class TimetableActivity extends Activity {
             }
             if (!monday.isEmpty()) parseMonday(monday);
         } catch (Exception invalid) { unreadable = true; }
-        week = Math.max(1, Math.min(30, currentWeek()));
+        week = Math.max(1, Math.min(CoursePickers.LAST_WEEK, currentWeek()));
     }
 
     @Override public void onCreate(Bundle saved) {
@@ -348,7 +348,7 @@ public final class TimetableActivity extends Activity {
         store.registerOnSharedPreferenceChangeListener(timetableChanged);
         reload();
         int current = currentWeek();
-        week = saved == null ? Math.max(1, Math.min(30, current)) : Math.max(1, Math.min(30, saved.getInt("week", 1)));
+        week = saved == null ? Math.max(1, Math.min(CoursePickers.LAST_WEEK, current)) : Math.max(1, Math.min(CoursePickers.LAST_WEEK, saved.getInt("week", 1)));
         if (saved != null) {
             tab = Math.max(0, Math.min(2, saved.getInt("tab")));
             campusView = Math.max(0, Math.min(1, saved.getInt("campusView")));
@@ -640,13 +640,13 @@ public final class TimetableActivity extends Activity {
      * animates in from the opposite side, so buttons and gestures feel identical.
      */
     private void shiftWeek(int delta) {
-        int next=Math.max(1,Math.min(30,week+delta));if(next==week)return;
+        int next=Math.max(1,Math.min(CoursePickers.LAST_WEEK,week+delta));if(next==week)return;
         if(pager==null){applyWeek(delta);return;}
         pager.animateOutThen(delta,()->applyWeek(delta));
     }
     /** Commits the adjacent week while preserving the vertical reading position. */
     private void applyWeek(int delta) {
-        int next=Math.max(1,Math.min(30,week+delta));if(next==week)return;
+        int next=Math.max(1,Math.min(CoursePickers.LAST_WEEK,week+delta));if(next==week)return;
         int scroll=pager==null?0:pager.verticalPosition();
         week=next;render();
         if(pager!=null)pager.restoreVerticalPosition(scroll);
@@ -656,7 +656,7 @@ public final class TimetableActivity extends Activity {
         CoursePickers.selectWeek(this,week,selected->{int delta=selected-week;if(delta!=0)applyWeek(delta);});
     }
     private void goCurrentWeek() {
-        if(currentWeek()<1 || currentWeek()>30){semester();return;}
+        if(currentWeek()<1 || currentWeek()>CoursePickers.LAST_WEEK){semester();return;}
         int delta=currentWeek()-week;
         if(delta==0){android.widget.Toast.makeText(this,"已经是本周",android.widget.Toast.LENGTH_SHORT).show();return;}
         applyWeek(delta);
@@ -744,7 +744,7 @@ public final class TimetableActivity extends Activity {
             heading.addView(picker);
         } else heading.addView(bold(tab==0?"今日":"账号",28));
         String subtitle;
-        if(tab==0)subtitle=DAYS[todayIndex()]+" · "+todayIso()+(currentWeek()>=1&&currentWeek()<=30?" · 第 "+currentWeek()+" 周":"");
+        if(tab==0)subtitle=DAYS[todayIndex()]+" · "+todayIso()+(currentWeek()>=1&&currentWeek()<=CoursePickers.LAST_WEEK?" · 第 "+currentWeek()+" 周":"");
         else if(tab==1)subtitle=monday.isEmpty()?"设置开学日期，自动定位本周":(dayDate(0).replace(" · ",""))+" — "+dayDate(6).replace(" · ","");
         else subtitle="校园服务账号";
         TextView caption=text(subtitle,12);caption.setTextColor(AppUi.MUTED);caption.setPadding(0,0,0,dp(6));heading.addView(caption);
@@ -793,14 +793,14 @@ public final class TimetableActivity extends Activity {
     private void todayCourses(LinearLayout parent) {
         LinearLayout card=whiteCard();
         int todayWeek=currentWeek();
-        cardHeader(card,"今天的课","查看课表",()->{tab=1;week=Math.max(1,Math.min(30,currentWeek()));render();});gap(card,10);
+        cardHeader(card,"今天的课","查看课表",()->{tab=1;week=Math.max(1,Math.min(CoursePickers.LAST_WEEK,currentWeek()));render();});gap(card,10);
         if(unreadable) {
             card.addView(body("本机课表无法完整读取，已保留原数据。"));
         } else if(monday.isEmpty()) {
             card.addView(body("还没设置开学日期，无法判断今天属于第几周。"));
             gap(card,10);card.addView(cardAction("去设置开学日期 ›",this::semester));
-        } else if(todayWeek<1||todayWeek>30) {
-            card.addView(body("今天不在课表范围内（第 "+todayWeek+" 周，仅支持 1–30 周）。"));
+        } else if(todayWeek<1||todayWeek>CoursePickers.LAST_WEEK) {
+            card.addView(body("今天不在课表范围内（第 "+todayWeek+" 周，仅支持 1–"+CoursePickers.LAST_WEEK+" 周）。"));
         } else {
             List<JSONObject> todayList=new ArrayList<>();
             for(JSONObject course:courses)if(course.optInt("day")==todayIndex()&&appears(course,todayWeek))todayList.add(course);
@@ -895,17 +895,17 @@ public final class TimetableActivity extends Activity {
         Button selected=weekAction("第 "+week+" 周  ▾",this::selectWeek);selected.setTextSize(compact?17:18);selected.setGravity(android.view.Gravity.LEFT|android.view.Gravity.CENTER_VERTICAL);selected.setMaxLines(1);selected.setEllipsize(android.text.TextUtils.TruncateAt.END);selected.setContentDescription("选择周次，当前第"+week+"周");
         navigation.addView(selected,new LinearLayout.LayoutParams(0,dp(48),1));
         Button previous=weekAction("‹",()->shiftWeek(-1));previous.setTextSize(26);previous.setContentDescription("上一周");previous.setEnabled(week>1);
-        Button next=weekAction("›",()->shiftWeek(1));next.setTextSize(26);next.setContentDescription("下一周");next.setEnabled(week<30);
+        Button next=weekAction("›",()->shiftWeek(1));next.setTextSize(26);next.setContentDescription("下一周");next.setEnabled(week<CoursePickers.LAST_WEEK);
         navigation.addView(previous,new LinearLayout.LayoutParams(arrow,dp(48)));
         navigation.addView(next,new LinearLayout.LayoutParams(arrow,dp(48)));
-        if(week!=currentWeek()&&currentWeek()>=1&&currentWeek()<=30)navigation.addView(weekAction("回本周",this::goCurrentWeek),new LinearLayout.LayoutParams(compact?dp(64):dp(76),dp(48)));
+        if(week!=currentWeek()&&currentWeek()>=1&&currentWeek()<=CoursePickers.LAST_WEEK)navigation.addView(weekAction("回本周",this::goCurrentWeek),new LinearLayout.LayoutParams(compact?dp(64):dp(76),dp(48)));
         root.addView(navigation);
         List<JSONObject> visible=new ArrayList<>();for(JSONObject c:courses)if(appears(c))visible.add(c);
         WeekBoard.Listener listener=new WeekBoard.Listener(){
             public void open(List<JSONObject> group){showCourses(group);}
             public void shift(int delta){shiftWeek(delta);}
             public void swipe(int delta){applyWeek(delta);}
-            public boolean canShift(int delta){int next=week+delta;return next>=1&&next<=30;}
+            public boolean canShift(int delta){int next=week+delta;return next>=1&&next<=CoursePickers.LAST_WEEK;}
             public void addAt(int day,int section){edit(null,day,section);}
         };
         if(unreadable)root.addView(text("课表读取失败，原数据已保留。可从管理中恢复备份。",14));
@@ -944,17 +944,11 @@ public final class TimetableActivity extends Activity {
         LinearLayout card=whiteCard();
         campusEntry(card,"user",AppUi.ACCENT,"趣智校园","浴室、吹风机",()->startActivity(new Intent(this,AccountInfoActivity.class)),true);
         campusEntry(card,"water",0xff37668b,"慧生活798","饮水",()->startActivity(new Intent(this,AccountInfoActivity.class).putExtra("life798",true)),true);
-        campusEntry(card,"info",0xff4a5b70,"数据与隐私","本机存了什么、发到哪里、怎么清除",()->startActivity(new Intent(this,PrivacyActivity.class)),false);
-        gap(card,10);
-        // The version line doubles as the manual entry: the start-up check fails silently, so this
-        // is where someone goes when they want to know for certain whether a release exists.
-        LinearLayout about=new LinearLayout(this);about.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        about.addView(body("科信小助手 "+AppUi.version(this)+" · 第三方校园客户端"),new LinearLayout.LayoutParams(0,-2,1));
-        TextView check=text("检查更新",13);check.setTextColor(AppUi.ACCENT);check.setPadding(dp(10),dp(6),0,dp(6));
-        about.addView(check);AppUi.press(about,0x00ffffff,8);
-        about.setOnClickListener(v->UpdateCheck.checkManually(this));
-        about.setContentDescription("检查更新，当前版本 "+AppUi.version(this));
-        card.addView(about);content.addView(card);
+        campusEntry(card,"info",0xff4a5b70,"数据与隐私","本机存了什么、发到哪里、怎么清除",()->startActivity(new Intent(this,PrivacyActivity.class)),true);
+        // The start-up check is silent by design, so the manual one sits in the list next to the
+        // other things that answer a question about the app itself, rather than on a footer line.
+        campusEntry(card,"refresh",0xff4a5b70,"检查更新","当前 "+AppUi.version(this)+"，点按查询新版本",()->UpdateCheck.checkManually(this),false);
+        gap(card,10);card.addView(body("科信小助手 "+AppUi.version(this)+" · 第三方校园客户端"));content.addView(card);
     }
 
     private void records(LinearLayout parent) {
@@ -1117,7 +1111,7 @@ public final class TimetableActivity extends Activity {
                 // Stored canonical whatever was typed, so every reader keeps one format.
                 String value = io.qzxy.lite.core.TermDate.normalize(date.getText().toString());
                 if (!save(new ArrayList<>(courses), value)) { error.setText("保存失败，请重试。"); return; }
-                week = Math.max(1, Math.min(30, currentWeek())); dialog.dismiss(); render();
+                week = Math.max(1, Math.min(CoursePickers.LAST_WEEK, currentWeek())); dialog.dismiss(); render();
             } catch (Exception invalid) { error.setText("请输入有效的周一日期，格式为 年-月-日。"); }
         })); dialog.show();
     }
