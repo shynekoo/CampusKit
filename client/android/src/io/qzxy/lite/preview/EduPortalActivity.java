@@ -40,6 +40,7 @@ public final class EduPortalActivity extends Activity {
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private WebView web;
     private TextView status;
+    private Button backButton;
     private int generation;
     private boolean signedOut;
 
@@ -85,7 +86,7 @@ public final class EduPortalActivity extends Activity {
             });
         }
         LinearLayout first = new LinearLayout(this);
-        action(first, "‹ 返回", this::finish);
+        backButton = action(first, WebBack.CLOSE, () -> WebBack.go(this, web));
         action(first, "教务首页", () -> web.loadUrl(HOME));
         action(first, "刷新", () -> web.reload());
         root.addView(first);
@@ -126,6 +127,10 @@ public final class EduPortalActivity extends Activity {
             @Override public void onPageFinished(WebView view, String url) {
                 if (url != null && url.contains("login_slogin"))
                     status.setText("当前是登录页：可以在这里登录，或保存账号后下次自动登录。");
+                WebBack.caption(backButton, view);
+            }
+            @Override public void doUpdateVisitedHistory(WebView view, String url, boolean reload) {
+                WebBack.caption(backButton, view);
             }
             @Override public void onReceivedSslError(WebView view, SslErrorHandler handler, android.net.http.SslError error) {
                 handler.cancel();
@@ -194,7 +199,7 @@ public final class EduPortalActivity extends Activity {
     }
 
     @Override public void onBackPressed() {
-        if (web != null && web.canGoBack()) web.goBack(); else super.onBackPressed();
+        WebBack.go(this, web);
     }
 
     @Override protected void onDestroy() {

@@ -39,6 +39,7 @@ public final class EduQueryActivity extends Activity {
     private WebView web;
     private TextView status;
     private Button read;
+    private Button backButton;
     private long navigation;
     private String pendingSearch, pendingFallback;
     private boolean busyReading;
@@ -86,7 +87,7 @@ public final class EduQueryActivity extends Activity {
         }
 
         LinearLayout first = new LinearLayout(this);
-        action(first, "‹ 返回", this::finish);
+        backButton = action(first, WebBack.CLOSE, () -> WebBack.go(this, web));
         action(first, "教务首页", () -> web.loadUrl(MENU));
         action(first, "清除登录", this::clearLogin);
         root.addView(first);
@@ -131,6 +132,7 @@ public final class EduQueryActivity extends Activity {
                 status.setText("正在加载：" + Uri.parse(url).getHost());
             }
             @Override public void onPageFinished(WebView view, String url) {
+                WebBack.caption(backButton, view);
                 read.setEnabled(HOST.equals(Uri.parse(url).getHost()));
                 if (pendingSearch != null) {
                     String keywords = pendingSearch, fallback = pendingFallback;
@@ -142,6 +144,9 @@ public final class EduQueryActivity extends Activity {
                     status.setText("当前是登录页。请登录后点“查成绩”或“空教室”。");
                 else
                     status.setText("已打开：" + Uri.parse(url).getPath() + "。进入结果页后点“读取本页”。");
+            }
+            @Override public void doUpdateVisitedHistory(WebView view, String url, boolean reload) {
+                WebBack.caption(backButton, view);
             }
             @Override public void onReceivedSslError(WebView view, android.webkit.SslErrorHandler handler, android.net.http.SslError error) {
                 handler.cancel();
@@ -266,8 +271,7 @@ public final class EduQueryActivity extends Activity {
     }
 
     @Override public void onBackPressed() {
-        if (web != null && web.canGoBack()) web.goBack();
-        else super.onBackPressed();
+        WebBack.go(this, web);
     }
 
     @Override protected void onDestroy() {

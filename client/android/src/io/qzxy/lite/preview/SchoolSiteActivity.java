@@ -39,6 +39,7 @@ public final class SchoolSiteActivity extends Activity {
 
     private WebView web;
     private TextView status;
+    private Button backButton;
     private String home = "";
 
     private int dp(int n) { return Math.round(n * getResources().getDisplayMetrics().density); }
@@ -110,7 +111,7 @@ public final class SchoolSiteActivity extends Activity {
 
         // No browser escape hatch: the pages stay here. Outbound links still leave by themselves.
         LinearLayout bar = new LinearLayout(this);
-        action(bar, "‹ 返回", this::finish);
+        backButton = action(bar, WebBack.CLOSE, () -> WebBack.go(this, web));
         action(bar, "首页", () -> web.loadUrl(home));
         action(bar, "刷新", () -> web.reload());
         root.addView(bar);
@@ -162,6 +163,10 @@ public final class SchoolSiteActivity extends Activity {
             }
             @Override public void onPageFinished(WebView view, String url) {
                 if (url != null) status.setText(Uri.parse(url).getHost());
+                WebBack.caption(backButton, view);
+            }
+            @Override public void doUpdateVisitedHistory(WebView view, String url, boolean reload) {
+                WebBack.caption(backButton, view);
             }
             @Override public void onReceivedSslError(WebView view, SslErrorHandler handler, android.net.http.SslError error) {
                 handler.cancel();
@@ -183,7 +188,7 @@ public final class SchoolSiteActivity extends Activity {
     }
 
     @Override public void onBackPressed() {
-        if (web != null && web.canGoBack()) web.goBack(); else super.onBackPressed();
+        WebBack.go(this, web);
     }
 
     @Override protected void onDestroy() {
