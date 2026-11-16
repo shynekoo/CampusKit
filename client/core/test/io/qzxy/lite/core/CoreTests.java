@@ -983,6 +983,52 @@ public final class CoreTests {
         equal("cainiao://desktop/station_code", PickupCodeLinks.CAINIAO_IDENTITY);
         System.out.println("PASS: identity-code bridge links keep the Taobao page address intact");
 
+        // Timetables. The index is the only place that knows the list and the pointer; an install
+        // from before multiple timetables has no index at all, so empty input has to produce the one
+        // "main" table whose storage the old code already wrote to — no migration, no lost timetable.
+        TimetableIndex fresh = TimetableIndex.parse(null);
+        equal(1, fresh.size());
+        equal(TimetableIndex.FIRST, fresh.current());
+        equal("我的课表", fresh.currentName());
+        equal(1, TimetableIndex.parse("").size());
+        equal(1, TimetableIndex.parse("{broken").size());
+        equal(1, TimetableIndex.parse("CampusKit.timetables/1\ncurrent=main\n").size());
+        String created = fresh.create("2026 秋", 1000L);
+        equal(2, fresh.size());
+        equal(created, fresh.current());
+        equal("2026 秋", fresh.currentName());
+        String secondTable = fresh.create("辅修", 1000L);
+        equal(false, secondTable.equals(created));
+        equal(3, fresh.size());
+
+        // Round trip keeps order, ids and the pointer.
+        TimetableIndex reloaded = TimetableIndex.parse(fresh.toText());
+        equal(3, reloaded.size());
+        equal(secondTable, reloaded.current());
+        equal(created, reloaded.tables().get(1).id);
+
+        // Choosing something that is not in the list must not move the pointer.
+        equal(false, reloaded.select("nope"));
+        equal(secondTable, reloaded.current());
+
+        // Renaming trims, caps and never leaves an empty label.
+        equal(true, reloaded.rename(created, "  秋季课表  "));
+        equal("秋季课表", reloaded.tables().get(1).name);
+        equal(true, reloaded.rename(created, "   "));
+        equal("我的课表", reloaded.tables().get(1).name);
+        equal(true, reloaded.rename(created, "一二三四五六七八九十一二三四五六七八九十一二三四五"));
+        equal(TimetableIndex.NAME_LIMIT, reloaded.tables().get(1).name.length());
+
+        // Deleting the current table falls back to the first one; the last table never goes.
+        equal(true, reloaded.remove(secondTable));
+        equal(TimetableIndex.FIRST, reloaded.current());
+        equal(true, reloaded.remove(created));
+        equal(TimetableIndex.FIRST, reloaded.current());
+        equal(false, reloaded.remove(TimetableIndex.FIRST));
+        equal(1, reloaded.size());
+        equal(false, reloaded.remove("missing"));
+        System.out.println("PASS: several timetables share one index without losing the original");
+
         System.out.println("All " + assertions + " assertions passed. Live API/Bluetooth compatibility is not tested here.");
     }
 

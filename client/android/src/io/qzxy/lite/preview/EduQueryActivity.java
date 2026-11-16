@@ -176,7 +176,7 @@ public final class EduQueryActivity extends Activity {
 
     private void clearLogin() {
         new AlertDialog.Builder(this)
-            .setMessage("清除 CampusKit 内教务网页的登录状态？已导入的课程和其他数据不受影响。")
+            .setMessage("清除「科信小助手」内教务网页的登录状态？已导入的课程和其他数据不受影响。")
             .setNegativeButton("取消", null)
             .setPositiveButton("清除", (d, w) -> CookieManager.getInstance().removeAllCookies(ok -> {
                 CookieManager.getInstance().flush();

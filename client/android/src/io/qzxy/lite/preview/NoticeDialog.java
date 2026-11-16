@@ -30,12 +30,12 @@ final class NoticeDialog {
     private static final int VERSION = 1;
 
     private static final String HEADLINE = "使用公告";
-    private static final String SUBHEAD = "CampusKit 是个人开发的第三方客户端";
+    private static final String SUBHEAD = "科信小助手是个人开发的第三方客户端";
 
     /** Sub-heading and body, in reading order. Kept short so the dialog fits a 5-inch screen. */
     private static final String[][] SECTIONS = {
         {"它不是官方应用",
-            "CampusKit 由个人开发，与趣智校园、慧生活798、河北工程大学及科信学院都没有隶属关系，"
+            "科信小助手由个人开发，与趣智校园、慧生活798、河北工程大学及科信学院都没有隶属关系，"
             + "也没有获得授权或背书。文中出现的名称只用来说明它连接的是哪项服务。"},
         {"账号只存在这台手机上",
             "手机号和验证码只用于登录趣智校园。登录成功后保存的是用系统密钥库加密的会话，"

@@ -27,7 +27,7 @@ public final class PrivacyActivity extends Activity {
     private static final int DANGER = 0xffb42318;
     /** Everything the app writes as settings; cleared only by the "all" action. */
     private static final String[] SETTINGS = {
-        "timetable-v1", "campus-v1", "pickup-widget", "water-history",
+        "campus-v1", "pickup-widget", "water-history",
         "edu-account-state", "life798-login-ui", "notice-v1"
     };
 
@@ -143,7 +143,7 @@ public final class PrivacyActivity extends Activity {
         row(stored, "慧生活798 登录会话", "加密文件，同上", true);
         row(stored, "教务系统账号",
             "只在你主动保存过账号时存在；同样加密，学校拒绝过的密码会停止自动重试", true);
-        row(stored, "课表、开学日期、自定义背景", "应用设置，卸载即删", true);
+        row(stored, "每个课表的课程、开学日期、背景", "应用设置；课表可以有多个，各自独立存储，卸载即删", true);
         row(stored, "取件组件、公告偏好", "应用设置：桌面组件配置和「不再提醒」的选择", false);
         content.addView(stored);
         gap(content, 12);
@@ -224,6 +224,7 @@ public final class PrivacyActivity extends Activity {
             try { new LifeSessionVault(context).clear(); } catch (Exception failure) { failed.append("慧生活798 会话 "); }
             try { new EduVault(context).clear(); } catch (Exception failure) { failed.append("教务账号 "); }
             if (everything) {
+                TimetableStore.wipe(context);
                 for (String name : SETTINGS) context.getSharedPreferences(name, MODE_PRIVATE).edit().clear().commit();
             }
             final String problem = failed.toString();

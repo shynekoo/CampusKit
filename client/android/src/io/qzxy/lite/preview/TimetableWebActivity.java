@@ -30,7 +30,7 @@ public final class TimetableWebActivity extends Activity {
         LinearLayout actions=new LinearLayout(this);
         actions.addView(button("返回课表",this::finish),new LinearLayout.LayoutParams(0,-2,1));
         actions.addView(button("打开课表页",()->web.loadUrl(COURSES)),new LinearLayout.LayoutParams(0,-2,1));
-        actions.addView(button("清除登录",()->new AlertDialog.Builder(this).setMessage("清除 CampusKit 内教务网页的登录状态？已导入课程会保留。")
+        actions.addView(button("清除登录",()->new AlertDialog.Builder(this).setMessage("清除「科信小助手」内教务网页的登录状态？已导入课程会保留。")
             .setNegativeButton("取消",null).setPositiveButton("清除",(d,w)-> {
                 CookieManager.getInstance().removeAllCookies(ok->{ CookieManager.getInstance().flush(); WebStorage.getInstance().deleteAllData(); if(!isDestroyed()){web.clearCache(true);web.clearHistory();web.loadUrl(LOGIN);} });
             }).show()),new LinearLayout.LayoutParams(0,-2,1));

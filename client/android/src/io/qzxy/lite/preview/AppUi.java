@@ -5,7 +5,7 @@ import android.graphics.*;
 import android.graphics.drawable.*;
 import android.view.View;
 
-/** CampusKit's light theme and native outline icon family. No font glyph icons. */
+/** The app's light theme and native outline icon family. No font glyph icons. */
 final class AppUi {
  static final int BG=0xfff6f7f9,SURFACE=0xffffffff,INK=0xff202735,MUTED=0xff596575,ACCENT=0xff275dad,LINE=0xffe3e7ed,SOFT=0xffedf2f9;
  static int dp(Context c,int n){return Math.round(n*c.getResources().getDisplayMetrics().density);}
@@ -34,6 +34,7 @@ final class AppUi {
     case "score":rect(c,4,3,20,21);line(c,8,9,16,9);line(c,8,13,13,13);line(c,8,17,13,17);line(c,15,16,16.6f,18);line(c,16.6f,18,19,15);break;
     case "room":rect(c,3,4,21,20);line(c,13,4,13,20);c.drawCircle(16.5f,12,.9f,p);line(c,3,20,21,20);break;
     case "torch":Path bolt=new Path();bolt.moveTo(13.4f,2.5f);bolt.lineTo(6.6f,13.2f);bolt.lineTo(11,13.2f);bolt.lineTo(10.2f,21.5f);bolt.lineTo(17.4f,10.6f);bolt.lineTo(12.8f,10.6f);bolt.close();c.drawPath(bolt,p);break;
+    case "down":line(c,7,10,12,15);line(c,12,15,17,10);break;
     default:line(c,3,9,3,3);line(c,3,3,9,3);line(c,15,3,21,3);line(c,21,3,21,9);line(c,3,15,3,21);line(c,3,21,9,21);line(c,15,21,21,21);line(c,21,21,21,15);line(c,7,12,17,12);
    }c.restoreToCount(save);
   }

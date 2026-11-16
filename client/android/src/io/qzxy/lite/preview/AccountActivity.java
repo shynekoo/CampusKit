@@ -80,7 +80,7 @@ public final class AccountActivity extends Activity {
         }
         ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true); scroll.addView(panel);
         setContentView(scroll); panel.requestApplyInsets();
-        TextView back = text("‹ 返回 CampusKit", 16, BLUE); back.setPadding(0, dp(12), 0, dp(12));
+        TextView back = text("‹ 返回科信小助手", 16, BLUE); back.setPadding(0, dp(12), 0, dp(12));
         back.setOnClickListener(v -> finish()); panel.addView(back); gap(panel, 24);
         return panel;
     }
@@ -109,7 +109,7 @@ public final class AccountActivity extends Activity {
         acknowledged.setTextSize(13); acknowledged.setTextColor(MUTED); add(panel, acknowledged); gap(panel, 16);
         login = button("登录", this::signIn); add(panel, login); gap(panel, 20);
         status = text("验证码只用于本次登录；登录凭据加密保存在本机。", 14, MUTED); add(panel, status); gap(panel, 26);
-        add(panel, text("CampusKit " + AppUi.version(this), 13, MUTED));
+        add(panel, text("科信小助手 " + AppUi.version(this), 13, MUTED));
     }
     private void setBusy(boolean value) {
         busy = value;
@@ -183,7 +183,7 @@ public final class AccountActivity extends Activity {
         Button refresh = button("查询账号与余额", () -> {}); add(panel, refresh); gap(panel, 24);
         Button repair = button("补全校园信息（短信验证）", () -> { form(); setBusy(false); }); add(panel, repair); gap(panel, 24);
         add(panel, text("当前版本仍不能真实用水。", 13, MUTED)); gap(panel, 24);
-        Button logout = button("退出 CampusKit 账号", () -> {});
+        Button logout = button("退出科信小助手账号", () -> {});
         refresh.setOnClickListener(v -> {
             refresh.setEnabled(false); logout.setEnabled(false); repair.setEnabled(false); accountInfo.setText("正在验证账号…");
             WORKER.execute(() -> {

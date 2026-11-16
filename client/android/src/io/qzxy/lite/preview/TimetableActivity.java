@@ -16,6 +16,7 @@ import android.widget.Spinner;
 import android.widget.ArrayAdapter;
 import android.widget.TextView;
 import io.qzxy.lite.core.PendingUse;
+import io.qzxy.lite.core.TimetableIndex;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -309,7 +310,8 @@ public final class TimetableActivity extends Activity {
                 notice("课表保存失败，原课表未修改。"); return;
             }
             courses.clear(); courses.addAll(replacement); render();
-            String message = "已写入 " + replacement.size() + " 门课（" + term + "）。"
+            String message = "已写入 " + replacement.size() + " 门课（" + term + "）到「"
+                + TimetableStore.currentName(this) + "」。"
                 + (skipped > 0 ? "\n另有 " + skipped + " 条记录字段不完整，已跳过。" : "")
                 + (monday.isEmpty() ? "\n记得在「开学日期」里设置本学期第一周的周一。" : "")
                 + "\n点「撤销」可恢复导入前的课表。";
@@ -346,17 +348,12 @@ public final class TimetableActivity extends Activity {
     private LinearLayout column() {
         LinearLayout view = new LinearLayout(this); view.setOrientation(LinearLayout.VERTICAL); return view;
     }
-    @Override public void onCreate(Bundle saved) {
-        super.onCreate(saved);
-        pickupWidget = new PickupWidget(this);
-        pickupWidget.onChanged(()->{if(root!=null && tab==0)render();});
-        store = getSharedPreferences("timetable-v1", MODE_PRIVATE);
-        // 0.7.7 and earlier stored a hand-typed pickup code here; the feature is gone, so drop it.
-        getSharedPreferences("campus-v1", MODE_PRIVATE).edit().remove("pickup_code").apply();
-        lastDay=saved==null?todayIso():saved.getString("lastDay",todayIso());
-        backgroundImage=TimetableBackup.decode(store.getString("background",""));
-        store.registerOnSharedPreferenceChangeListener(timetableChanged);
+    /** Re-reads everything the current table owns; runs at start and whenever the table changes. */
+    private void reload() {
+        courses.clear();
+        unreadable = false;
         monday = store.getString("monday", "");
+        backgroundImage = TimetableBackup.decode(store.getString("background", ""));
         try {
             JSONArray data = new JSONArray(store.getString("courses", "[]"));
             if (data.length() > 500) throw new IllegalArgumentException();
@@ -365,6 +362,19 @@ public final class TimetableActivity extends Activity {
             }
             if (!monday.isEmpty()) parseMonday(monday);
         } catch (Exception invalid) { unreadable = true; }
+        week = Math.max(1, Math.min(30, currentWeek()));
+    }
+
+    @Override public void onCreate(Bundle saved) {
+        super.onCreate(saved);
+        pickupWidget = new PickupWidget(this);
+        pickupWidget.onChanged(()->{if(root!=null && tab==0)render();});
+        store = TimetableStore.open(this);
+        // 0.7.7 and earlier stored a hand-typed pickup code here; the feature is gone, so drop it.
+        getSharedPreferences("campus-v1", MODE_PRIVATE).edit().remove("pickup_code").apply();
+        lastDay=saved==null?todayIso():saved.getString("lastDay",todayIso());
+        store.registerOnSharedPreferenceChangeListener(timetableChanged);
+        reload();
         int current = currentWeek();
         week = saved == null ? Math.max(1, Math.min(30, current)) : Math.max(1, Math.min(30, saved.getInt("week", 1)));
         if (saved != null) {
@@ -435,7 +445,7 @@ public final class TimetableActivity extends Activity {
     private void notice(String message){new AlertDialog.Builder(this).setMessage(message).setPositiveButton("知道了",null).show();}
     private void document(String action,String type,int code){
         Intent intent=new Intent(action).setType(type).addCategory(Intent.CATEGORY_OPENABLE);
-        if(action.equals(Intent.ACTION_CREATE_DOCUMENT))intent.putExtra(Intent.EXTRA_TITLE,"CampusKit-课表-"+todayIso()+".json");
+        if(action.equals(Intent.ACTION_CREATE_DOCUMENT))intent.putExtra(Intent.EXTRA_TITLE,"科信小助手-课表-"+todayIso()+".json");
         try{startActivityForResult(intent,code);}catch(Exception e){notice("无法打开系统文件选择器");}
     }
     private void backgroundMenu(){new AlertDialog.Builder(this).setTitle("课表背景").setItems(new String[]{"选择背景图片","恢复默认背景"},(d,index)->{
@@ -443,8 +453,8 @@ public final class TimetableActivity extends Activity {
         else if(store.edit().remove("background").commit()){backgroundImage=null;render();}else notice("保存失败，请重试");
     }).setNegativeButton("取消",null).show();}
     private void widgetHelp(){new AlertDialog.Builder(this).setTitle("添加桌面课表")
-        .setMessage("如果没有出现添加窗口，请在系统设置中允许 CampusKit 的桌面快捷方式权限，再返回重试。红米路径：权限管理 → 其他权限 → 桌面快捷方式 → 始终允许。也可在桌面小部件列表的安卓小部件中查找 CampusKit。")
-        .setPositiveButton("打开应用设置",(d,w)->{try{startActivity(new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getPackageName())));}catch(Exception e){notice("请在系统设置中找到 CampusKit 的权限管理。");}}).setNegativeButton("关闭",null).show();}
+        .setMessage("如果没有出现添加窗口，请在系统设置中允许「科信小助手」的桌面快捷方式权限，再返回重试。红米路径：权限管理 → 其他权限 → 桌面快捷方式 → 始终允许。也可在桌面小部件列表的安卓小部件中查找「科信小助手」。")
+        .setPositiveButton("打开应用设置",(d,w)->{try{startActivity(new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getPackageName())));}catch(Exception e){notice("请在系统设置中找到「科信小助手」的权限管理。");}}).setNegativeButton("关闭",null).show();}
     private void addScheduleWidget(){new AlertDialog.Builder(this).setTitle("桌面课表尺寸").setItems(new String[]{"2 × 2 · 当前 / 下一节","3 × 2 · 今日课程","4 × 2 · 宽版课表"},(d,index)->pinScheduleWidget(new Class<?>[]{ScheduleWidget.class,ScheduleWidgetMedium.class,ScheduleWidgetWide.class}[index])).setNegativeButton("取消",null).show();}
     private void pinScheduleWidget(Class<?> widgetType){
         android.appwidget.AppWidgetManager manager=android.appwidget.AppWidgetManager.getInstance(this);
@@ -472,15 +482,132 @@ public final class TimetableActivity extends Activity {
                     runOnUiThread(()->{if(isDestroyed())return;importing=false;backgroundImage=bitmap;render();});
                 }else{JSONObject backup=TimetableBackup.parse(TimetableBackup.read(getContentResolver().openInputStream(uri),6*1024*1024));int count=new JSONArray(backup.getString("courses")).length();
                     runOnUiThread(()->{if(isDestroyed())return;importing=false;render();new AlertDialog.Builder(this).setTitle("恢复课表备份")
-                        .setMessage("备份含 "+count+" 条课程，开学日期："+backup.optString("monday")+"。恢复将替换现有课表、配色、备注和背景。")
+                        .setMessage("备份含 "+count+" 条课程，开学日期："+backup.optString("monday")+"。恢复会替换当前课表「"+TimetableStore.currentName(this)+"」的课程、配色、备注和背景。")
                         .setNegativeButton("取消",null).setPositiveButton("恢复",(d,w)->{try{if(!TimetableBackup.restore(store,backup))throw new java.io.IOException();recreate();}catch(Exception e){notice("恢复失败，未能保存备份。");}}).show();});}
             }catch(Exception failure){runOnUiThread(()->{if(isDestroyed())return;importing=false;render();notice(request==80?"图片无法读取，请选择20 MB以内的图片。":request==81?"备份写入失败，请重新选择保存位置。":"备份无法读取或格式无效，原课表未修改。");});}
         });
     }
 
+    /**
+     * The table picker behind the heading: every table with the current one marked, 新建课表 at the
+     * bottom, and a long press for rename or delete.
+     */
+    private void chooseTable() {
+        List<TimetableIndex.Table> tables = TimetableStore.tables(this);
+        String current = TimetableStore.currentId(this);
+        final AlertDialog[] holder = new AlertDialog[1];
+        LinearLayout list = column();
+        list.setPadding(dp(4), dp(6), dp(4), dp(6));
+        for (final TimetableIndex.Table table : tables) {
+            boolean active = table.id.equals(current);
+            LinearLayout row = new LinearLayout(this);
+            row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            row.setPadding(dp(14), dp(13), dp(14), dp(13));
+            AppUi.press(row, 0xffffffff, 10);
+            TextView name = text(table.name, 16);
+            if (active) {
+                name.setTextColor(AppUi.ACCENT);
+                name.setTypeface(null, android.graphics.Typeface.BOLD);
+            }
+            row.addView(name, new LinearLayout.LayoutParams(0, -2, 1));
+            TextView mark = text(active ? "当前" : "", 12);
+            mark.setTextColor(AppUi.ACCENT);
+            row.addView(mark);
+            row.setContentDescription(table.name + (active ? "，当前课表" : "，点按切换") + "，长按可重命名或删除");
+            row.setOnClickListener(v -> {
+                if (holder[0] != null) holder[0].dismiss();
+                switchTable(table.id);
+            });
+            row.setOnLongClickListener(v -> { tableMenu(table, holder[0]); return true; });
+            list.addView(row, new LinearLayout.LayoutParams(-1, -2));
+            View rule = new View(this); rule.setBackgroundColor(AppUi.LINE);
+            list.addView(rule, new LinearLayout.LayoutParams(-1, Math.max(1, dp(1))));
+        }
+        Button add = button("＋ 新建课表", () -> {
+            if (holder[0] != null) holder[0].dismiss();
+            createTable();
+        });
+        add.setTextColor(AppUi.ACCENT);
+        list.addView(add, new LinearLayout.LayoutParams(-1, dp(50)));
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(list);
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("选择课表").setView(scroll)
+            .setNegativeButton("关闭", null).create();
+        holder[0] = dialog;
+        dialog.show();
+    }
+
+    /** Points the screen and the desktop widget at whichever table is current now. */
+    private void bind() {
+        if (store != null) store.unregisterOnSharedPreferenceChangeListener(timetableChanged);
+        store = TimetableStore.open(this);
+        store.registerOnSharedPreferenceChangeListener(timetableChanged);
+        reload();
+        render();
+        ScheduleWidget.updateAll(this);
+    }
+
+    private void switchTable(String id) {
+        if (id.equals(TimetableStore.currentId(this))) return;
+        TimetableStore.select(this, id);
+        bind();
+        notice("已切换到「" + TimetableStore.currentName(this) + "」。");
+    }
+
+    private void createTable() {
+        final EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setHint("例如 2026 秋、辅修课表");
+        new AlertDialog.Builder(this).setTitle("新建课表").setView(input)
+            .setNegativeButton("取消", null)
+            .setPositiveButton("创建", (d, w) -> {
+                TimetableStore.create(this, input.getText().toString());
+                bind();
+                new AlertDialog.Builder(this).setTitle("已新建空课表")
+                    .setMessage("「" + TimetableStore.currentName(this) + "」里还没有课程。"
+                        + "可以在「管理」里从教务系统导入，或手动添加课程。")
+                    .setPositiveButton("知道了", null).show();
+            }).show();
+    }
+
+    private void tableMenu(final TimetableIndex.Table table, final AlertDialog picker) {
+        new AlertDialog.Builder(this).setTitle(table.name)
+            .setItems(new String[]{"重命名", "删除"}, (d, index) -> {
+                if (picker != null) picker.dismiss();
+                if (index == 0) renameTable(table); else removeTable(table);
+            }).setNegativeButton("取消", null).show();
+    }
+
+    private void renameTable(final TimetableIndex.Table table) {
+        final EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setText(table.name);
+        input.setSelection(table.name.length());
+        new AlertDialog.Builder(this).setTitle("重命名课表").setView(input)
+            .setNegativeButton("取消", null)
+            .setPositiveButton("保存", (d, w) -> {
+                TimetableStore.rename(this, table.id, input.getText().toString());
+                render();
+                notice("已改名为「" + TimetableStore.currentName(this) + "」。");
+            }).show();
+    }
+
+    private void removeTable(final TimetableIndex.Table table) {
+        if (TimetableStore.tables(this).size() <= 1) { notice("至少要保留一个课表。"); return; }
+        new AlertDialog.Builder(this).setTitle("删除「" + table.name + "」？")
+            .setMessage("这个课表的课程、背景和导入记录会一起删除，无法恢复。")
+            .setNegativeButton("取消", null)
+            .setPositiveButton("删除", (d, w) -> {
+                boolean wasCurrent = table.id.equals(TimetableStore.currentId(this));
+                if (!TimetableStore.remove(this, table.id)) { notice("删除失败，至少要保留一个课表。"); return; }
+                if (wasCurrent) bind(); else render();
+                notice("已删除「" + table.name + "」。");
+            }).show();
+    }
+
     private void manage() {
         if(unreadable || importing)return;
-        new AlertDialog.Builder(this).setTitle("我的课表").setItems(new String[]{"从教务系统自动导入", "开学日期", "添加课程", "全部课程（"+courses.size()+"）", "自定义背景图片", "添加桌面课表组件", "导出备份", "恢复备份", "查成绩", "查空教室"}, (d,index)-> {
+        new AlertDialog.Builder(this).setTitle(TimetableStore.currentName(this)).setItems(new String[]{"从教务系统导入课表", "开学日期", "添加课程", "全部课程（"+courses.size()+"）", "自定义背景图片", "添加桌面课表组件", "导出备份", "恢复备份", "查成绩", "查空教室"}, (d,index)-> {
             if(index==0)startActivityForResult(new Intent(this,EduTimetableImportActivity.class),42);
             else if(index==1)semester();else if(index==2)edit(null);else if(index==3)allCourses();
             else if(index==4)backgroundMenu();else if(index==5)addScheduleWidget();else if(index==6)document(Intent.ACTION_CREATE_DOCUMENT,"application/json",81);else if(index==7)document(Intent.ACTION_OPEN_DOCUMENT,"*/*",82);
@@ -565,7 +692,16 @@ public final class TimetableActivity extends Activity {
         // One header shape for all three tabs, so 今日 / 课表 / 趣智校园 read as views of the same app.
         LinearLayout header=new LinearLayout(this);header.setGravity(android.view.Gravity.CENTER_VERTICAL);header.setPadding(dp(8),0,dp(8),0);
         LinearLayout heading=column();
-        heading.addView(bold(tab==0?"今日":tab==1?"课表":"账号",tab==1?20:28));
+        if(tab==1){
+            // The heading is the current timetable itself; tapping it opens the table picker.
+            TextView picker=bold(TimetableStore.currentName(this),20);
+            picker.setSingleLine(true);picker.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            picker.setCompoundDrawables(null,null,AppUi.icon(this,"down",AppUi.MUTED,16),null);
+            picker.setCompoundDrawablePadding(dp(5));
+            picker.setOnClickListener(v->chooseTable());
+            picker.setContentDescription("当前课表 "+TimetableStore.currentName(this)+"，点按切换");
+            heading.addView(picker);
+        } else heading.addView(bold(tab==0?"今日":"账号",28));
         String subtitle;
         if(tab==0)subtitle=DAYS[todayIndex()]+" · "+todayIso()+(currentWeek()>=1&&currentWeek()<=30?" · 第 "+currentWeek()+" 周":"");
         else if(tab==1)subtitle=monday.isEmpty()?"设置开学日期，自动定位本周":(dayDate(0).replace(" · ",""))+" — "+dayDate(6).replace(" · ","");
@@ -775,7 +911,7 @@ public final class TimetableActivity extends Activity {
         campusEntry(card,"user",AppUi.ACCENT,"趣智校园","浴室、吹风机",()->startActivity(new Intent(this,AccountInfoActivity.class)),true);
         campusEntry(card,"water",0xff37668b,"慧生活798","饮水",()->startActivity(new Intent(this,AccountInfoActivity.class).putExtra("life798",true)),true);
         campusEntry(card,"info",0xff4a5b70,"数据与隐私","本机存了什么、发到哪里、怎么清除",()->startActivity(new Intent(this,PrivacyActivity.class)),false);
-        gap(card,10);card.addView(body("CampusKit "+AppUi.version(this)+" · 第三方校园客户端"));content.addView(card);
+        gap(card,10);card.addView(body("科信小助手 "+AppUi.version(this)+" · 第三方校园客户端"));content.addView(card);
     }
 
     private void records(LinearLayout parent) {

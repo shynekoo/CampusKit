@@ -5,5 +5,5 @@
 </LinearLayout>
 <TextView android:id="@+id/widget_summary" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingBottom="12dp" android:textSize="14sp" android:textColor="#28745F"/>
 <TextView android:id="@+id/widget_courses" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:textSize="13sp" android:textColor="#53695F" android:ellipsize="end"/>
-<TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="CampusKit · 点击查看全部课程" android:textSize="10sp" android:textColor="#87978F" android:paddingTop="8dp"/>
+<TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="科信小助手 · 点击查看全部课程" android:textSize="10sp" android:textColor="#87978F" android:paddingTop="8dp"/>
 </LinearLayout>

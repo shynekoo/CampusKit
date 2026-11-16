@@ -41,8 +41,10 @@ public final class EduTimetableImportActivity extends Activity {
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
         screen = new DeviceScreen(this, "从教务系统导入课表");
+        final String table = TimetableStore.currentName(this);
         TextView help = screen.text(screen.card,
-            "选好学年和学期，点下面的按钮：用已保存的教务账号自动登录并抓取该学期课表，然后直接写入课表。", 14);
+            "选好学年和学期，点下面的按钮：用已保存的教务账号自动登录并抓取该学期课表，直接写入当前课表「"
+            + table + "」。", 14);
         help.setTextColor(AppUi.MUTED);
 
         LinearLayout row = new LinearLayout(this);
@@ -62,7 +64,7 @@ public final class EduTimetableImportActivity extends Activity {
         web.setBackgroundColor(0x00ffffff);
         web.setOnClickListener(v -> startActivityForResult(new Intent(this, TimetableWebActivity.class), WEB_REQUEST));
         screen.root.addView(web, new LinearLayout.LayoutParams(-1, dp(44)));
-        screen.note("导入会替换当前课表，写入后可以撤销。需要已在「教务账号」保存账号；学校要求验证码时请用网页手动导入。");
+        screen.note("导入会替换当前课表「" + table + "」，写入后可以撤销。需要已在「教务账号」保存账号；学校要求验证码时请用网页手动导入。");
 
         options();
     }

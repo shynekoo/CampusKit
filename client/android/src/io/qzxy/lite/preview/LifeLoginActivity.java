@@ -23,7 +23,7 @@ public final class LifeLoginActivity extends Activity {
     @Override public void onCreate(Bundle state){super.onCreate(state);if(state!=null)sentPhone=state.getString("sentPhone","");getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
         ScrollView scroll=new ScrollView(this);LinearLayout form=new LinearLayout(this);form.setOrientation(1);form.setPadding(dp(22),dp(24),dp(22),dp(24));form.setBackgroundColor(AppUi.BG);scroll.addView(form);setContentView(scroll);
         if(Build.VERSION.SDK_INT>=30){getWindow().setDecorFitsSystemWindows(false);scroll.setOnApplyWindowInsetsListener((v,insets)->{android.graphics.Insets bars=insets.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout()|WindowInsets.Type.ime());v.setPadding(bars.left,bars.top,bars.right,bars.bottom);return insets;});}
-        Button back=new Button(this);back.setText("返回 CampusKit");back.setOnClickListener(v->finish());form.addView(back);
+        Button back=new Button(this);back.setText("返回科信小助手");back.setOnClickListener(v->finish());form.addView(back);
         TextView title=new TextView(this);title.setText("登录慧生活798");title.setTextSize(24);form.addView(title);
         TextView intro=new TextView(this);intro.setText("第三方客户端。手机号和验证码用于登录慧生活，登录信息加密保存在本机。");intro.setTextSize(14);intro.setPadding(0,dp(12),0,dp(12));form.addView(intro);
         phone=input(form,"手机号",3);picture=new ImageView(this);picture.setAdjustViewBounds(true);form.addView(picture,new LinearLayout.LayoutParams(-1,dp(72)));

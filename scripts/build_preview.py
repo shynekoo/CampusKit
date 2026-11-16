@@ -28,8 +28,8 @@ CONTROL_ROUTES = (
     "/api/v1/dev/start",
     "/api/v1/dev/end",
 )
-FIELD_VERSION_NAME = "1.5.4"
-FIELD_LABEL = "CampusKit"
+FIELD_VERSION_NAME = "1.5.5"
+FIELD_LABEL = "科信小助手"
 
 # Classes that only exist in the field-test source root. The check uses their dex type descriptors,
 # which appear only when the class is actually defined or referenced — not a bare name, because
@@ -196,7 +196,7 @@ def main():
              "-keysize", "2048", "-validity", "3650", "-dname", "CN=QZXY Local Preview"])
     delivery = ROOT / "delivery"
     delivery.mkdir(exist_ok=True)
-    result = BUILD / "account-tests.apk" if device_tests else delivery / ("CampusKit-" + version + ".apk")
+    result = BUILD / "account-tests.apk" if device_tests else delivery / ("科信小助手-" + version + ".apk")
     signer = [jdk / "bin/java.exe", "-jar", tools / "lib/apksigner.jar"]
     run(signer + ["sign", "--v4-signing-enabled", "false", "--ks", key, "--ks-key-alias", "preview", "--ks-pass", "pass:android",
                   "--out", result, aligned])
@@ -217,7 +217,7 @@ def main():
               "live_verification": "See analysis/account-balance-integration.md; this build performs no live requests",
               "live_water_supported": False,
               "source_sha256": input_hashes}
-    (delivery / ("CampusKit-" + version + ".build.json")).write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    (delivery / ("科信小助手-" + version + ".build.json")).write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(report, indent=2), flush=True)
 
 

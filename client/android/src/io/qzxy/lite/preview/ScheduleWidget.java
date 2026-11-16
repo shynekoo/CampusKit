@@ -19,8 +19,8 @@ public class ScheduleWidget extends AppWidgetProvider {
         }return lines;
     }
     @Override public void onUpdate(Context context,AppWidgetManager manager,int[] ids){
-        SharedPreferences prefs=context.getSharedPreferences("timetable-v1",Context.MODE_PRIVATE);
-        String title="今天的课",summary="打开 CampusKit 设置课表";CharSequence content="";
+        SharedPreferences prefs=TimetableStore.open(context);
+        String title="今天的课",summary="打开 科信小助手 设置课表";CharSequence content="";
         try{String monday=prefs.getString("monday","");int week=ScheduleInfo.week(monday,ScheduleInfo.date());
             title=ScheduleInfo.date().substring(5)+" · 今天的课";
             if(!monday.isEmpty()&&week>=1&&week<=30){List<JSONObject> courses=ScheduleInfo.today(prefs.getString("courses","[]"),monday,ScheduleInfo.date());summary=ScheduleInfo.summary(courses,ScheduleInfo.minutes());
