@@ -35,15 +35,15 @@ public final class LifeWaterActivity extends Activity {
    List<Integer> options=Collections.emptyList();boolean mine=owner.equals(user);String message;
    if(mine)message="正在使用此设备，用完请点结束。";
    else if(!owner.isEmpty())message="设备当前使用者不是本账号，请用原版查看这笔记录。";
-   else{try{options=LifeWaterProtocol.payments(response,did,user);message="设备已就绪，点击开启用水。"+(LifeWaterProtocol.balance(response)==0?"\n账户余额为 0，开启多半会被拒；请先在原版慧生活充值。":"");}catch(Exception e){message=LifeDeviceFailure.describe(e);}}
+   else{try{options=LifeWaterProtocol.payments(response,did,user);boolean walletOnly=options.size()==1&&options.get(0)==91;message="设备已就绪，点击开启用水。"+(walletOnly&&LifeWaterProtocol.balance(response)==0?"\n商家钱包余额为 0，开启多半会被拒；这一笔请在原版慧生活充值。":"");}catch(Exception e){message=LifeDeviceFailure.describe(e);}}
    final List<Integer> available=options;final String note=message;final boolean inUse=mine;
    post(()->{busy=false;screen.loading(false);uid=user;pays=available;info.setText(p.name+(p.location.isEmpty()?"":"\n"+p.location));deviceDetails=p.name+"\n"+p.location+"\n"+p.enterprise+"\n"+p.typeLabel()+"\n"+p.networkLabel()+" · "+p.statusLabel();status.setText(note);refresh.setEnabled(true);start.setVisibility(inUse?View.GONE:View.VISIBLE);start.setEnabled(!inUse&&!available.isEmpty());stop.setVisibility(inUse?View.VISIBLE:View.GONE);stop.setEnabled(inUse);});
   }catch(Exception e){post(()->{busy=false;screen.loading(false);disable();status.setText(LifeDeviceFailure.describe(e)+"。未发送控制请求。");});}});}
- private void choose(){if(busy||pays.isEmpty())return;final List<Integer> options=new ArrayList<>(pays);String[] names=new String[options.size()];for(int i=0;i<names.length;i++)names[i]=options.get(i)==91?"商家钱包":"余额";
+ private void choose(){if(busy||pays.isEmpty())return;final List<Integer> options=new ArrayList<>(pays);String[] names=new String[options.size()];for(int i=0;i<names.length;i++)names[i]=LifeWaterProtocol.paymentName(options.get(i));
   final int[] selected={0};
   AlertDialog.Builder confirm=new AlertDialog.Builder(this).setTitle("确认开启用水").setNegativeButton("取消",null).setPositiveButton("确认开启",(a,b)->command(true,options.get(selected[0])));
   if(options.size()==1)confirm.setMessage("支付方式："+names[0]+"。开启后按设备资费扣费，结束时点击“结束用水”。");
-  else {TextView note=new TextView(this);note.setText("选择支付方式，确认后按设备资费扣费。结束时点击“结束用水”。");note.setPadding(dp(24),dp(12),dp(24),dp(8));confirm.setView(note).setSingleChoiceItems(names,0,(d,which)->selected[0]=which);}
+  else {TextView note=new TextView(this);note.setText("选一种支付方式（排在前面的是账单里一直在用的那种），确认后按设备资费扣费。结束时点击“结束用水”。");note.setPadding(dp(24),dp(12),dp(24),dp(8));confirm.setView(note).setSingleChoiceItems(names,0,(d,which)->selected[0]=which);}
   confirm.show();}
  private void command(boolean opening,int pay){if(busy)return;busy=true;disable();status.setText("正在重新核对设备…");final String expectedUser=uid;
   worker.execute(()->{try{JSONObject s=session();String user=s.getString("uid");if(!user.equals(expectedUser))throw new LifeDeviceFailure("账号已变化，请刷新后再操作");
@@ -62,7 +62,7 @@ public final class LifeWaterActivity extends Activity {
    // -3 是设备/账户的状态话，不是协议问题：同样的请求再点一次结果一样，不能拿「可以重试」敷衍过去。
    final int rejected=unclear?0:((LifeDeviceFailure.Rejected)e).code;
    final String tail=unclear?"。结果未确认，请刷新核实设备状态。"
-    :rejected==-3?"。未下发任何指令：设备当前不接受开启，常见原因是账户余额为 0 或设备刚被他人占用。"
+    :rejected==-3?"。未下发任何指令：设备不接受这次开启。若刚才选的是「商家钱包」，多半是它余额为 0，换「支付宝免密」再试；也可能是设备刚被他人占用。"
     :"。设备状态没有改变，可以重试。";
    post(()->{busy=false;screen.loading(false);disable();status.setText(why+tail);});}});
  }

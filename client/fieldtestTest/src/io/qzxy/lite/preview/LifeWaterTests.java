@@ -6,7 +6,9 @@ public final class LifeWaterTests {
   n=0;JSONObject dev=new JSONObject().put("id","test").put("name","测试设备").put("status",1).put("bm",new JSONObject().put("dtype",6)).put("gene",new JSONObject().put("status",99)).put("ep",new JSONObject().put("setting",new JSONObject().put("payPwd",0)));
   JSONObject data=new JSONObject().put("device",dev).put("user",JSONObject.NULL).put("payItems",new JSONArray().put(new JSONObject().put("type",91)).put(new JSONObject().put("type",21)));
   JSONObject reply=new JSONObject().put("code",0).put("data",data);
-  check(LifeWaterProtocol.payments(reply,"test","user").equals(java.util.Collections.singletonList(91)));
+  // payItems 无 seq 时按出现顺序；wallet 缺失（balance=-1）时不挪 91。21 必须被收下：
+  // 本机账单里每一笔水费都是 type 21（支付宝免密），起初只认 91/92 才把页面锁在余额为 0 的商家钱包上。
+  check(LifeWaterProtocol.payments(reply,"test","user").equals(java.util.Arrays.asList(91,21)));
   for(int state:new int[]{0,1,10,20,30,98}){dev.getJSONObject("gene").put("status",state);boolean rejected=false;try{LifeWaterProtocol.payments(reply,"test","user");}catch(Exception e){rejected=true;}check(rejected);}dev.getJSONObject("gene").put("status",99);
   dev.put("status",0);boolean rejected=false;try{LifeWaterProtocol.payments(reply,"test","user");}catch(Exception e){rejected=true;}check(rejected);dev.put("status",1);
   data.put("user",new JSONObject().put("id","other"));rejected=false;try{LifeWaterProtocol.payments(reply,"test","user");}catch(Exception e){rejected=true;}check(rejected);
@@ -14,6 +16,16 @@ public final class LifeWaterTests {
   data.put("prepay",true);rejected=false;try{LifeWaterProtocol.payments(reply,"test","user");}catch(Exception e){rejected=true;}check(rejected);data.put("prepay",false);
   data.remove("user");check(LifeWaterProtocol.payments(reply,"test","user").contains(91));data.put("user",JSONObject.NULL);
   dev.getJSONObject("ep").getJSONObject("setting").put("payPwd",1);rejected=false;try{LifeWaterProtocol.payments(reply,"test","user");}catch(Exception e){rejected=true;}check(rejected);
+  dev.getJSONObject("ep").getJSONObject("setting").put("payPwd",0);
+  // 真实设备的形状：seq 100→91、90→21，且商家钱包余额 0 → 21 排到最前（默认选中的就是它）。
+  data.getJSONArray("payItems").getJSONObject(0).put("seq",100);
+  data.getJSONArray("payItems").getJSONObject(1).put("seq",90);
+  data.put("wallet",new JSONObject().put("total",0));
+  check(LifeWaterProtocol.payments(reply,"test","user").equals(java.util.Arrays.asList(21,91)));
+  data.getJSONObject("wallet").put("total",1250);
+  check(LifeWaterProtocol.payments(reply,"test","user").equals(java.util.Arrays.asList(91,21)));
+  check("支付宝免密".equals(LifeWaterProtocol.paymentName(21))&&"商家钱包".equals(LifeWaterProtocol.paymentName(91)));
+  data.remove("wallet");data.getJSONArray("payItems").getJSONObject(0).remove("seq");data.getJSONArray("payItems").getJSONObject(1).remove("seq");
   // 3.1.10 起开启走 dev/mode/start。路径与参数顺序照抄被服务端接受的那一条：同样的凭据、
   // 同样的 VersionCode，dev/start 只回「请升级最新版APP」，这条却回了 -3（设备状态话），
   // 说明版本协商已过。mode 取设备自己的 gene.mode，不自己编。
@@ -21,7 +33,8 @@ public final class LifeWaterTests {
   check(LifeWaterProtocol.startPath("test",92,3).contains("mode=3&ptype=92"));
   check(LifeWaterProtocol.endPath("test").equals("/api/v1/dev/end?did=test&rcp=false"));
   for(String id:new String[]{"x&cmd=start","","x?y"}){rejected=false;try{LifeWaterProtocol.startPath(id,91,0);}catch(Exception e){rejected=true;}check(rejected);}
-  rejected=false;try{LifeWaterProtocol.startPath("test",21,0);}catch(Exception e){rejected=true;}check(rejected);
+  check(LifeWaterProtocol.startPath("test",21,0).contains("ptype=21"));
+  rejected=false;try{LifeWaterProtocol.startPath("test",77,0);}catch(Exception e){rejected=true;}check(rejected);
   rejected=false;try{LifeWaterProtocol.startPath("test",91,-1);}catch(Exception e){rejected=true;}check(rejected);
   rejected=false;try{LifeWaterProtocol.startPath("test",91,1000);}catch(Exception e){rejected=true;}check(rejected);
   check(LifeWaterProtocol.mode(reply)==0);

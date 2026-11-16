@@ -1,12 +1,13 @@
 {
-  "version": "2.3.8",
-  "versionCode": 167,
+  "version": "2.3.9",
+  "versionCode": 168,
   "notes": [
-    "设备详情 ⓘ → 诊断… 新增「读取设备状态（只读）」：一次取回 dev-use-way（这台机器允许的使用方式）、dev/status?more=true（更细的运行状态）和 bill/lst-owner（有没有未结账单），三条都是 GET，不改设备状态，也不必站在机器旁",
-    "用途：业务码 -3「设备当前状态下，无法操作」已经证明请求过了版本墙，但详情里看不出 gene.status=99 算空闲还是锁定，也看不出该用哪种支付方式，这组数据能把 -3 的解释定下来",
-    "开启逻辑本身未改，仍是上一版的 dev/mode/start"
+    "找到 -3 的真因了：你账单里每一笔水费都是 type 21（支付宝免密，小额直扣），而这个应用起初只认官方 3.1.5 的 91 商家钱包/92 余额，把服务端给的 21 过滤掉了——页面于是只剩余额为 0 的商家钱包，点开必被拒",
+    "现在服务端给的支付方式里，21（支付宝免密）、91（商家钱包）、92（余额）、93（一卡通）都收下，可多选；商家钱包余额为 0 时自动排到最后，默认选中的就是账单在用的支付宝免密",
+    "被拒时如果刚才选的是商家钱包，提示会直接说「换支付宝免密再试」",
+    "上一版的只读诊断保留：ⓘ → 诊断… → 读取设备状态（只读）"
   ],
-  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.3.8.apk?sharecode=BZD63HRP4B",
+  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.3.9.apk?sharecode=BZD63HRP4B",
   "bytes": 5342876,
-  "sha256": "70583b3e5faa59028d0fd1e215be0cfcd4258ba866028500aa5362df48c3cf77"
+  "sha256": "09e198f13b0210f49f9b51c9b0eb371ecb36462e22b689eea6733a815fbba2af"
 }
