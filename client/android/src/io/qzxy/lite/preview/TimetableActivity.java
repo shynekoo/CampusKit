@@ -489,31 +489,52 @@ public final class TimetableActivity extends Activity {
     }
 
     /**
-     * The table picker behind the heading: every table with the current one marked, 新建课表 at the
-     * bottom, and a long press for rename or delete.
+     * The table picker behind the heading: the name of every table, the current one marked, and
+     * 新建课表 at the bottom. Tapping a name renames that table; tapping the rest of the row (or the
+     * 切换 label) switches to it — the name is where people instinctively reach when they want to fix
+     * a name, and long-pressing to find that out was a guess nobody makes.
      */
     private void chooseTable() {
         List<TimetableIndex.Table> tables = TimetableStore.tables(this);
         String current = TimetableStore.currentId(this);
         final AlertDialog[] holder = new AlertDialog[1];
         LinearLayout list = column();
-        list.setPadding(dp(4), dp(6), dp(4), dp(6));
+        list.setPadding(dp(4), dp(4), dp(4), dp(6));
+        TextView hint = text("点课表名字可重命名，长按可删除。", 12);
+        hint.setTextColor(AppUi.MUTED);
+        hint.setPadding(dp(14), dp(2), dp(14), dp(10));
+        list.addView(hint, new LinearLayout.LayoutParams(-1, -2));
         for (final TimetableIndex.Table table : tables) {
             boolean active = table.id.equals(current);
             LinearLayout row = new LinearLayout(this);
             row.setGravity(android.view.Gravity.CENTER_VERTICAL);
-            row.setPadding(dp(14), dp(13), dp(14), dp(13));
+            row.setPadding(dp(14), dp(11), dp(14), dp(11));
             AppUi.press(row, 0xffffffff, 10);
             TextView name = text(table.name, 16);
             if (active) {
                 name.setTextColor(AppUi.ACCENT);
                 name.setTypeface(null, android.graphics.Typeface.BOLD);
             }
+            name.setPadding(0, dp(3), dp(8), dp(3));
+            name.setOnClickListener(v -> {
+                if (holder[0] != null) holder[0].dismiss();
+                renameTable(table);
+            });
+            name.setContentDescription(table.name + "，点按重命名");
             row.addView(name, new LinearLayout.LayoutParams(0, -2, 1));
-            TextView mark = text(active ? "当前" : "", 12);
+            TextView mark = text(active ? "当前" : "切换", 13);
             mark.setTextColor(AppUi.ACCENT);
+            if (!active) {
+                mark.setPadding(dp(10), dp(4), dp(10), dp(4));
+                AppUi.press(mark, 0x00ffffff, 8);
+                mark.setOnClickListener(v -> {
+                    if (holder[0] != null) holder[0].dismiss();
+                    switchTable(table.id);
+                });
+                mark.setContentDescription("切换到" + table.name);
+            }
             row.addView(mark);
-            row.setContentDescription(table.name + (active ? "，当前课表" : "，点按切换") + "，长按可重命名或删除");
+            row.setContentDescription(table.name + (active ? "，当前课表" : "，点按切换") + "，点名字可重命名");
             row.setOnClickListener(v -> {
                 if (holder[0] != null) holder[0].dismiss();
                 switchTable(table.id);
@@ -587,8 +608,8 @@ public final class TimetableActivity extends Activity {
             .setNegativeButton("取消", null)
             .setPositiveButton("保存", (d, w) -> {
                 TimetableStore.rename(this, table.id, input.getText().toString());
-                render();
-                notice("已改名为「" + TimetableStore.currentName(this) + "」。");
+                if (table.id.equals(TimetableStore.currentId(this))) render();
+                notice("已改名为「" + TimetableStore.name(this, table.id) + "」。");
             }).show();
     }
 
@@ -693,13 +714,25 @@ public final class TimetableActivity extends Activity {
         LinearLayout header=new LinearLayout(this);header.setGravity(android.view.Gravity.CENTER_VERTICAL);header.setPadding(dp(8),0,dp(8),0);
         LinearLayout heading=column();
         if(tab==1){
-            // The heading is the current timetable itself; tapping it opens the table picker.
-            TextView picker=bold(TimetableStore.currentName(this),20);
-            picker.setSingleLine(true);picker.setEllipsize(android.text.TextUtils.TruncateAt.END);
-            picker.setCompoundDrawables(null,null,AppUi.icon(this,"down",AppUi.MUTED,16),null);
-            picker.setCompoundDrawablePadding(dp(5));
+            // Only the name and its caret are the button. The header row behind them stays inert, so a
+            // tap on the empty space to the right no longer opens the picker by accident.
+            LinearLayout picker=new LinearLayout(this);
+            picker.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            TextView pickerName=bold(TimetableStore.currentName(this),20);
+            pickerName.setSingleLine(true);
+            pickerName.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            pickerName.setMaxWidth(dp(200));
+            picker.addView(pickerName,new LinearLayout.LayoutParams(-2,-2));
+            android.widget.ImageView caret=new android.widget.ImageView(this);
+            caret.setImageDrawable(AppUi.icon(this,"caret",AppUi.INK,11));
+            caret.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            LinearLayout.LayoutParams caretParams=new LinearLayout.LayoutParams(dp(11),dp(11));
+            caretParams.setMargins(dp(6),dp(2),0,0);
+            picker.addView(caret,caretParams);
+            picker.setPadding(dp(2),dp(2),dp(6),dp(2));
             picker.setOnClickListener(v->chooseTable());
-            picker.setContentDescription("当前课表 "+TimetableStore.currentName(this)+"，点按切换");
+            AppUi.press(picker,0x00ffffff,8);
+            picker.setContentDescription("当前课表 "+TimetableStore.currentName(this)+"，点按切换或重命名");
             heading.addView(picker);
         } else heading.addView(bold(tab==0?"今日":"账号",28));
         String subtitle;
@@ -714,7 +747,10 @@ public final class TimetableActivity extends Activity {
         root.addView(header);
         if(tab==0)todayContent();else if(tab==1)timetableContent();else campusContent();
         LinearLayout holder=column();holder.setPadding(dp(8),dp(2),dp(8),dp(8));
-        LinearLayout bar=new LinearLayout(this);bar.setBackground(AppUi.outlined(this,0xffffffff,24,AppUi.LINE));bar.setElevation(dp(3));bar.setPadding(dp(5),dp(5),dp(5),dp(5));
+        // No elevation: the cast shadow is offset downward, so a rounded white bar shows a dark smudge
+        // under the two bottom corners while the top corners stay clean. The hairline border alone
+        // separates the bar from the page, evenly on all four corners.
+        LinearLayout bar=new LinearLayout(this);bar.setBackground(AppUi.outlined(this,0xffffffff,24,AppUi.LINE));bar.setPadding(dp(5),dp(5),dp(5),dp(5));
         bar.addView(tabItem("今日",tab==0,()->{if(tab!=0){tab=0;campusView=0;render();}}),new LinearLayout.LayoutParams(0,dp(60),1));
         bar.addView(tabItem("课表",tab==1,()->{if(tab!=1){tab=1;campusView=0;render();}}),new LinearLayout.LayoutParams(0,dp(60),1));
         bar.addView(tabItem("账号",tab==2,()->{if(tab!=2){tab=2;render();}}),new LinearLayout.LayoutParams(0,dp(60),1));

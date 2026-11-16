@@ -35,6 +35,8 @@ final class AppUi {
     case "room":rect(c,3,4,21,20);line(c,13,4,13,20);c.drawCircle(16.5f,12,.9f,p);line(c,3,20,21,20);break;
     case "torch":Path bolt=new Path();bolt.moveTo(13.4f,2.5f);bolt.lineTo(6.6f,13.2f);bolt.lineTo(11,13.2f);bolt.lineTo(10.2f,21.5f);bolt.lineTo(17.4f,10.6f);bolt.lineTo(12.8f,10.6f);bolt.close();c.drawPath(bolt,p);break;
     case "down":line(c,7,10,12,15);line(c,12,15,17,10);break;
+    // Solid triangle, not the outline chevron: it has to read as "this opens a list".
+    case "caret":p.setStyle(Paint.Style.FILL);Path tri=new Path();tri.moveTo(8,9.5f);tri.lineTo(16,9.5f);tri.lineTo(12,15f);tri.close();c.drawPath(tri,p);break;
     default:line(c,3,9,3,3);line(c,3,3,9,3);line(c,15,3,21,3);line(c,21,3,21,9);line(c,3,15,3,21);line(c,3,21,9,21);line(c,15,21,21,21);line(c,21,21,21,15);line(c,7,12,17,12);
    }c.restoreToCount(save);
   }

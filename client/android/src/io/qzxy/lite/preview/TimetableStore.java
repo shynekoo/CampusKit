@@ -43,6 +43,14 @@ final class TimetableStore {
         return index(context).currentName();
     }
 
+    /** The name stored for one table, whatever the id; falls back to the current name. */
+    static String name(Context context, String id) {
+        for (TimetableIndex.Table table : index(context).tables()) {
+            if (table.id.equals(id)) return table.name;
+        }
+        return currentName(context);
+    }
+
     /** Preferences of the current table — the object every screen already knows how to use. */
     static SharedPreferences open(Context context) {
         return open(context, currentId(context));
