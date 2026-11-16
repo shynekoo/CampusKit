@@ -49,27 +49,41 @@ public final class CoreTests {
         equal(true, PickupPresence.hasPickup("取件码 2-3-456"));
         equal(false, PickupPresence.hasPickup("快递运输中"));
         equal(false, PickupPresence.hasPickup(null));
-        equal("123456",Life798Qr.parse("123456"));
-        equal("Abc123",Life798Qr.parse("https://i.ilife798.com/nfc.html?q=Abc123"));
+        // 慧生活 stickers. Current ones carry a server ticket, not a device id: sending the ticket
+        // as "did" is why scanning looked broken after the official app update. Reference logic:
+        // ilife798/ilife798 DeviceLinkParser and nocookies111/life-798 DeviceIdParser.
+        equal("123456",Life798Qr.parse("123456").deviceId);
+        equal("Abc123",Life798Qr.parse("https://i.ilife798.com/nfc.html?q=Abc123").deviceId);
         // 1.4.8: a number in a key is the device id whatever host carries it; stickers have been
         // seen on hosts outside the old whitelist, and the official app reads those too.
-        equal("Abc123",Life798Qr.parse("https://evil.example/nfc.html?q=Abc123"));
-        equal("2000123456",Life798Qr.parse("https://i.ilife798.com/bind?did=2000123456"));
-        equal("2000123456",Life798Qr.parse("{\"deviceId\":\"2000123456\",\"type\":2}"));
-        equal("2000123456",Life798Qr.parse("ilife://device/2000123456/detail"));
-        equal("2000123456",Life798Qr.parse("did:2000123456"));
-        equal("A1B2C3D4",Life798Qr.parse("A1B2C3D4"));
+        equal("Abc123",Life798Qr.parse("https://evil.example/nfc.html?q=Abc123").deviceId);
+        equal("2000123456",Life798Qr.parse("https://i.ilife798.com/bind?did=2000123456").deviceId);
+        equal("2000123456",Life798Qr.parse("{\"deviceId\":\"2000123456\",\"type\":2}").deviceId);
+        equal("2000123456",Life798Qr.parse("ilife://device/2000123456/detail").deviceId);
+        equal("2000123456",Life798Qr.parse("did:2000123456").deviceId);
+        equal("A1B2C3D4",Life798Qr.parse("A1B2C3D4").deviceId);
+        equal("863000000000001",Life798Qr.parse("https://i.hnkzy.com/q/1/863000000000001").deviceId);
+        equal("abc-123",Life798Qr.parse("https://i.ilife798.com/q/2/abc-123").deviceId);
+        // /q/<n>/<kind>?id= is a ticket for /qr/use, on every kind the stickers use.
+        for (String kind : new String[]{"b", "s", "billing", "vip", "wallet"}) {
+            Life798Qr.Scan ticket = Life798Qr.parse("https://i.ilife798.com/q/1/" + kind + "?id=a1b2c3d4");
+            equal("a1b2c3d4", ticket.qrId);
+            equal(false, ticket.isDeviceId());
+        }
+        // bm codes keep everything after q/<n>/ verbatim, question mark and slash included.
+        equal("bm?/tok-1", Life798Qr.parse("https://i.ilife798.com/q/1/bm?/tok-1").qrId);
+        // NFC tags written by the official app carry the device id itself.
+        equal("863781051223338", Life798Qr.parse("ilife798s://i/device/nav?id=863781051223338").deviceId);
+        equal("dev123abc", Life798Qr.parse("ilife798s://i/device/nfc?id=dev123abc&from=nfc").deviceId);
         rejects(()->Life798Qr.parse("https://i.ilife798.com/about"));
+        rejects(()->Life798Qr.parse("hello"));
         rejects(()->Life798Qr.parse("just-some-text"));
         rejects(()->Life798Qr.parse("https://i.ilife798.com/nfc.html?q=a&q=b"));
-        rejects(()->Life798Qr.parse("https://i.ilife798.com/q/1/billing?id=a"));
         rejects(()->Life798Qr.parse(null));
-        equal("863000000000001",Life798Qr.parse("https://i.hnkzy.com/q/1/863000000000001"));
-        equal("abc-123",Life798Qr.parse("https://i.ilife798.com/q/2/abc-123"));
         rejects(()->Life798Qr.parse("https://i.hnkzy.com/q/1/abc?other=1"));
-        rejects(()->Life798Qr.parse("https://i.hnkzy.com.evil.example/q/1/123"));
         rejects(()->Life798Qr.parse("https://i.hnkzy.com/q/1/abc#fragment"));
         rejects(()->Life798Qr.parse("https://i.hnkzy.com/q/1/a/123"));
+        System.out.println("PASS: 慧生活 codes split into device ids and /qr/use tickets");
         AccountSession handoff = new AccountSession("12", "test+token/value=", "34");
         String handoffLink = AlipayWaterLink.bathroom("TEST_233", handoff, "56", "34", "13800000000", "1");
         java.net.URI handoffUri = java.net.URI.create(handoffLink);

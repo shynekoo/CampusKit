@@ -15,10 +15,13 @@ final class LifeDeviceProfile {
     }
     static int integer(JSONObject o,String key)throws Exception{Object v=o.get(key);if(!(v instanceof Number))throw new IOException();double n=((Number)v).doubleValue();if(!Double.isFinite(n)||n!=Math.rint(n)||n<Integer.MIN_VALUE||n>Integer.MAX_VALUE)throw new IOException();return (int)n;}
     static String text(JSONObject o,String key,int limit,boolean required)throws Exception{Object v=o.opt(key);if(v==null||v==JSONObject.NULL){if(required)throw new IOException();return "未提供";}if(!(v instanceof String)||((String)v).length()>limit||required&&((String)v).trim().isEmpty())throw new IOException();return (String)v;}
+    /** Types /qr/use may return for something we can open: 3 = device, 8 = door lock (per ilife798). */
+    private static boolean usableType(int type){return type==3||type==8;}
     static String resolvedId(JSONObject reply)throws Exception{
         LifeDeviceFailure.success(reply);
         try{JSONObject data=reply.getJSONObject("data");
-            if(integer(data.getJSONObject("qr"),"type")!=3)throw new LifeDeviceFailure("该二维码不是受支持的用水设备码");
+            int type=integer(data.getJSONObject("qr"),"type");
+            if(!usableType(type))throw new LifeDeviceFailure("这个二维码指向的不是用水设备（服务器返回类型 "+type+"）");
             String id=text(data.getJSONObject("dev"),"id",128,true);
             if(!id.matches("[A-Za-z0-9_-]{1,128}"))throw new LifeDeviceFailure("设备编号格式不受支持");return id;
         }catch(LifeDeviceFailure e){throw e;}catch(Exception e){throw new LifeDeviceFailure("二维码响应缺少有效的 data.qr.type 或 data.dev.id");}

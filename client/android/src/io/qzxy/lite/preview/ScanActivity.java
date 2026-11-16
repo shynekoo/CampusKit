@@ -260,14 +260,26 @@ public final class ScanActivity extends Activity implements SurfaceHolder.Callba
         }
         catch (IllegalArgumentException invalid) { status.setText(invalid.getMessage() + "。可点击重新扫描。"); }
     }
-    /** Shared by the camera and the manual field, so both reach the device page the same way. */
-    private void openLife(String id) {
+    /**
+     * Shared by the camera and the manual field, so both reach the device page the same way.
+     *
+     * <p>Current 慧生活 stickers carry a server ticket instead of a device id, so the two cases are
+     * handed over with different keys: {@code did} skips the exchange, {@code qrId} means the device
+     * page must call {@code /qr/use} first. Guessing wrong here is exactly what made scanning look
+     * broken while the API was fine.</p>
+     */
+    private void openLife(io.qzxy.lite.core.Life798Qr.Scan scan) {
         scanFeedback();
-        status.setText("已识别慧生活设备码，正在打开设备页。");
+        boolean direct = scan.isDeviceId();
+        String value = direct ? scan.deviceId : scan.qrId;
+        status.setText(direct ? "已识别设备编号，正在打开设备页。"
+            : "已识别设备码，正在向服务器换取设备编号。");
         returningFromDevice = true;
-        if (BuildFlags.WATER_CONTROL)
-            startActivity(new Intent().setClassName(this, "io.qzxy.lite.preview.LifeWaterActivity").putExtra("qrId", id));
-        else startActivity(new Intent(this, LifeDeviceActivity.class).putExtra("qrId", id));
+        Intent target;
+        if (BuildFlags.WATER_CONTROL) target = new Intent().setClassName(this, "io.qzxy.lite.preview.LifeWaterActivity");
+        else target = new Intent(this, LifeDeviceActivity.class);
+        target.putExtra(direct ? "did" : "qrId", value);
+        startActivity(target);
     }
 
     private void manualEntry() {
