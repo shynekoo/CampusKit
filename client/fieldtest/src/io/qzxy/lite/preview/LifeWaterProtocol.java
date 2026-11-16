@@ -23,11 +23,23 @@ final class LifeWaterProtocol {
   LifeDeviceProfile.refreshed(reply,did);String user=owner(reply.getJSONObject("data"));if(!uid.equals(user))throw new LifeDeviceFailure("未确认设备属于当前账号，未发送停止请求");
  }
  /** 只负责把请求发出去并解析回来；「拒没拒绝」由调用方判定，这样它能拿到原始响应做诊断。 */
- static JSONObject send(String path,JSONObject session)throws Exception{
+ static JSONObject send(String path,JSONObject session,android.content.Context context)throws Exception{
   String didPattern="[A-Za-z0-9_-]{1,128}";
   if(!path.matches("/api/v1/dev/start\\?did="+didPattern+"&upgrade=true&ptype=(91|92)&args=&rcp=false&cnt=1")&&!path.matches("/api/v1/dev/end\\?did="+didPattern+"&rcp=false"))throw new IllegalArgumentException();
-  String token=LifeAuthApi.credentials(session).getString("token");HttpURLConnection c=(HttpURLConnection)new URL(LifeAuthApi.HOST+path).openConnection();c.setInstanceFollowRedirects(false);c.setConnectTimeout(15000);c.setReadTimeout(15000);c.setUseCaches(false);
-  c.setRequestProperty("Authorization",token);c.setRequestProperty("ApplicationType","1,1");c.setRequestProperty("VersionCode","31005");c.setRequestProperty("User-Agent","CampusKit/0.9.16 (Android; independent client)");
+  String token=LifeAuthApi.credentials(session).getString("token");
+  int[] versions=LifeVersion.order(context);JSONObject last=null;
+  for(int version:versions){
+   JSONObject reply=attempt(path,token,version);
+   // 「请升级」说明请求被版本墙挡在外面，业务逻辑没跑、水没开，所以抬高版本号重发是安全的。
+   if(!LifeVersion.upgradeRequired(reply)){LifeVersion.remember(context,version);return reply;}
+   last=reply;
+  }
+  int code=-1;try{code=LifeAuthApi.resultCode(last);}catch(Exception ignored){}
+  throw new LifeDeviceFailure.Rejected(code,"服务器仍要「"+LifeAuthApi.message(last)+"」：版本号已试到 "+versions[versions.length-1]+"，这条控制接口对第三方客户端暂时不可用",last);
+ }
+ private static JSONObject attempt(String path,String token,int version)throws Exception{
+  HttpURLConnection c=(HttpURLConnection)new URL(LifeAuthApi.HOST+path).openConnection();c.setInstanceFollowRedirects(false);c.setConnectTimeout(15000);c.setReadTimeout(15000);c.setUseCaches(false);
+  c.setRequestProperty("Authorization",token);c.setRequestProperty("ApplicationType","1,1");c.setRequestProperty("VersionCode",String.valueOf(version));c.setRequestProperty("User-Agent","CampusKit/0.9.17 (Android; independent client)");
   try{int http=c.getResponseCode();if(http!=200)throw new LifeDeviceFailure("控制请求返回 HTTP "+http+"，结果需核实");return new JSONObject(new String(TimetableBackup.read(c.getInputStream(),1024*1024),"UTF-8"));}finally{c.disconnect();}
  }
 }

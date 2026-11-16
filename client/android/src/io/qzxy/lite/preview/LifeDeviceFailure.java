@@ -11,7 +11,10 @@ class LifeDeviceFailure extends java.io.IOException {
     static final class Rejected extends LifeDeviceFailure {
         private static final long serialVersionUID = 1L;
         final int code;
-        Rejected(int code,String message){super(message);this.code=code;}
+        /** 原始回复留给诊断页：拒绝原因往往只有服务端那句话说得清。 */
+        final org.json.JSONObject reply;
+        Rejected(int code,String message){this(code,message,null);}
+        Rejected(int code,String message,org.json.JSONObject reply){super(message);this.code=code;this.reply=reply;}
     }
     /** 把服务端自己的那句话接在后面：只有「业务码 -1」时读者完全无从判断该改什么。 */
     private static String rejection(org.json.JSONObject reply,int code){
@@ -21,7 +24,7 @@ class LifeDeviceFailure extends java.io.IOException {
     static void success(org.json.JSONObject reply)throws Exception {
         final int code;
         try{code=LifeAuthApi.resultCode(reply);}catch(Exception e){throw new LifeDeviceFailure("服务器响应缺少有效状态码");}
-        if(code<0)throw new Rejected(code,rejection(reply,code));
+        if(code<0)throw new Rejected(code,rejection(reply,code),reply);
     }
     static String describe(Exception e){
         if(e instanceof LifeDeviceFailure)return e.getMessage();
