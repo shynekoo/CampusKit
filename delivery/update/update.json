@@ -1,13 +1,13 @@
 {
-  "version": "2.3.9",
-  "versionCode": 168,
+  "version": "2.3.10",
+  "versionCode": 169,
   "notes": [
-    "找到 -3 的真因了：你账单里每一笔水费都是 type 21（支付宝免密，小额直扣），而这个应用起初只认官方 3.1.5 的 91 商家钱包/92 余额，把服务端给的 21 过滤掉了——页面于是只剩余额为 0 的商家钱包，点开必被拒",
-    "现在服务端给的支付方式里，21（支付宝免密）、91（商家钱包）、92（余额）、93（一卡通）都收下，可多选；商家钱包余额为 0 时自动排到最后，默认选中的就是账单在用的支付宝免密",
-    "被拒时如果刚才选的是商家钱包，提示会直接说「换支付宝免密再试」",
-    "上一版的只读诊断保留：ⓘ → 诊断… → 读取设备状态（只读）"
+    "参考同类开源客户端 WaterWidget 修正请求层：版本头放版本名字符串「3.1.9」而非数字——此前发数字，服务端解析不出才回「请升级最新版APP」",
+    "UA 换成官方形状 Android_ilife798_3.1.9；开启参数精简为 did、upgrade、ptype、rcp，去掉多带的 args 和 cnt",
+    "吸收 WaterWidget 实测业务码表：-19 准备中、-20 未绑一卡通、-52 欠费、-82 需支付、-88 未签约代扣，服务端不说原因时也有解释",
+    "支付宝免密（type 21）仍是默认支付方式，商家钱包余额为 0 时排后"
   ],
-  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.3.9.apk?sharecode=BZD63HRP4B",
+  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.3.10.apk?sharecode=BZD63HRP4B",
   "bytes": 5342876,
-  "sha256": "09e198f13b0210f49f9b51c9b0eb371ecb36462e22b689eea6733a815fbba2af"
+  "sha256": "f340e975aabf96d16895a3b0d12128b718a315b7e597f9a0c499169236c1fec6"
 }

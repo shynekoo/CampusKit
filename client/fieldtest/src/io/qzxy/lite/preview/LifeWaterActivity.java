@@ -48,11 +48,10 @@ public final class LifeWaterActivity extends Activity {
  private void command(boolean opening,int pay){if(busy)return;busy=true;disable();status.setText("正在重新核对设备…");final String expectedUser=uid;
   worker.execute(()->{try{JSONObject s=session();String user=s.getString("uid");if(!user.equals(expectedUser))throw new LifeDeviceFailure("账号已变化，请刷新后再操作");
    JSONObject response=detail(s);
-   int mode=0;
-   if(opening){if(!LifeWaterProtocol.payments(response,did,user).contains(pay))throw new LifeDeviceFailure("支付方式已变化，请重新核对");mode=LifeWaterProtocol.mode(response);}
+   if(opening){if(!LifeWaterProtocol.payments(response,did,user).contains(pay))throw new LifeDeviceFailure("支付方式已变化，请重新核对");}
    else LifeWaterProtocol.canStop(response,did,user);
    if(closed)return;
-   String path=opening?LifeWaterProtocol.startPath(did,pay,mode):LifeWaterProtocol.endPath(did);lastPath=path;lastReply=null;
+   String path=opening?LifeWaterProtocol.startPath(did,pay):LifeWaterProtocol.endPath(did);lastPath=path;lastReply=null;
    JSONObject reply=LifeWaterProtocol.send(path,s,this);lastReply=reply;LifeDeviceFailure.success(reply);
    post(()->{busy=false;screen.loading(false);status.setText("请求已受理，正在核对设备状态；尚未确认结算。");refresh();});
   }catch(Exception e){
@@ -118,7 +117,7 @@ public final class LifeWaterActivity extends Activity {
   String text;
   try{JSONObject out=new JSONObject();
    out.put("app",getPackageManager().getPackageInfo(getPackageName(),0).versionName);out.put("did",did==null?"":did);out.put("sent",lastPath);
-   out.put("versionCode",LifeVersion.CODE);
+   out.put("deviceVersionHeader",LifeVersion.DEVICE_VERSION);
    out.put("detail",scrub(rawDetail));out.put("reply",lastReply==null?JSONObject.NULL:scrub(lastReply));text=out.toString(2);
   }catch(Exception e){text="诊断信息生成失败："+LifeDeviceFailure.describe(e);}
   if(text.length()>12000)text=text.substring(0,12000)+"…";

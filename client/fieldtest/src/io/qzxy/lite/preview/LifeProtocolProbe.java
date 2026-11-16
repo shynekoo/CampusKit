@@ -63,8 +63,11 @@ final class LifeProtocolProbe {
   c.setInstanceFollowRedirects(false);c.setConnectTimeout(15000);c.setReadTimeout(15000);c.setUseCaches(false);
   c.setRequestProperty("Authorization",token);
   c.setRequestProperty("ApplicationType",LifeVersion.APPLICATION_TYPE);
-  c.setRequestProperty("VersionCode",String.valueOf(LifeVersion.CODE));
-  c.setRequestProperty("User-Agent","CampusKit/0.9.18 (Android; independent client)");
+  // 版本头放版本名字符串（「3.1.9」），不是数字——数字版请求正是被「请升级」挡住的原因。
+  c.setRequestProperty("VersionCode",LifeVersion.DEVICE_VERSION);
+  c.setRequestProperty("User-Agent",LifeVersion.DEVICE_UA);
+  c.setRequestProperty("Accept-Language",LifeVersion.ACCEPT_LANGUAGE);
+  c.setRequestProperty("Content-Type","application/json");
   for(Map.Entry<String,String> e:headers.entrySet())c.setRequestProperty(e.getKey(),e.getValue());
   try{
    int http=c.getResponseCode();

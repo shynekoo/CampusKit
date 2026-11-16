@@ -26,21 +26,14 @@ public final class LifeWaterTests {
   check(LifeWaterProtocol.payments(reply,"test","user").equals(java.util.Arrays.asList(91,21)));
   check("支付宝免密".equals(LifeWaterProtocol.paymentName(21))&&"商家钱包".equals(LifeWaterProtocol.paymentName(91)));
   data.remove("wallet");data.getJSONArray("payItems").getJSONObject(0).remove("seq");data.getJSONArray("payItems").getJSONObject(1).remove("seq");
-  // 3.1.10 起开启走 dev/mode/start。路径与参数顺序照抄被服务端接受的那一条：同样的凭据、
-  // 同样的 VersionCode，dev/start 只回「请升级最新版APP」，这条却回了 -3（设备状态话），
-  // 说明版本协商已过。mode 取设备自己的 gene.mode，不自己编。
-  check(LifeWaterProtocol.startPath("test",91,0).equals("/api/v1/dev/mode/start?did=test&mode=0&ptype=91&args=&rcp=false&cnt=1&upgrade=true"));
-  check(LifeWaterProtocol.startPath("test",92,3).contains("mode=3&ptype=92"));
+  // 开启走 dev/start，参数与 WaterWidget（github.com/nocookies111/life-798）实测可用的一致：
+  // did、upgrade、ptype、rcp——没有 args、没有 cnt。过墙靠头不靠路径：VersionCode 放版本名字符串
+  // 「3.1.9」，UA 用官方形状；此前发数字版头，服务端解析不出才回「请升级最新版APP」。
+  check(LifeWaterProtocol.startPath("test",91).equals("/api/v1/dev/start?did=test&upgrade=true&ptype=91&rcp=false"));
+  check(LifeWaterProtocol.startPath("test",21).contains("ptype=21"));
   check(LifeWaterProtocol.endPath("test").equals("/api/v1/dev/end?did=test&rcp=false"));
-  for(String id:new String[]{"x&cmd=start","","x?y"}){rejected=false;try{LifeWaterProtocol.startPath(id,91,0);}catch(Exception e){rejected=true;}check(rejected);}
-  check(LifeWaterProtocol.startPath("test",21,0).contains("ptype=21"));
-  rejected=false;try{LifeWaterProtocol.startPath("test",77,0);}catch(Exception e){rejected=true;}check(rejected);
-  rejected=false;try{LifeWaterProtocol.startPath("test",91,-1);}catch(Exception e){rejected=true;}check(rejected);
-  rejected=false;try{LifeWaterProtocol.startPath("test",91,1000);}catch(Exception e){rejected=true;}check(rejected);
-  check(LifeWaterProtocol.mode(reply)==0);
-  dev.getJSONObject("gene").put("mode",2);check(LifeWaterProtocol.mode(reply)==2);
-  dev.getJSONObject("gene").put("mode",-1);rejected=false;try{LifeWaterProtocol.mode(reply);}catch(Exception e){rejected=true;}check(rejected);
-  dev.getJSONObject("gene").remove("mode");check(LifeWaterProtocol.mode(reply)==0);
+  for(String id:new String[]{"x&cmd=start","","x?y"}){rejected=false;try{LifeWaterProtocol.startPath(id,91);}catch(Exception e){rejected=true;}check(rejected);}
+  rejected=false;try{LifeWaterProtocol.startPath("test",77);}catch(Exception e){rejected=true;}check(rejected);
   // 余额只用来解释 -3，不用来拦人：没给时是 -1，0 时照发（后付费、赠送额度的规则我们看不全）。
   check(LifeWaterProtocol.balance(reply)==-1);
   data.put("wallet",new JSONObject().put("total",0));check(LifeWaterProtocol.balance(reply)==0);
@@ -51,6 +44,10 @@ public final class LifeWaterTests {
   // 「请升级」是协议墙，其它负数（-1 参数错、-99 过期）是业务/凭据问题，两者不能混为一谈。
   check(LifeVersion.CODE==31010);
   check("1,1".equals(LifeVersion.APPLICATION_TYPE));
+  // 过墙的三个头（WaterWidget 实测）：版本头是版本名字符串、UA 是官方形状、加 iOS 风格语言头。
+  check("3.1.9".equals(LifeVersion.DEVICE_VERSION));
+  check("Android_ilife798_3.1.9".equals(LifeVersion.DEVICE_UA));
+  check("zh-Hans-CN;q=1".equals(LifeVersion.ACCEPT_LANGUAGE));
   check(LifeVersion.upgradeRequired(new JSONObject().put("code",-1).put("msg","请升级最新版APP")));
   check(!LifeVersion.upgradeRequired(new JSONObject().put("code",-1).put("msg","请求参数错误")));
   check(!LifeVersion.upgradeRequired(new JSONObject().put("code",-99).put("msg","登录状态已过期")));
