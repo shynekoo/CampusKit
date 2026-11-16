@@ -15,6 +15,9 @@ import java.util.List;
 final class TimetableStore {
     private static final String INDEX = "timetable-index-v1";
     private static final String KEY_INDEX = "index";
+    /** One picture for the whole app; it used to live inside each table's file. */
+    private static final String ART = "timetable-art-v1";
+    private static final String KEY_BACKGROUND = "background";
     static final String DEFAULT_NAME = TimetableIndex.DEFAULT_NAME;
 
     private TimetableStore() {}
@@ -64,6 +67,44 @@ final class TimetableStore {
         return TimetableIndex.FIRST.equals(id) ? "timetable-v1" : "timetable-" + id;
     }
 
+    private static SharedPreferences art(Context context) {
+        return context.getSharedPreferences(ART, Context.MODE_PRIVATE);
+    }
+
+    /**
+     * The board background, shared by every timetable: it is a look, not course data, and deleting a
+     * timetable must not take the picture with it. Installs from before this split kept the picture
+     * inside the table's own file, so it is lifted out on first read — and again right before a table
+     * is deleted, which is the one case where the old file disappears before anyone reads it.
+     */
+    static String background(Context context) {
+        String shared = art(context).getString(KEY_BACKGROUND, "");
+        if (!shared.isEmpty()) return shared;
+        SharedPreferences table = open(context);
+        String legacy = table.getString(KEY_BACKGROUND, "");
+        if (legacy.isEmpty()) return "";
+        art(context).edit().putString(KEY_BACKGROUND, legacy).commit();
+        table.edit().remove(KEY_BACKGROUND).commit();
+        return legacy;
+    }
+
+    /** Stores the encoded picture; an empty value puts the default board back. */
+    static boolean background(Context context, String encoded) {
+        SharedPreferences.Editor edit = art(context).edit();
+        if (encoded == null || encoded.isEmpty()) edit.remove(KEY_BACKGROUND);
+        else edit.putString(KEY_BACKGROUND, encoded);
+        return edit.commit();
+    }
+
+    private static void liftBackground(Context context, String id) {
+        SharedPreferences table = open(context, id);
+        String legacy = table.getString(KEY_BACKGROUND, "");
+        if (legacy.isEmpty()) return;
+        if (art(context).getString(KEY_BACKGROUND, "").isEmpty())
+            art(context).edit().putString(KEY_BACKGROUND, legacy).commit();
+        table.edit().remove(KEY_BACKGROUND).commit();
+    }
+
     static void select(Context context, String id) {
         TimetableIndex index = index(context);
         if (index.select(id)) save(context, index);
@@ -82,10 +123,11 @@ final class TimetableStore {
         if (index.rename(id, name)) save(context, index);
     }
 
-    /** Removes one table and its data; the last remaining table is never removed. */
+    /** Removes one table and its courses; the last remaining table is never removed. */
     static boolean remove(Context context, String id) {
         TimetableIndex index = index(context);
         if (!index.remove(id)) return false;
+        liftBackground(context, id);
         save(context, index);
         open(context, id).edit().clear().commit();
         return true;
@@ -96,5 +138,6 @@ final class TimetableStore {
         for (TimetableIndex.Table table : index(context).tables())
             open(context, table.id).edit().clear().commit();
         prefs(context).edit().clear().commit();
+        art(context).edit().clear().commit();
     }
 }

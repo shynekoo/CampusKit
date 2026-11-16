@@ -16,7 +16,7 @@ final class TimetableBackup {
         if(o.getString("import_notes").length()>100000||o.getString("import_term").length()>200)throw new IOException("备注过长");
         String image=o.getString("background");if(!image.isEmpty()){Bitmap bitmap=decode(image);if(bitmap==null)throw new IOException("背景图片无效");bitmap.recycle();}return o;
     }
-    static boolean restore(SharedPreferences prefs,JSONObject o)throws Exception{SharedPreferences.Editor edit=prefs.edit();for(String key:KEYS)edit.putString(key,o.getString(key));return edit.commit();}
+    static boolean restore(SharedPreferences prefs,JSONObject o)throws Exception{SharedPreferences.Editor edit=prefs.edit();for(String key:KEYS)if(!key.equals("background"))edit.putString(key,o.getString(key));return edit.commit();}
     static Bitmap decode(String value){try{byte[] data=Base64.decode(value,Base64.DEFAULT);BitmapFactory.Options bounds=new BitmapFactory.Options();bounds.inJustDecodeBounds=true;BitmapFactory.decodeByteArray(data,0,data.length,bounds);if(bounds.outWidth<1||bounds.outHeight<1||bounds.outWidth>1800||bounds.outHeight>1800)return null;return BitmapFactory.decodeByteArray(data,0,data.length);}catch(Exception e){return null;}}
     static String image(byte[] data)throws Exception{
         BitmapFactory.Options options=new BitmapFactory.Options();options.inJustDecodeBounds=true;BitmapFactory.decodeByteArray(data,0,data.length,options);if(options.outWidth<1||options.outHeight<1)throw new IOException("图片无法读取");

@@ -353,7 +353,7 @@ public final class TimetableActivity extends Activity {
         courses.clear();
         unreadable = false;
         monday = store.getString("monday", "");
-        backgroundImage = TimetableBackup.decode(store.getString("background", ""));
+        backgroundImage = TimetableBackup.decode(TimetableStore.background(this));
         try {
             JSONArray data = new JSONArray(store.getString("courses", "[]"));
             if (data.length() > 500) throw new IllegalArgumentException();
@@ -450,7 +450,7 @@ public final class TimetableActivity extends Activity {
     }
     private void backgroundMenu(){new AlertDialog.Builder(this).setTitle("课表背景").setItems(new String[]{"选择背景图片","恢复默认背景"},(d,index)->{
         if(index==0)document(Intent.ACTION_OPEN_DOCUMENT,"image/*",80);
-        else if(store.edit().remove("background").commit()){backgroundImage=null;render();}else notice("保存失败，请重试");
+        else if(TimetableStore.background(this,"")){backgroundImage=null;render();}else notice("保存失败，请重试");
     }).setNegativeButton("取消",null).show();}
     private void widgetHelp(){new AlertDialog.Builder(this).setTitle("添加桌面课表")
         .setMessage("如果没有出现添加窗口，请在系统设置中允许「科信小助手」的桌面快捷方式权限，再返回重试。红米路径：权限管理 → 其他权限 → 桌面快捷方式 → 始终允许。也可在桌面小部件列表的安卓小部件中查找「科信小助手」。")
@@ -474,16 +474,16 @@ public final class TimetableActivity extends Activity {
         final Uri uri=data.getData();importing=true;render();
         pdfWorker.execute(()->{
             try{
-                if(request==81){JSONObject backup=TimetableBackup.exportData(store);try(java.io.OutputStream out=getContentResolver().openOutputStream(uri,"wt")){if(out==null)throw new java.io.IOException();out.write(backup.toString().getBytes("UTF-8"));}
+                if(request==81){JSONObject backup=TimetableBackup.exportData(store);backup.put("background",TimetableStore.background(this));try(java.io.OutputStream out=getContentResolver().openOutputStream(uri,"wt")){if(out==null)throw new java.io.IOException();out.write(backup.toString().getBytes("UTF-8"));}
                     runOnUiThread(()->{if(isDestroyed())return;importing=false;render();notice("备份已导出，包含课表、配色、开学日期和背景图片。");});
                 }else if(request==80){String encoded=TimetableBackup.image(TimetableBackup.read(getContentResolver().openInputStream(uri),20*1024*1024));
-                    if(!store.edit().putString("background",encoded).commit())throw new java.io.IOException();
+                    if(!TimetableStore.background(this,encoded))throw new java.io.IOException();
                     final android.graphics.Bitmap bitmap=TimetableBackup.decode(encoded);
                     runOnUiThread(()->{if(isDestroyed())return;importing=false;backgroundImage=bitmap;render();});
                 }else{JSONObject backup=TimetableBackup.parse(TimetableBackup.read(getContentResolver().openInputStream(uri),6*1024*1024));int count=new JSONArray(backup.getString("courses")).length();
                     runOnUiThread(()->{if(isDestroyed())return;importing=false;render();new AlertDialog.Builder(this).setTitle("恢复课表备份")
-                        .setMessage("备份含 "+count+" 条课程，开学日期："+backup.optString("monday")+"。恢复会替换当前课表「"+TimetableStore.currentName(this)+"」的课程、配色、备注和背景。")
-                        .setNegativeButton("取消",null).setPositiveButton("恢复",(d,w)->{try{if(!TimetableBackup.restore(store,backup))throw new java.io.IOException();recreate();}catch(Exception e){notice("恢复失败，未能保存备份。");}}).show();});}
+                        .setMessage("备份含 "+count+" 条课程，开学日期："+backup.optString("monday")+"。恢复会替换当前课表「"+TimetableStore.currentName(this)+"」的课程、配色和备注，并换上备份里的背景图。")
+                        .setNegativeButton("取消",null).setPositiveButton("恢复",(d,w)->{try{if(!TimetableBackup.restore(store,backup))throw new java.io.IOException();TimetableStore.background(this,backup.optString("background",""));recreate();}catch(Exception e){notice("恢复失败，未能保存备份。");}}).show();});}
             }catch(Exception failure){runOnUiThread(()->{if(isDestroyed())return;importing=false;render();notice(request==80?"图片无法读取，请选择20 MB以内的图片。":request==81?"备份写入失败，请重新选择保存位置。":"备份无法读取或格式无效，原课表未修改。");});}
         });
     }
@@ -617,7 +617,7 @@ public final class TimetableActivity extends Activity {
     private void removeTable(final TimetableIndex.Table table) {
         if (TimetableStore.tables(this).size() <= 1) { notice("至少要保留一个课表。"); return; }
         boolean wasCurrent = table.id.equals(TimetableStore.currentId(this));
-        String message = "这个课表的课程、背景和导入记录会一起删除，无法恢复。";
+        String message = "这个课表的课程和导入记录会一起删除，无法恢复。背景图片是全局的，会保留。";
         if (wasCurrent) {
             // Say which table the screen will land on, so deleting the one you are looking at is not
             // a jump into the unknown.
@@ -637,11 +637,10 @@ public final class TimetableActivity extends Activity {
 
     private void manage() {
         if(unreadable || importing)return;
-        new AlertDialog.Builder(this).setTitle(TimetableStore.currentName(this)).setItems(new String[]{"从教务系统导入课表", "开学日期", "添加课程", "全部课程（"+courses.size()+"）", "自定义背景图片", "添加桌面课表组件", "导出备份", "恢复备份", "查成绩", "查空教室"}, (d,index)-> {
+        new AlertDialog.Builder(this).setTitle(TimetableStore.currentName(this)).setItems(new String[]{"从教务系统导入课表", "开学日期", "添加课程", "全部课程（"+courses.size()+"）", "自定义背景图片", "添加桌面课表组件", "导出备份", "恢复备份"}, (d,index)-> {
             if(index==0)startActivityForResult(new Intent(this,EduTimetableImportActivity.class),42);
             else if(index==1)semester();else if(index==2)edit(null);else if(index==3)allCourses();
             else if(index==4)backgroundMenu();else if(index==5)addScheduleWidget();else if(index==6)document(Intent.ACTION_CREATE_DOCUMENT,"application/json",81);else if(index==7)document(Intent.ACTION_OPEN_DOCUMENT,"*/*",82);
-            else if(index==8)openEdu("grades");else if(index==9)openEdu("rooms");
         }).setNegativeButton("关闭",null).show();
     }
     /**

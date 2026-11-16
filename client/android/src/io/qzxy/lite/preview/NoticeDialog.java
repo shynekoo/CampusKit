@@ -27,7 +27,7 @@ final class NoticeDialog {
     private static final String PREFS = "notice-v1";
     private static final String KEY_SILENCED = "silenced";
     /** Raise this when the text below changes enough that it should be read again. */
-    private static final int VERSION = 1;
+    private static final int VERSION = 2;
 
     private static final String HEADLINE = "使用公告";
     private static final String SUBHEAD = "科信小助手是个人开发的第三方客户端";
@@ -46,9 +46,11 @@ final class NoticeDialog {
         {"没有服务器，也没有统计",
             "应用不设后端，不上传、不汇总、不分享任何数据，没有广告和埋点。"
             + "网络请求只发往趣智校园、慧生活798、学校教务系统，以及你主动点开的淘宝/菜鸟身份码页面。"},
-        {"涉及钱的操作请回原版",
-            "用水、充值等会扣款的流程以原版应用为准；本应用对设备和订单只做查询，"
-            + "不代下单、不代扣费。对方接口改版后查询可能失效，届时请回原版操作。"},
+        {"扫码会真的开始用水",
+            "扫浴室、饮水机的设备码不是预览：设备会被启动，当场出水或运行，费用由趣智校园、"
+            + "慧生活按实际用量结算，可能直接从余额或绑定的支付方式里扣。启动这一步通常由支付宝或"
+            + "慧生活原版完成，本应用只负责把设备交给它们；本应用不充值、不代下单，但水是你在用。"
+            + "设备不在眼前时不要扫，要停下请立即结束用水，或改在原版操作。"},
         {"随时可以清除",
             "「账号 → 数据与隐私」列出了本机保存的每一项，并支持一键清除登录状态、课表与设置。"
             + "卸载应用同样会删掉这些数据。"},

@@ -263,25 +263,114 @@ public final class AcademicActivity extends Activity {
         ensure("building", "");
         ensure("type", defaultType());
 
+        // Week, weekday and period decide the answer; 教学楼 / 场地类型 / 校区 stay on a sensible
+        // default for most queries. The three get filled, accent-coloured blocks with a caret; the
+        // rest stay quiet single-line cells, so the eye knows which ones are worth touching.
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
-        addCell(row, "周次", weekLabel(pick.get("week")), this::openWeek);
-        addCell(row, "星期", weekdayLabel(pick.get("weekday")), () ->
+        int week = number(pick.get("week"), 1);
+        boolean current = week == EduClient.currentWeek(campus);
+        addPickCell(row, "周次", "第 " + week + " 周", current ? "本周" : "", this::openWeek);
+        addPickCell(row, "星期", weekdayLabel(pick.get("weekday")), "", () ->
             ask("星期", WEEKDAYS, weekdayValues(), "weekday"));
+        addPickCell(row, "节次", io.qzxy.lite.core.EduSite.sectionLabel(periods()), sectionTimes(), this::openSections);
         fields.addView(row);
+        View spacer = new View(this);
+        fields.addView(spacer, new LinearLayout.LayoutParams(-1, dp(6)));
         row = new LinearLayout(this);
-        addCell(row, "节次", sectionLabel(), this::openSections);
-        addCell(row, "教学楼", buildingLabel(pick.get("building")), () ->
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        addQuietCell(row, "教学楼", buildingLabel(pick.get("building")), () ->
             ask("教学楼", buildingLabels(), buildingValues(), "building"));
-        fields.addView(row);
-        row = new LinearLayout(this);
-        addCell(row, "场地类型", typeLabel(pick.get("type")), () ->
+        addQuietCell(row, "场地类型", typeLabel(pick.get("type")), () ->
             ask("场地类型", typeLabels(), typeValues(), "type"));
         if (page != null && page.campuses.size() > 1) {
-            addCell(row, "校区", campusLabel(pick.get("campus")), () ->
+            addQuietCell(row, "校区", campusLabel(pick.get("campus")), () ->
                 ask("校区", campusLabels(), campusValues(), "campus"));
         }
         fields.addView(row);
+    }
+
+    /** The three filters that decide the answer: filled block, accent value, caret on the right. */
+    private void addPickCell(LinearLayout row, String label, String value, String note, Runnable action) {
+        LinearLayout cell = new LinearLayout(this);
+        cell.setOrientation(LinearLayout.VERTICAL);
+        cell.setPadding(dp(10), dp(8), dp(8), dp(8));
+        cell.setMinimumHeight(dp(70));
+        cell.setBackground(new android.graphics.drawable.RippleDrawable(
+            android.content.res.ColorStateList.valueOf(0x1f275dad),
+            AppUi.outlined(this, AppUi.SOFT, 12, 0xffd3e0f2), null));
+        cell.setFocusable(true);
+        TextView name = new TextView(this);
+        name.setText(label);
+        name.setTextSize(11);
+        name.setTextColor(0xff456a95);
+        cell.addView(name);
+        LinearLayout line = new LinearLayout(this);
+        line.setOrientation(LinearLayout.HORIZONTAL);
+        line.setGravity(Gravity.CENTER_VERTICAL);
+        TextView text = new TextView(this);
+        text.setText(value);
+        text.setTextSize(15);
+        text.setTypeface(null, Typeface.BOLD);
+        text.setTextColor(AppUi.ACCENT);
+        text.setSingleLine(true);
+        text.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        line.addView(text, new LinearLayout.LayoutParams(0, -2, 1));
+        android.widget.ImageView caret = new android.widget.ImageView(this);
+        caret.setImageDrawable(AppUi.icon(this, "caret", AppUi.ACCENT, 9));
+        caret.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        LinearLayout.LayoutParams caretParams = new LinearLayout.LayoutParams(dp(9), dp(9));
+        caretParams.leftMargin = dp(3);
+        line.addView(caret, caretParams);
+        cell.addView(line);
+        if (!note.isEmpty()) {
+            TextView sub = new TextView(this);
+            sub.setText(note);
+            sub.setTextSize(10);
+            sub.setTextColor(AppUi.MUTED);
+            sub.setSingleLine(true);
+            sub.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            cell.addView(sub);
+        }
+        cell.setContentDescription(label + "：" + value + (note.isEmpty() ? "" : "，" + note) + "，点按修改");
+        cell.setOnClickListener(v -> action.run());
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, -2, 1);
+        params.rightMargin = dp(6);
+        row.addView(cell, params);
+    }
+
+    /** A filter most people leave alone: one quiet line, no fill, no caret. */
+    private void addQuietCell(LinearLayout row, String label, String value, Runnable action) {
+        LinearLayout cell = new LinearLayout(this);
+        cell.setOrientation(LinearLayout.HORIZONTAL);
+        cell.setGravity(Gravity.CENTER_VERTICAL);
+        cell.setPadding(dp(6), dp(9), dp(4), dp(9));
+        cell.setMinimumHeight(dp(44));
+        AppUi.press(cell, 0x00ffffff, 10);
+        TextView name = new TextView(this);
+        name.setText(label);
+        name.setTextSize(12);
+        name.setTextColor(AppUi.MUTED);
+        cell.addView(name);
+        TextView text = new TextView(this);
+        text.setText(value);
+        text.setTextSize(12);
+        text.setTextColor(AppUi.INK);
+        text.setSingleLine(true);
+        text.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        text.setPadding(dp(5), 0, 0, 0);
+        cell.addView(text, new LinearLayout.LayoutParams(0, -2, 1));
+        cell.setContentDescription(label + "：" + value + "，点按修改");
+        cell.setOnClickListener(v -> action.run());
+        row.addView(cell, new LinearLayout.LayoutParams(0, -2, 1));
+    }
+
+    /** "08:00-09:35" for the chosen periods, or empty when the range is not contiguous. */
+    private String sectionTimes() {
+        int[] chosen = periods();
+        if (chosen.length == 0) return "";
+        boolean contiguous = chosen[chosen.length - 1] - chosen[0] + 1 == chosen.length;
+        return contiguous ? times(chosen[0], chosen[chosen.length - 1]) : "";
     }
 
     private void buildSemesterFields() {
@@ -641,11 +730,6 @@ public final class AcademicActivity extends Activity {
         return now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE);
     }
 
-    private String weekLabel(String value) {
-        int week = number(value, 1);
-        return "第 " + week + " 周" + (week == EduClient.currentWeek(campus) ? "（本周）" : "");
-    }
-
     private String weekdayLabel(String value) {
         int day = number(value, today());
         return WEEKDAYS[Math.max(0, Math.min(6, day - 1))];
@@ -659,15 +743,6 @@ public final class AcademicActivity extends Activity {
 
     private int[] periods() { return io.qzxy.lite.core.EduSite.sections(pick.get("section")); }
 
-    private String sectionLabel() {
-        int[] chosen = periods();
-        String label = io.qzxy.lite.core.EduSite.sectionLabel(chosen);
-        if (chosen.length == 0) return label;
-        boolean contiguous = chosen[chosen.length - 1] - chosen[0] + 1 == chosen.length;
-        if (!contiguous) return label;
-        String times = times(chosen[0], chosen[chosen.length - 1]);
-        return times.isEmpty() ? label : label + " " + times;
-    }
 
     /** "08:00-09:35" for a class, whatever shape the school's own period time text has. */
     private String times(int from, int to) {

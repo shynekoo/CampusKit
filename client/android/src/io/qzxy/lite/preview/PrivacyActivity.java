@@ -154,8 +154,8 @@ public final class PrivacyActivity extends Activity {
             + "所有网络请求只发往下面这些地址：", 13, AppUi.MUTED);
         noServer.setPadding(0, dp(4), 0, dp(2));
         network.addView(noServer);
-        row(network, "v3-api.china-qzxy.cn", "趣智校园：登录、余额、设备与订单查询", true);
-        row(network, "i.ilife798.com", "慧生活798：登录、设备资料", true);
+        row(network, "v3-api.china-qzxy.cn", "趣智校园：登录、余额、设备状态与用水启停", true);
+        row(network, "i.ilife798.com", "慧生活798：登录、设备资料与用水启停", true);
         row(network, "jwglxxfwpt.hebeu.edu.cn", "教务系统：课表、成绩、空教室", true);
         row(network, "www.hebeu.edu.cn · kexin.hebeu.edu.cn", "学校官网，在应用内浏览", true);
         row(network, "淘宝 / 菜鸟", "只在你点「身份码」时交给系统或淘宝打开，应用本身不访问", false);
@@ -164,7 +164,7 @@ public final class PrivacyActivity extends Activity {
 
         LinearLayout permissions = card();
         permissions.addView(cardTitle("权限"));
-        row(permissions, "网络", "上面这些查询都需要它", true);
+        row(permissions, "网络", "上面这些请求都需要它", true);
         row(permissions, "相机", "只用于扫码取景：不拍照、不录像、不保存画面", false);
         TextView none = text("没有申请位置、通讯录、短信读取和存储权限。", 12, AppUi.MUTED);
         none.setPadding(0, dp(10), 0, 0);
