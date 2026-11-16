@@ -21,6 +21,11 @@ final class LifeWaterProtocol {
   * 于是页面把服务端给的第一个选项（商家钱包，余额 0）当成唯一选择——这就是那个 -3 的来源。
   */
  private static final List<Integer> KNOWN_PAYMENTS=Collections.unmodifiableList(Arrays.asList(21,91,92,93));
+ /**
+  * 页面不再让用户挑支付方式：这台机器的账单里每一笔水费都是 21（支付宝免密，元级小额直扣），
+  * 商家钱包余额 0 只会把人挡在 -3 外面。开启固定发 21；设备没提供它时提前说明，不盲发。
+  */
+ static final int DEFAULT_PAYMENT=21;
  static String paymentName(int type){
   switch(type){case 21:return "支付宝免密";case 91:return "商家钱包";case 92:return "余额";case 93:return "一卡通";default:return "支付方式 "+type;}
  }

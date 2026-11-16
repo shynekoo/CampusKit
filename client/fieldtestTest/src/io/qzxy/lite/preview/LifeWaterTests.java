@@ -25,6 +25,8 @@ public final class LifeWaterTests {
   data.getJSONObject("wallet").put("total",1250);
   check(LifeWaterProtocol.payments(reply,"test","user").equals(java.util.Arrays.asList(91,21)));
   check("支付宝免密".equals(LifeWaterProtocol.paymentName(21))&&"商家钱包".equals(LifeWaterProtocol.paymentName(91)));
+  // 页面不再让用户挑支付方式，开启固定走支付宝免密。
+  check(LifeWaterProtocol.DEFAULT_PAYMENT==21);
   data.remove("wallet");data.getJSONArray("payItems").getJSONObject(0).remove("seq");data.getJSONArray("payItems").getJSONObject(1).remove("seq");
   // 开启走 dev/start，参数与 WaterWidget（github.com/nocookies111/life-798）实测可用的一致：
   // did、upgrade、ptype、rcp——没有 args、没有 cnt。过墙靠头不靠路径：VersionCode 放版本名字符串

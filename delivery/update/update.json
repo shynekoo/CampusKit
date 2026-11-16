@@ -1,13 +1,11 @@
 {
-  "version": "2.3.10",
-  "versionCode": 169,
+  "version": "2.5.0",
+  "versionCode": 170,
   "notes": [
-    "参考同类开源客户端 WaterWidget 修正请求层：版本头放版本名字符串「3.1.9」而非数字——此前发数字，服务端解析不出才回「请升级最新版APP」",
-    "UA 换成官方形状 Android_ilife798_3.1.9；开启参数精简为 did、upgrade、ptype、rcp，去掉多带的 args 和 cnt",
-    "吸收 WaterWidget 实测业务码表：-19 准备中、-20 未绑一卡通、-52 欠费、-82 需支付、-88 未签约代扣，服务端不说原因时也有解释",
-    "支付宝免密（type 21）仍是默认支付方式，商家钱包余额为 0 时排后"
+    "开启用水不再弹支付方式选择：固定使用支付宝免密（本机账单里的每一笔水费都是它）",
+    "设备未提供支付宝免密时提前说明可用方式，不再盲发请求"
   ],
-  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.3.10.apk?sharecode=BZD63HRP4B",
+  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.5.0.apk?sharecode=BZD63HRP4B",
   "bytes": 5342876,
-  "sha256": "f340e975aabf96d16895a3b0d12128b718a315b7e597f9a0c499169236c1fec6"
+  "sha256": "8782e26c4458e51d8b2639ad838e7698a15f8e01ff8bfb07b1ab9b5b6262f131"
 }
