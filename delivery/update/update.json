@@ -1,13 +1,12 @@
 {
-  "version": "2.3.7",
-  "versionCode": 166,
+  "version": "2.3.8",
+  "versionCode": 167,
   "notes": [
-    "找到过墙的路了：同样的凭据、同样的版本号，dev/start 只回「请升级最新版APP」，而 3.1.10 新增的 dev/mode/start 直接进了业务逻辑（回 -3「设备当前状态下，无法操作」）。开启用水正式改走这条路径，mode 取设备自己的 gene.mode",
-    "被拒时不再一律说「可以重试」：-3 说明设备/账户状态不接受开启，会写明未下发任何指令，并点出常见原因是余额为 0 或设备刚被他人占用",
-    "设备就绪但账户余额为 0 时，页面提前提示「开启多半会被拒，请先在原版充值」，不再让你点了才失败",
-    "解锁设备时的模式字段越界（不在 0–999）会拒绝发送，不拿猜测的值去打设备"
+    "设备详情 ⓘ → 诊断… 新增「读取设备状态（只读）」：一次取回 dev-use-way（这台机器允许的使用方式）、dev/status?more=true（更细的运行状态）和 bill/lst-owner（有没有未结账单），三条都是 GET，不改设备状态，也不必站在机器旁",
+    "用途：业务码 -3「设备当前状态下，无法操作」已经证明请求过了版本墙，但详情里看不出 gene.status=99 算空闲还是锁定，也看不出该用哪种支付方式，这组数据能把 -3 的解释定下来",
+    "开启逻辑本身未改，仍是上一版的 dev/mode/start"
   ],
-  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.3.7.apk?sharecode=BZD63HRP4B",
+  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.3.8.apk?sharecode=BZD63HRP4B",
   "bytes": 5342876,
-  "sha256": "36f7b6ae8ca9a254d3695a641f9d584b3a085b6d6ed59a65260501a84317de2a"
+  "sha256": "70583b3e5faa59028d0fd1e215be0cfcd4258ba866028500aa5362df48c3cf77"
 }

@@ -70,8 +70,27 @@ public final class LifeWaterActivity extends Activity {
  private static final Set<String> SENSITIVE=new HashSet<>(Arrays.asList("token","uid","user","telephone","telphone","tel","phone","logincode","idcard","idcardno","pwd","password","opencode"));
  private void details(){
   AlertDialog.Builder b=new AlertDialog.Builder(this).setTitle("设备详情").setMessage(deviceDetails).setNegativeButton("关闭",null);
-  if(rawDetail!=null)b.setNeutralButton("诊断…",(d,w)->new AlertDialog.Builder(this).setItems(new String[]{"复制诊断信息","协议探测（会尝试开启一次）"},(x,which)->{if(which==0)copyDiagnostics();else probe();}).show());
+  if(rawDetail!=null)b.setNeutralButton("诊断…",(d,w)->new AlertDialog.Builder(this).setItems(new String[]{"复制诊断信息","读取设备状态（只读）","协议探测（会尝试开启一次）"},(x,which)->{if(which==0)copyDiagnostics();else if(which==1)readState();else probe();}).show());
   b.show();
+ }
+ /**
+  * 只读地把设备自己的说法取全：允许哪种使用方式、更细的运行状态、有没有未结账单。
+  * 这三条都不改设备状态，所以不必站在机器旁边也能跑。
+  */
+ private void readState(){
+  if(busy)return;busy=true;disable();status.setText("正在读取设备状态…");
+  worker.execute(()->{
+   String text;
+   try{Object clean=scrub(LifeDiagnostics.collect(session(),did));text=clean instanceof JSONObject?((JSONObject)clean).toString(2):String.valueOf(clean);}
+   catch(Exception e){text="读取未完成："+LifeDeviceFailure.describe(e);}
+   if(text.length()>20000)text=text.substring(0,20000)+"…";
+   final String report=text;
+   post(()->{busy=false;screen.loading(false);refresh.setEnabled(true);status.setText("设备状态见弹窗，点「复制」发我。");
+    new AlertDialog.Builder(this).setTitle("设备状态（只读）").setMessage(report).setPositiveButton("复制",(d,w)->{
+     ((ClipboardManager)getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("慧生活设备状态",report));
+     Toast.makeText(this,"已复制",Toast.LENGTH_SHORT).show();
+    }).setNegativeButton("关闭",null).show();});
+  });
  }
  /** 一次把「服务端到底要什么」问清楚：试几种请求长相，把每一条的服务端原话都带出来。 */
  private void probe(){

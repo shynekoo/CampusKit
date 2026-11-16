@@ -12,7 +12,11 @@ final class LifeDeviceApi {
     }
     static String statusPath(String id){if(id==null||!id.matches("[A-Za-z0-9_-]{1,128}"))throw new IllegalArgumentException();return "/api/v1/ui/app/dev/status?did="+id+"&more=true";}
     static String detailPath(String id){if(id==null||!id.matches("[A-Za-z0-9_-]{1,128}"))throw new IllegalArgumentException();return "/api/v1/ui/app/dev/home/1?did="+id+"&apply=6";}
-    static void allowed(String path){if(path==null||!path.matches("/api/v1/qr/use\\?id="+ENCODED_TICKET)&&!path.matches("/api/v1/ui/app/dev/status\\?did=[A-Za-z0-9_-]{1,128}&more=true")&&!path.matches("/api/v1/ui/app/dev/home/1\\?did=[A-Za-z0-9_-]{1,128}&apply=6"))throw new IllegalArgumentException("未允许的设备请求");}
+    /** 官方用它决定「这台机器该怎么用」，很可能是开启参数（mode/args）的来源。只读。 */
+    static String useWayPath(String id){if(id==null||!id.matches("[A-Za-z0-9_-]{1,128}"))throw new IllegalArgumentException();return "/api/v1/ui/app/dev/dev-use-way?did="+id;}
+    /** 未结账单会压住开启，查一下比猜「余额为 0」直接。只读。 */
+    static final String BILLS_PATH="/api/v1/bill/lst-owner";
+    static void allowed(String path){if(path==null||!path.matches("/api/v1/qr/use\\?id="+ENCODED_TICKET)&&!path.matches("/api/v1/ui/app/dev/status\\?did=[A-Za-z0-9_-]{1,128}&more=true")&&!path.matches("/api/v1/ui/app/dev/home/1\\?did=[A-Za-z0-9_-]{1,128}&apply=6")&&!path.matches("/api/v1/ui/app/dev/dev-use-way\\?did=[A-Za-z0-9_-]{1,128}")&&!BILLS_PATH.equals(path))throw new IllegalArgumentException("未允许的设备请求");}
     /** Percent-encodes everything outside the unreserved set, matching how the third-party clients send it. */
     private static String encode(String value){
         StringBuilder out=new StringBuilder();
