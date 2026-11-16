@@ -13,6 +13,12 @@ final class LifeAuthTests {
   JSONObject al=new JSONObject().put("uid","synthetic-user").put("token","synthetic-token");JSONObject result=new JSONObject().put("code",0).put("data",new JSONObject().put("al",al));JSONObject session=LifeAuthApi.session(result);check(session.getString("uid").equals("synthetic-user"));
   for(String path:new String[]{"/api/v1/dev/start","/api/v1/dev/end","/api/v1/qr/use","/api/v1/ui/app/dev/command","/api/v1/acc/stat"}){rejected=false;try{LifeAuthApi.allowed(path,null,null);}catch(Exception e){rejected=true;}check(rejected);}
   LifeAuthApi.allowed("/api/v1/acc/stat",null,"synthetic-token");check(true);
+  LifeAuthApi.allowed("/api/v1/acc/stat?uid=synthetic-user",null,"synthetic-token");check(true);
+  rejected=false;try{LifeAuthApi.allowed("/api/v1/acc/stat?uid=bad uid",null,"synthetic-token");}catch(Exception e){rejected=true;}check(rejected);
+  rejected=false;try{LifeAuthApi.allowed("/api/v1/acc/stats",null,"synthetic-token");}catch(Exception e){rejected=true;}check(rejected);
+  rejected=false;try{LifeAuthApi.allowed("/api/v1/acc/stat?uid=synthetic-user",null,null);}catch(Exception e){rejected=true;}check(rejected);
+  check(LifeAuthApi.statPath(session).equals("/api/v1/acc/stat?uid=synthetic-user"));
+  check(LifeAuthApi.expired(-99));check(!LifeAuthApi.expired(-1));check(!LifeAuthApi.expired(0));check(!LifeAuthApi.expired(1));
   LifeAuthApi.allowed(LifeAuthApi.captchaPath(.25,123),null,null);check(true);
   rejected=false;try{LifeAuthApi.allowed("/api/v1/acc/login",null,null);}catch(Exception e){rejected=true;}check(rejected);
   rejected=false;try{LifeAuthApi.resultCode(new JSONObject().put("code",.5));}catch(Exception e){rejected=true;}check(rejected);

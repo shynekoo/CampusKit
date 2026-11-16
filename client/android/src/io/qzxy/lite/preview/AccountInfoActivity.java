@@ -38,8 +38,16 @@ public final class AccountInfoActivity extends Activity {
                 if(life){JSONObject session=new LifeSessionVault(this).load();saved=session!=null;
                     if(!saved){post(ticket,()->present(false,"尚未登录","登录后在这里查看账户状态。"));return;}
                     String uid=session.getString("uid");String account="账户尾号 · "+uid.substring(Math.max(0,uid.length()-4));
-                    post(ticket,()->present(true,account,"正在检查登录…"));
-                    int code=LifeAuthApi.verify(session);post(ticket,()->state.setText(code>=0?"已登录":"暂时无法确认登录状态，请刷新重试（"+code+"）。"));
+                    post(ticket,()->present(true,account,"正在核对登录状态…"));
+                    // 登录在授权那一刻已经成功了，这里只是问服务器这张凭据还能不能用。回 -99 才是真的过期；
+                    // 回别的负数码（实测常见 -1「请求参数错误」）只说明这次核验没问成，凭据本身并没有被否定。
+                    // 以前把所有负数都写成「暂时无法确认登录状态，请刷新重试（-1）」——那句话服务端没讲，
+                    // 刷新也不会变，读者看到的是一条永远刷不掉的错。
+                    int code=LifeAuthApi.verify(session);
+                    if(LifeAuthApi.expired(code)){
+                        try{new LifeSessionVault(this).clear();}catch(Exception ignored){}
+                        post(ticket,()->{present(false,"尚未登录","登录已过期，请重新登录。");login.setText("重新登录");});
+                    }else post(ticket,()->state.setText("已登录"));
                 }else{AccountSession session=new AccountVault(this).load();checked=session;saved=session!=null;
                     if(!saved){post(ticket,()->present(false,"尚未登录","登录后在这里查看账户信息与余额。"));return;}
                     post(ticket,()->present(true,"趣智校园账号","正在读取账户信息…"));

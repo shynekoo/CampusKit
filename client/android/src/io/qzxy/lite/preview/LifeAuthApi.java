@@ -45,10 +45,30 @@ final class LifeAuthApi {
     static void allowed(String path,JSONObject body,String token){
         boolean captcha=path!=null&&path.matches("/api/v1/captcha/\\?s=[0-9.Ee+-]+&r=[0-9]+")&&body==null&&token==null;
         boolean auth=("/api/v1/acc/login/code".equals(path)||"/api/v1/acc/login".equals(path))&&body!=null&&token==null;
-        boolean status="/api/v1/acc/stat".equals(path)&&body==null&&token!=null&&token.matches("[!-~]{1,4096}");
+        boolean status=path!=null&&path.matches("/api/v1/acc/stat(\\?uid=[A-Za-z0-9_-]{1,128})?")&&body==null&&token!=null&&token.matches("[!-~]{1,4096}");
         if(!captcha&&!auth&&!status)throw new IllegalArgumentException("未允许的请求");
     }
-    static int verify(JSONObject session)throws Exception{return resultCode(new JSONObject(new String(request("/api/v1/acc/stat",null,credentials(session).getString("token")),"UTF-8")));}
+    /**
+     * 服务端自己的两个负数码，只有第一个跟凭据有关。
+     *
+     * <p>实测：{@code GET /api/v1/acc/stat} 不带任何凭据回 {@code {"code":-99,"msg":"登录状态已过期"}}，
+     * 而 {@code -1} 是这个服务端通用的「请求参数错误」——用空 body 打 {} 登录接口也能拿到同一个 -1。
+     * 所以核验回 -1 时能确定的只有「这次请求少给了参数」，并不能推出凭据失效。</p>
+     */
+    static final int EXPIRED=-99,BAD_REQUEST=-1;
+    static boolean expired(int code){return code==EXPIRED;}
+    /**
+     * 核验登录状态。uid 一并带上：这个接口按账号定位凭据，只给 Authorization 时服务端回的是
+     * 参数错误（-1），不是「已过期」（-99）。这一点没有在真机上验证过，带上 uid 是手上的最佳猜测；
+     * 万一它仍然不认，调用方按 {@link #expired} 判断，不会把有效凭据当成失效。
+     */
+    static String statPath(JSONObject session)throws Exception{
+        return "/api/v1/acc/stat?uid="+credentials(session).getString("uid");
+    }
+    static JSONObject stat(JSONObject session)throws Exception{
+        return new JSONObject(new String(request(statPath(session),null,credentials(session).getString("token")),"UTF-8"));
+    }
+    static int verify(JSONObject session)throws Exception{return resultCode(stat(session));}
     static byte[] request(String path,JSONObject body)throws Exception{
         return request(path,body,null);
     }

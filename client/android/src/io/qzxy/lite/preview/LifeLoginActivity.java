@@ -119,7 +119,11 @@ public final class LifeLoginActivity extends Activity {
         form.addView(secondary,new LinearLayout.LayoutParams(-1,-2));
         verify=quiet(secondary,"检查登录状态",()->run(()->{
             JSONObject session=new LifeSessionVault(this).load();if(session==null)return "尚未登录，请先完成支付宝授权或短信验证";
-            int result=LifeAuthApi.verify(session);return result>=0?"服务器确认登录有效。请从今日页扫码进入设备。":"服务器未确认登录有效（状态码 "+result+"），暂不能判断是否过期；本机登录已保留。";
+            int result=LifeAuthApi.verify(session);
+            if(result>=0)return "服务器确认登录有效。请从今日页扫码进入设备。";
+            // -99 是服务器的「登录状态已过期」，其余负数（-1 请求参数错误最常见）只是这次核验没问成。
+            if(LifeAuthApi.expired(result))return "服务器说登录已过期，请重新用支付宝授权或短信验证登录。";
+            return "本机登录已保存。服务器这次没有返回可核对的状态（"+result+"），这不代表登录失效。";
         }));
         clear=quiet(secondary,"清除本机慧生活登录",()->run(()->{new LifeSessionVault(this).clear();sentPhone="";runOnUiThread(()->{if(!isDestroyed()){phone.setText("");code.setText("");captcha.setText("");picture.setImageDrawable(null);ready=false;}});return "本机登录已清除";}));
 
