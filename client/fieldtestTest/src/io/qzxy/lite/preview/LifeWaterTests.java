@@ -14,9 +14,24 @@ public final class LifeWaterTests {
   data.put("prepay",true);rejected=false;try{LifeWaterProtocol.payments(reply,"test","user");}catch(Exception e){rejected=true;}check(rejected);data.put("prepay",false);
   data.remove("user");check(LifeWaterProtocol.payments(reply,"test","user").contains(91));data.put("user",JSONObject.NULL);
   dev.getJSONObject("ep").getJSONObject("setting").put("payPwd",1);rejected=false;try{LifeWaterProtocol.payments(reply,"test","user");}catch(Exception e){rejected=true;}check(rejected);
-  check(LifeWaterProtocol.startPath("test",91).contains("ptype=91"));check(LifeWaterProtocol.endPath("test").equals("/api/v1/dev/end?did=test&rcp=false"));
-  for(String id:new String[]{"x&cmd=start","","x?y"}){rejected=false;try{LifeWaterProtocol.startPath(id,91);}catch(Exception e){rejected=true;}check(rejected);}
-  rejected=false;try{LifeWaterProtocol.startPath("test",21);}catch(Exception e){rejected=true;}check(rejected);
+  // 3.1.10 起开启走 dev/mode/start。路径与参数顺序照抄被服务端接受的那一条：同样的凭据、
+  // 同样的 VersionCode，dev/start 只回「请升级最新版APP」，这条却回了 -3（设备状态话），
+  // 说明版本协商已过。mode 取设备自己的 gene.mode，不自己编。
+  check(LifeWaterProtocol.startPath("test",91,0).equals("/api/v1/dev/mode/start?did=test&mode=0&ptype=91&args=&rcp=false&cnt=1&upgrade=true"));
+  check(LifeWaterProtocol.startPath("test",92,3).contains("mode=3&ptype=92"));
+  check(LifeWaterProtocol.endPath("test").equals("/api/v1/dev/end?did=test&rcp=false"));
+  for(String id:new String[]{"x&cmd=start","","x?y"}){rejected=false;try{LifeWaterProtocol.startPath(id,91,0);}catch(Exception e){rejected=true;}check(rejected);}
+  rejected=false;try{LifeWaterProtocol.startPath("test",21,0);}catch(Exception e){rejected=true;}check(rejected);
+  rejected=false;try{LifeWaterProtocol.startPath("test",91,-1);}catch(Exception e){rejected=true;}check(rejected);
+  rejected=false;try{LifeWaterProtocol.startPath("test",91,1000);}catch(Exception e){rejected=true;}check(rejected);
+  check(LifeWaterProtocol.mode(reply)==0);
+  dev.getJSONObject("gene").put("mode",2);check(LifeWaterProtocol.mode(reply)==2);
+  dev.getJSONObject("gene").put("mode",-1);rejected=false;try{LifeWaterProtocol.mode(reply);}catch(Exception e){rejected=true;}check(rejected);
+  dev.getJSONObject("gene").remove("mode");check(LifeWaterProtocol.mode(reply)==0);
+  // 余额只用来解释 -3，不用来拦人：没给时是 -1，0 时照发（后付费、赠送额度的规则我们看不全）。
+  check(LifeWaterProtocol.balance(reply)==-1);
+  data.put("wallet",new JSONObject().put("total",0));check(LifeWaterProtocol.balance(reply)==0);
+  data.put("wallet",new JSONObject().put("total",1250));check(LifeWaterProtocol.balance(reply)==1250);
   android.content.Context c=runner.getTargetContext();
   // 官方 3.1.10 的 versionCode 就是 31010；把它原样报上去，dev/start 仍然回「请升级最新版APP」，
   // 所以那道门不是「版本号小于某个数」——2.3.5 抬到 50000 也是同一句。这里只保留判据本身：

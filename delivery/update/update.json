@@ -1,12 +1,13 @@
 {
-  "version": "2.3.6",
-  "versionCode": 165,
+  "version": "2.3.7",
+  "versionCode": 166,
   "notes": [
-    "官方 3.1.10 的包取回来了，确认 versionCode 就是 31010——但我们照它报，dev/start 仍回「请升级最新版APP」，所以那道门不是比版本号，抬高数字已经证明无用，版本号阶梯已撤掉",
-    "新增「协议探测」：设备详情 ⓘ → 诊断… → 协议探测，一次试几种请求长相（新路径 dev/mode/start、ApplicationType 变体、几个可疑请求头），把每条的服务端原话列出来",
-    "开启用水失败时不再自动重试，直接说明这条控制接口要求官方新协议，并提示先跑一次探测"
+    "找到过墙的路了：同样的凭据、同样的版本号，dev/start 只回「请升级最新版APP」，而 3.1.10 新增的 dev/mode/start 直接进了业务逻辑（回 -3「设备当前状态下，无法操作」）。开启用水正式改走这条路径，mode 取设备自己的 gene.mode",
+    "被拒时不再一律说「可以重试」：-3 说明设备/账户状态不接受开启，会写明未下发任何指令，并点出常见原因是余额为 0 或设备刚被他人占用",
+    "设备就绪但账户余额为 0 时，页面提前提示「开启多半会被拒，请先在原版充值」，不再让你点了才失败",
+    "解锁设备时的模式字段越界（不在 0–999）会拒绝发送，不拿猜测的值去打设备"
   ],
-  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.3.6.apk?sharecode=BZD63HRP4B",
-  "bytes": 5338780,
-  "sha256": "d0af9eecd300d4c1b5dba66d44454fa8bcbc468c5b7d7e6dae4afc813dfea74f"
+  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.3.7.apk?sharecode=BZD63HRP4B",
+  "bytes": 5342876,
+  "sha256": "36f7b6ae8ca9a254d3695a641f9d584b3a085b6d6ed59a65260501a84317de2a"
 }

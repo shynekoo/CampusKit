@@ -35,7 +35,7 @@ public final class LifeWaterActivity extends Activity {
    List<Integer> options=Collections.emptyList();boolean mine=owner.equals(user);String message;
    if(mine)message="正在使用此设备，用完请点结束。";
    else if(!owner.isEmpty())message="设备当前使用者不是本账号，请用原版查看这笔记录。";
-   else{try{options=LifeWaterProtocol.payments(response,did,user);message="设备已就绪，点击开启用水。";}catch(Exception e){message=LifeDeviceFailure.describe(e);}}
+   else{try{options=LifeWaterProtocol.payments(response,did,user);message="设备已就绪，点击开启用水。"+(LifeWaterProtocol.balance(response)==0?"\n账户余额为 0，开启多半会被拒；请先在原版慧生活充值。":"");}catch(Exception e){message=LifeDeviceFailure.describe(e);}}
    final List<Integer> available=options;final String note=message;final boolean inUse=mine;
    post(()->{busy=false;screen.loading(false);uid=user;pays=available;info.setText(p.name+(p.location.isEmpty()?"":"\n"+p.location));deviceDetails=p.name+"\n"+p.location+"\n"+p.enterprise+"\n"+p.typeLabel()+"\n"+p.networkLabel()+" · "+p.statusLabel();status.setText(note);refresh.setEnabled(true);start.setVisibility(inUse?View.GONE:View.VISIBLE);start.setEnabled(!inUse&&!available.isEmpty());stop.setVisibility(inUse?View.VISIBLE:View.GONE);stop.setEnabled(inUse);});
   }catch(Exception e){post(()->{busy=false;screen.loading(false);disable();status.setText(LifeDeviceFailure.describe(e)+"。未发送控制请求。");});}});}
@@ -48,17 +48,23 @@ public final class LifeWaterActivity extends Activity {
  private void command(boolean opening,int pay){if(busy)return;busy=true;disable();status.setText("正在重新核对设备…");final String expectedUser=uid;
   worker.execute(()->{try{JSONObject s=session();String user=s.getString("uid");if(!user.equals(expectedUser))throw new LifeDeviceFailure("账号已变化，请刷新后再操作");
    JSONObject response=detail(s);
-   if(opening){if(!LifeWaterProtocol.payments(response,did,user).contains(pay))throw new LifeDeviceFailure("支付方式已变化，请重新核对");}
+   int mode=0;
+   if(opening){if(!LifeWaterProtocol.payments(response,did,user).contains(pay))throw new LifeDeviceFailure("支付方式已变化，请重新核对");mode=LifeWaterProtocol.mode(response);}
    else LifeWaterProtocol.canStop(response,did,user);
    if(closed)return;
-   String path=opening?LifeWaterProtocol.startPath(did,pay):LifeWaterProtocol.endPath(did);lastPath=path;lastReply=null;
+   String path=opening?LifeWaterProtocol.startPath(did,pay,mode):LifeWaterProtocol.endPath(did);lastPath=path;lastReply=null;
    JSONObject reply=LifeWaterProtocol.send(path,s,this);lastReply=reply;LifeDeviceFailure.success(reply);
    post(()->{busy=false;screen.loading(false);status.setText("请求已受理，正在核对设备状态；尚未确认结算。");refresh();});
   }catch(Exception e){
    // 被明确拒绝 = 指令没下发，设备状态没变，可以直接重试；其它情况（超时、HTTP 错误）结果未知，得刷新核实。
    if(e instanceof LifeDeviceFailure.Rejected)lastReply=((LifeDeviceFailure.Rejected)e).reply;
    final boolean unclear=!(e instanceof LifeDeviceFailure.Rejected);final String why=LifeDeviceFailure.describe(e);
-   post(()->{busy=false;screen.loading(false);disable();status.setText(why+(unclear?"。结果未确认，请刷新核实设备状态。":"。设备状态没有改变，可以重试。"));});}});
+   // -3 是设备/账户的状态话，不是协议问题：同样的请求再点一次结果一样，不能拿「可以重试」敷衍过去。
+   final int rejected=unclear?0:((LifeDeviceFailure.Rejected)e).code;
+   final String tail=unclear?"。结果未确认，请刷新核实设备状态。"
+    :rejected==-3?"。未下发任何指令：设备当前不接受开启，常见原因是账户余额为 0 或设备刚被他人占用。"
+    :"。设备状态没有改变，可以重试。";
+   post(()->{busy=false;screen.loading(false);disable();status.setText(why+tail);});}});
  }
  /** 身份字段一律不copy出去：诊断要的是设备结构与参数名，不是账号。 */
  private static final Set<String> SENSITIVE=new HashSet<>(Arrays.asList("token","uid","user","telephone","telphone","tel","phone","logincode","idcard","idcardno","pwd","password","opencode"));
