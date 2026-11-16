@@ -130,6 +130,8 @@ public final class ScanActivity extends Activity implements SurfaceHolder.Callba
         torchParams.topMargin = dp(12); torchParams.rightMargin = dp(12);
         viewport.addView(torch, torchParams);
         root.addView(viewport, new LinearLayout.LayoutParams(-1, 0, 1));
+        // A long failure message must not squeeze the camera out of existence.
+        viewport.setMinimumHeight(dp(200));
 
         // Only shown when the sensor actually zooms; a dead slider was pure clutter.
         zoomRow = new LinearLayout(this); zoomRow.setGravity(Gravity.CENTER_VERTICAL);
