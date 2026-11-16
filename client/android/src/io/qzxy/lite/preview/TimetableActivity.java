@@ -66,10 +66,11 @@ public final class TimetableActivity extends Activity {
     private boolean accountVisible,sessionChecking,expiredNotice;
     private static final String CAINIAO_PACKAGE = "com.cainiao.wireless";
     private static final String CAINIAO_HOME_ACTIVITY = "com.cainiao.wireless.homepage.view.activity.HomePageActivity";
-    /** 菜鸟裹裹 calls this page 出库码 / 身份码; both names are used in its own text. */
+    /** 菜鸟裹裹's router path for the same page; only its exported host can be started with it. */
     private static final String CAINIAO_IDENTITY_CODE = "guoguo://go/station_code";
-    /** Tried in order when the pickup code is tapped. */
-    private static final String[] CAINIAO_FALLBACK_PACKAGES = {CAINIAO_PACKAGE, "com.taobao.taobao", "com.eg.android.AlipayGphone"};
+    private static final String TAOBAO_PACKAGE = "com.taobao.taobao";
+    /** Opened in this order when the identity code is tapped; 淘宝 owns the page now. */
+    private static final String[] PICKUP_FALLBACK_PACKAGES = {TAOBAO_PACKAGE, CAINIAO_PACKAGE, "com.eg.android.AlipayGphone"};
     private final java.util.concurrent.ExecutorService pdfWorker = java.util.concurrent.Executors.newSingleThreadExecutor();
     @Override protected void onDestroy() { pdfWorker.shutdown(); clockHandler.removeCallbacks(clockTick);if(store!=null)store.unregisterOnSharedPreferenceChangeListener(timetableChanged); super.onDestroy(); }
 
@@ -128,30 +129,45 @@ public final class TimetableActivity extends Activity {
     }
 
     /**
-     * Opens 菜鸟裹裹's 出库码 (identity code) page.
+     * Opens 菜鸟驿站's 身份码 as 淘宝 → 菜鸟驿站 → 身份码.
      *
-     * The page's own activity is {@code exported="false"}, so an implicit {@code guoguo://go/station_code}
-     * intent is refused by the system. The app's own launcher shortcut therefore starts HomePageActivity
-     * (exported) with a "jumpPath" extra that its internal router resolves. That contract is not a guess:
-     * in the installed 菜鸟裹裹 dex, {@code HomePageActivity.handleShortcuts()} reads
-     * {@code extras.getString("jumpPath")} and {@code extras.getString("entrance")}, then calls
-     * {@code Router.from(this).toUri(jumpPath)} — and both keys must be non-empty or it returns silently.
-     * It is also called from onNewIntent, so it works whether 菜鸟裹裹 is cold or already running.
+     * <p>That page is Taobao's own H5, and Taobao only renders its own pages inside the {@code tbopen}
+     * bridge, so the address travels as a percent-encoded {@code h5Url} instead of a plain https intent.
+     * Both bridge schemes are tried because older builds answer only {@code tbopen}. 菜鸟裹裹's own
+     * 身份码 page is kept as the second choice for phones that still have the app, since the station
+     * accepts either code. If no page can be reached, the installed app opens with instructions and
+     * the browser is the last resort.
      */
-    private void openCainiao() {
-        // The direct route first, in case a future build exports the page.
-        if (tryStart(new Intent(Intent.ACTION_VIEW, Uri.parse(CAINIAO_IDENTITY_CODE)).setPackage(CAINIAO_PACKAGE))) return;
-        // The route the app's own shortcut uses: an exported host plus the router path.
+    private void openPickupCode() {
+        for (String link : io.qzxy.lite.core.PickupCodeLinks.taobaoBridges()) {
+            Intent bridge = new Intent(Intent.ACTION_VIEW, Uri.parse(link));
+            bridge.setPackage(TAOBAO_PACKAGE);
+            if (tryStart(bridge)) return;
+        }
+        // 菜鸟裹裹, in case a future build exports the page for a direct intent.
+        if (tryStart(new Intent(Intent.ACTION_VIEW,
+            Uri.parse(io.qzxy.lite.core.PickupCodeLinks.CAINIAO_IDENTITY)).setPackage(CAINIAO_PACKAGE))) return;
+        // The route 菜鸟裹裹's own shortcut uses: its exported host plus the router path.
         Intent routed = new Intent(Intent.ACTION_VIEW);
         routed.setClassName(CAINIAO_PACKAGE, CAINIAO_HOME_ACTIVITY);
         routed.putExtra("jumpPath", CAINIAO_IDENTITY_CODE);
         routed.putExtra("entrance", "campuskit");
         if (tryStart(routed)) return;
-        for (String name : CAINIAO_FALLBACK_PACKAGES) {
+        for (String name : PICKUP_FALLBACK_PACKAGES) {
             Intent launch = getPackageManager().getLaunchIntentForPackage(name);
-            if (launch != null && tryStart(launch)) return;
+            if (launch != null && tryStart(launch)) {
+                android.widget.Toast.makeText(this, name.equals(TAOBAO_PACKAGE)
+                    ? "已打开淘宝，请依次进入 我的 → 菜鸟驿站 → 身份码。"
+                    : "已打开应用，请在里面找到菜鸟驿站的身份码。", android.widget.Toast.LENGTH_LONG).show();
+                return;
+            }
         }
-        android.widget.Toast.makeText(this, "没有找到菜鸟裹裹或淘宝，无法跳转。", android.widget.Toast.LENGTH_LONG).show();
+        Intent web = new Intent(Intent.ACTION_VIEW, Uri.parse(io.qzxy.lite.core.PickupCodeLinks.TAOBAO_IDENTITY_H5));
+        if (tryStart(web)) {
+            android.widget.Toast.makeText(this, "没有找到淘宝，已在浏览器打开身份码网页，可能需要先登录。", android.widget.Toast.LENGTH_LONG).show();
+            return;
+        }
+        android.widget.Toast.makeText(this, "没有找到淘宝或菜鸟裹裹，无法打开身份码。", android.widget.Toast.LENGTH_LONG).show();
     }
 
     /** @return true when something opened; a refused target (not exported) or a missing one returns false. */
@@ -160,6 +176,7 @@ public final class TimetableActivity extends Activity {
         try { startActivity(intent); return true; }
         catch (android.content.ActivityNotFoundException missing) { return false; }
         catch (SecurityException refused) { return false; }
+        catch (IllegalArgumentException malformed) { return false; }
     }
 
     /** Uses the installed YiXiaoYuan app's own res/xml/shortcuts payCode contract. */
@@ -663,7 +680,7 @@ public final class TimetableActivity extends Activity {
         row.addView(shortcutTile("water","慧生活","用水",this::openLife798),new LinearLayout.LayoutParams(0,-2,1));
         row.addView(shortcutTile("scan","趣智校园","扫码",()->startActivity(new Intent(this,ScanActivity.class))),new LinearLayout.LayoutParams(0,-2,1));
         row.addView(shortcutTile("pay","易校园","付款码",this::openCampusPayCode),new LinearLayout.LayoutParams(0,-2,1));
-        row.addView(shortcutTile("parcel","菜鸟","出库码",this::openCainiao),new LinearLayout.LayoutParams(0,-2,1));
+        row.addView(shortcutTile("parcel","身份码","淘宝·菜鸟驿站",this::openPickupCode),new LinearLayout.LayoutParams(0,-2,1));
         card.addView(row);parent.addView(card,new LinearLayout.LayoutParams(-1,-2));
     }
     /** Grades, empty classrooms, the auto-signed-in portal and the two official school sites. */

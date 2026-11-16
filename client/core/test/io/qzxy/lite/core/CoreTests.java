@@ -967,6 +967,22 @@ public final class CoreTests {
         });
         System.out.println("PASS: school login form fields and RSA password");
 
+        // 身份码 travels to 淘宝 as an h5Url query value, so everything but unreserved chars is escaped
+        // and '+' never appears: Taobao's bridge reads '+' as a space and would break the URL.
+        equal("https%3A%2F%2Fpages-fast.m.taobao.com%2Fwow%2Fz%2Funiapp%2F1011717%2Flast-mile-fe%2Fend-collect-platform%2Fidentity-code%3Fx-ssr%3Dtrue",
+            PickupCodeLinks.encode(PickupCodeLinks.TAOBAO_IDENTITY_H5));
+        equal("a%20b%2Bc", PickupCodeLinks.encode("a b+c"));
+        equal("%E8%BA%AB%E4%BB%BD", PickupCodeLinks.encode("身份"));
+        equal("-._~AZaz09", PickupCodeLinks.encode("-._~AZaz09"));
+        String[] bridges = PickupCodeLinks.taobaoBridges();
+        equal(2, bridges.length);
+        equal(true, bridges[0].startsWith("taobao://m.taobao.com/tbopen/index.html?h5Url=https%3A%2F%2F"));
+        equal(true, bridges[1].startsWith("tbopen://m.taobao.com/tbopen/index.html?h5Url=https%3A%2F%2F"));
+        equal(1, bridges[0].split("\\?", -1).length - 1);
+        equal(false, bridges[0].contains("+"));
+        equal("cainiao://desktop/station_code", PickupCodeLinks.CAINIAO_IDENTITY);
+        System.out.println("PASS: identity-code bridge links keep the Taobao page address intact");
+
         System.out.println("All " + assertions + " assertions passed. Live API/Bluetooth compatibility is not tested here.");
     }
 

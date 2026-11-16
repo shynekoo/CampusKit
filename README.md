@@ -1,10 +1,12 @@
 # CampusKit（趣智校园第三方安卓客户端）
 
-当前版本：CampusKit 1.4.9（`delivery/CampusKit-1.4.9.apk`，版本代码 144）。**慧生活798 扫码改成票据语义**：新版设备码是 `https://…/q/<n>/{b|s|billing|vip|wallet}?id=<票据>`，`?id=` 是服务端票据而非设备编号，必须 `GET /api/v1/qr/use?id=` 换编号（`qr.type` 3 设备 / 8 门锁）；解析与兑换逻辑按 GitHub `ilife798/ilife798`（`DeviceLinkParser`、`QrScanResolve`）和 `nocookies111/life-798` 重写，另支持 `bm?/<票据>`、`ilife798s://` NFC 深链、`/q/<n>/<编号>`。876 项核心断言通过，v2/v3 签名通过，**本版未经真机验证**。[发布说明](delivery/release-1.4.9.md)。
+当前版本：CampusKit 1.5.0（`delivery/CampusKit-1.5.0.apk`，版本代码 145）。**取件入口改成「身份码」**：菜鸟已把「出库码」并入淘宝的菜鸟驿站身份码页，入口由 `菜鸟 / 出库码` 改为 `身份码 / 淘宝·菜鸟驿站`，点击经淘宝 `tbopen` 桥打开 `pages-fast.m.taobao.com/…/end-collect-platform/identity-code`（地址与编码在核心库 `PickupCodeLinks`，按 GitHub `yimeifun/PickTool` 的 `Destination.TAOBAO` 校准），再依次兜底 `cainiao://desktop/station_code`、菜鸟路由、打开已装 App、浏览器。886 项核心断言通过，v2/v3 签名通过，**本版未经真机验证**。[发布说明](delivery/release-1.5.0.md)。
 
-2026-11-16：1.4.9 修慧生活扫码——`?id=` 是票据，需 `/qr/use` 换取设备编号。
+2026-11-16：1.5.0 出库码改为淘宝-菜鸟驿站-身份码。
 
-上一版：CampusKit 1.4.7（`delivery/CampusKit-1.4.7.apk`，版本代码 142）。修「充值一直停在正在打开支付宝…」：交给支付宝的回调桩把 `getVersion()` 错答成 1（官方 SDK 是 4），支付宝因此不拉起收银台，而 `pay02` 是同步调用，界面就永久等待；现已对齐为 `getVersion=4`、`isHideLoadingScreen=false`，并补 15 秒收银台看门狗与 `payEnd` 结果兜底。界面同步调整：首页「今天的课」与「教务」互换、去掉最下方「取件信息」、「大学官网」改名「河工程官网」、课表菜单去掉「网页手动导入课表」。857 项核心断言通过，v2/v3 签名通过，**本版未经真机验证**。[发布说明](delivery/release-1.4.7.md)。
+上一版：CampusKit 1.4.9（`delivery/CampusKit-1.4.9.apk`，版本代码 144）。**慧生活798 扫码改成票据语义**：新版设备码是 `https://…/q/<n>/{b|s|billing|vip|wallet}?id=<票据>`，`?id=` 是服务端票据而非设备编号，必须 `GET /api/v1/qr/use?id=` 换编号（`qr.type` 3 设备 / 8 门锁）；解析与兑换逻辑按 GitHub `ilife798/ilife798`（`DeviceLinkParser`、`QrScanResolve`）和 `nocookies111/life-798` 重写，另支持 `bm?/<票据>`、`ilife798s://` NFC 深链、`/q/<n>/<编号>`。876 项核心断言通过，v2/v3 签名通过，**本版未经真机验证**。[发布说明](delivery/release-1.4.9.md)。
+
+更早：CampusKit 1.4.7（`delivery/CampusKit-1.4.7.apk`，版本代码 142）。修「充值一直停在正在打开支付宝…」：交给支付宝的回调桩把 `getVersion()` 错答成 1（官方 SDK 是 4），支付宝因此不拉起收银台，而 `pay02` 是同步调用，界面就永久等待；现已对齐为 `getVersion=4`、`isHideLoadingScreen=false`，并补 15 秒收银台看门狗与 `payEnd` 结果兜底。界面同步调整：首页「今天的课」与「教务」互换、去掉最下方「取件信息」、「大学官网」改名「河工程官网」、课表菜单去掉「网页手动导入课表」。857 项核心断言通过，v2/v3 签名通过，**本版未经真机验证**。[发布说明](delivery/release-1.4.7.md)。
 
 2026-11-16：1.4.7 修支付宝收银台不弹出，并按反馈调整首页顺序与菜单。
 
