@@ -120,7 +120,7 @@ public final class LifeLoginActivity extends Activity {
             JSONObject session=LifeAuthApi.session(response);
             if(closed||isFinishing()||isDestroyed())return "已取消保存";
             new LifeSessionVault(this).save(session);
-            runOnUiThread(()->{if(!isDestroyed()&&getIntent().getBooleanExtra("returnToAccountInfo",false))finish();});
+            runOnUiThread(()->{if(isDestroyed()||isFinishing())return;setResult(RESULT_OK);finish();});
             return "已通过支付宝登录，凭据已加密保存在本机。";
         });
     }

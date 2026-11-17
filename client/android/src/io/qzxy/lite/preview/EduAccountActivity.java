@@ -156,8 +156,14 @@ public final class EduAccountActivity extends Activity {
             runOnUiThread(() -> {
                 if (isDestroyed() || isFinishing()) return;
                 busy(false);
+                // 登录成功就交还控制权：教务门户、课表导入、成绩页都在 onResume/onActivityResult
+                // 里接着把原来的查询跑完，停在这一页只会让读者自己再按一次返回。
+                if (done) {
+                    setResult(RESULT_OK);
+                    finish();
+                    return;
+                }
                 status.setText(text);
-                if (done) setResult(RESULT_OK);
             });
         });
     }

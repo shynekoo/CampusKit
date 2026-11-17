@@ -945,7 +945,10 @@ public final class TimetableActivity extends Activity {
         LinearLayout card=whiteCard();
         campusEntry(card,"user",AppUi.ACCENT,"趣智校园","浴室、吹风机",()->startActivity(new Intent(this,AccountInfoActivity.class)),true);
         campusEntry(card,"water",0xff37668b,"慧生活798","饮水",()->startActivity(new Intent(this,AccountInfoActivity.class).putExtra("life798",true)),true);
-        campusEntry(card,"info",0xff4a5b70,"数据与隐私","本机存了什么、发到哪里、怎么清除",()->startActivity(new Intent(this,PrivacyActivity.class)),true);
+        // 教务系统的登录页自带一个入口，不再挤进课表页：成绩、空教室、课表导入都靠这份 session，
+        // 放在账号列表里与另外两个校园服务并排，找得到也说得清自己在登什么。
+        campusEntry(card,"school",0xff8a5a2b,"教务系统","成绩、空教室与课表导入",()->startActivity(new Intent(this,EduLoginActivity.class)),true);
+        // 数据与隐私 已移到「更多」：它讲的是这个应用本身存了什么，不是一项校园服务。
         // Feedback sits above the update check: both are about the app itself rather than about an
         // account, and a reader who came here to complain should not have to scroll past 检查更新.
         campusEntry(card,"mail",0xff4a5b70,"意见反馈","邮箱与 QQ 群",()->startActivity(new Intent(this,FeedbackActivity.class)),true);

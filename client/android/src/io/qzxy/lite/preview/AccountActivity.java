@@ -174,11 +174,13 @@ public final class AccountActivity extends Activity {
         });
     }
     private void signedIn(boolean fresh) {
-        if(fresh&&getIntent().getBooleanExtra("returnToAccountInfo",false)){finish();return;}
+        // 登录成功一律回到上一页，不再看 returnToAccountInfo：调用页 onResume 会自己重新读取
+        // 本机登录状态，留在这里只是多让读者按一次返回。
+        if(fresh){setResult(RESULT_OK);finish();return;}
         send = null;
         LinearLayout panel = panel();
-        add(panel, text(fresh ? "登录成功" : "已保存登录状态", 28, INK)); gap(panel, 16);
-        TextView verification = text(fresh ? "登录成功。" : "已保存账号，可在账户页检查登录状态。", 15, MUTED);
+        add(panel, text("已保存登录状态", 28, INK)); gap(panel, 16);
+        TextView verification = text("已保存账号，可在账户页检查登录状态。", 15, MUTED);
         add(panel, verification); gap(panel, 24);
         TextView accountInfo = text("点击下方查询，验证登录状态并读取校园账户余额。", 15, MUTED); add(panel, accountInfo); gap(panel, 20);
         Button refresh = button("查询账号与余额", () -> {}); add(panel, refresh); gap(panel, 24);

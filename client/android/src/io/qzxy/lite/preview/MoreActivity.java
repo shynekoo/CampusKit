@@ -17,10 +17,10 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 /**
- * 更多：the two things about this project that live outside the phone — where the source is, and
- * under what terms it may be used.
+ * 更多：the things about this project itself — what it stores on the phone, where the source is,
+ * and under what terms it may be used.
  *
- * <p>Both are one tap from the account page and neither needs the network to be understood, so the
+ * <p>All are one tap from the account page and none needs the network to be understood, so the
  * licence is shown here in full rather than as a link that fails on a phone with no browser. The
  * repository is a link, because a copy of GitHub inside this app would be a second browser nobody
  * asked for; the page hands the address to whatever app already handles web pages.</p>
@@ -134,6 +134,11 @@ public final class MoreActivity extends Activity {
             .show();
     }
 
+    /** 数据与隐私 lives behind this page now, but it is still one tap from 校园. */
+    private void openPrivacy() {
+        startActivity(new Intent(this, PrivacyActivity.class));
+    }
+
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
         LinearLayout root = new LinearLayout(this);
@@ -160,11 +165,14 @@ public final class MoreActivity extends Activity {
         TextView heading = text("更多", 26, AppUi.INK);
         heading.setTypeface(null, Typeface.BOLD);
         root.addView(heading);
-        TextView caption = text("源码与许可证", 12, AppUi.MUTED);
+        TextView caption = text("数据、源码与许可证", 12, AppUi.MUTED);
         caption.setPadding(0, dp(2), 0, dp(12));
         root.addView(caption);
 
         LinearLayout card = card();
+        // 数据与隐私 从校园页挪到这里：它回答的是「这个应用本身动了什么」，与源码、许可证同类，
+        // 而不是像趣智校园/慧生活那样的一项校园服务。
+        entry(card, "info", "数据与隐私", "本机存了什么、发到哪里、怎么清除", true, this::openPrivacy);
         entry(card, "globe", "本项目 GitHub 仓库", "github.com/shynekoo/CampusKit", true, this::openRepository);
         entry(card, "score", "查看开源许可证", "MIT License", false, this::showLicence);
         root.addView(card);
