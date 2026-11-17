@@ -1,11 +1,13 @@
 {
-  "version": "2.5.0",
-  "versionCode": 170,
+  "version": "2.5.3",
+  "versionCode": 173,
   "notes": [
-    "开启用水不再弹支付方式选择：固定使用支付宝免密（本机账单里的每一笔水费都是它）",
-    "设备未提供支付宝免密时提前说明可用方式，不再盲发请求"
+    "账号页新增「意见反馈」：邮箱与 QQ 群，点一下即可复制",
+    "账号页新增「更多」：直达 GitHub 源码与 MIT 开源许可证",
+    "慧生活798 登录只保留支付宝授权，去掉手机号验证码那条路",
+    "客户端按 MIT 许可证开源"
   ],
-  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.5.0.apk?sharecode=BZD63HRP4B",
+  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.5.3.apk?sharecode=BZD63HRP4B",
   "bytes": 5342876,
-  "sha256": "8782e26c4458e51d8b2639ad838e7698a15f8e01ff8bfb07b1ab9b5b6262f131"
+  "sha256": "7d2cf698bb35a8a6b29c9882b8c1aeab8ab7e301de1bec03b9363288467586cb"
 }

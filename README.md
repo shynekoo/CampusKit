@@ -15,7 +15,7 @@
 ## 下载
 
 - GitHub Releases：<https://github.com/shynekoo/CampusKit/releases/latest>
-- 直链（国内更稳）：<https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.5.0.apk?sharecode=BZD63HRP4B>
+- 直链（国内更稳）：<https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.5.3.apk?sharecode=BZD63HRP4B>
 
 ## 隐私
 
