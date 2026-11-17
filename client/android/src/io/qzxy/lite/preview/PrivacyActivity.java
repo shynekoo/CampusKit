@@ -10,6 +10,8 @@ import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.webkit.CookieManager;
+import android.webkit.WebStorage;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -32,7 +34,7 @@ public final class PrivacyActivity extends Activity {
      */
     private static final String[] SETTINGS = {
         "campus-v1", "pickup-widget", "water-history",
-        "edu-account-state", "life798-login-ui", "notice-v1"
+        "edu-account-state", "life798-login-ui", "notice-v1", "update-v1"
     };
 
     private TextView status;
@@ -228,7 +230,15 @@ public final class PrivacyActivity extends Activity {
             try { new AccountVault(context).clear(); } catch (Exception failure) { failed.append("趣智校园会话 "); }
             try { new LifeSessionVault(context).clear(); } catch (Exception failure) { failed.append("慧生活798 会话 "); }
             try { new EduVault(context).clear(); } catch (Exception failure) { failed.append("教务账号 "); }
+            // Deleting the stored secret is not enough: EduClient keeps the signed-in cookie and
+            // the account in static fields, and would happily answer the next query without them.
+            try {
+                EduClient.cancelSignOut();
+                EduClient.signOut();
+                EduClient.remember("", "");
+            } catch (Exception failure) { failed.append("教务登录态 "); }
             if (everything) {
+                try { new PendingUseVault(context).clear(); } catch (Exception failure) { failed.append("未结用水记录 "); }
                 TimetableStore.wipe(context);
                 for (String name : SETTINGS) context.getSharedPreferences(name, MODE_PRIVATE).edit().clear().commit();
             }
@@ -237,16 +247,16 @@ public final class PrivacyActivity extends Activity {
                 if (isFinishing() || isDestroyed()) return;
                 clearSessions.setEnabled(true);
                 clearAll.setEnabled(true);
+                // WebView cookies would be copied back into EduClient on the next visit.
+                CookieManager.getInstance().removeAllCookies(ok -> CookieManager.getInstance().flush());
+                WebStorage.getInstance().deleteAllData();
                 if (!problem.isEmpty()) {
                     status.setText("以下内容没能清除：" + problem + "。请重试，或卸载应用后重装。");
                     return;
                 }
-                if (!everything) {
-                    status.setText("已清除。三个账号下次使用都需要重新登录。");
-                    return;
-                }
-                status.setText("已清除全部本机数据。");
-                // The home screen still holds the deleted timetable in memory, so rebuild it.
+                status.setText(everything ? "已清除全部本机数据。" : "已清除。三个账号下次使用都需要重新登录。");
+                // Screens behind this one cached their signed-in state; rebuild the home screen so
+                // both the login state and (for the full wipe) the timetable are re-read.
                 Intent home = new Intent(this, TimetableActivity.class);
                 home.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
                 startActivity(home);

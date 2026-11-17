@@ -35,6 +35,7 @@ import java.util.concurrent.Executors;
 public final class EduPortalActivity extends Activity {
     private static final String HOME = EduClient.ORIGIN + "/xtgl/index_initMenu.html";
     private static final String LOGIN = EduClient.ORIGIN + "/xtgl/login_slogin.html";
+    private static final int ACCOUNT_REQUEST = 74;
     private static final long GRACE_MS = 5 * 60 * 1000L;
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
@@ -42,7 +43,7 @@ public final class EduPortalActivity extends Activity {
     private TextView status;
     private Button backButton;
     private int generation;
-    private boolean signedOut;
+    private boolean signedOut, askedAccount;
 
     private int dp(int n) { return Math.round(n * getResources().getDisplayMetrics().density); }
 
@@ -91,7 +92,7 @@ public final class EduPortalActivity extends Activity {
         action(first, "刷新", () -> web.reload());
         root.addView(first);
         LinearLayout second = new LinearLayout(this);
-        action(second, "教务账号", () -> startActivity(new Intent(this, EduAccountActivity.class)));
+        action(second, "教务账号", this::openAccount);
         action(second, "退出登录", this::signOut);
         root.addView(second);
 
@@ -149,8 +150,13 @@ public final class EduPortalActivity extends Activity {
             EduVault.Credential credential = new EduVault(getApplicationContext()).load();
             if (credential == null || !credential.complete() || credential.refused) {
                 post(ticket, () -> {
-                    status.setText("还没有可用的教务账号：可在此登录，或到「教务账号」保存后自动登录。");
+                    status.setText("还没有可用的教务账号：已打开「教务账号」，保存后会自动登录；也可以直接在下面的学校页面登录。");
                     web.loadUrl(LOGIN);
+                    // The school login page stays usable if they back out; ask only once per visit.
+                    if (!askedAccount) {
+                        askedAccount = true;
+                        openAccount();
+                    }
                 });
                 return;
             }
@@ -175,6 +181,19 @@ public final class EduPortalActivity extends Activity {
                 });
             }
         });
+    }
+
+    private void openAccount() {
+        startActivityForResult(new Intent(this, EduAccountActivity.class), ACCOUNT_REQUEST);
+    }
+
+    /** Saving the account here signs straight into the portal, no need to reload the page by hand. */
+    @Override protected void onActivityResult(int request, int result, Intent data) {
+        super.onActivityResult(request, result, data);
+        if (request == ACCOUNT_REQUEST && result == RESULT_OK) {
+            status.setText("账号已保存，正在自动登录教务系统…");
+            autoSignIn();
+        }
     }
 
     private void signOut() {
