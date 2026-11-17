@@ -66,6 +66,15 @@ final class AppUi {
     // Two official sites, two different marks: a portico for the university, a globe for the college.
     case "school":line(c,3.2f,9.6f,12,3.6f);line(c,12,3.6f,20.8f,9.6f);line(c,4.2f,9.6f,19.8f,9.6f);line(c,6.6f,11.4f,6.6f,18.6f);line(c,12,11.4f,12,18.6f);line(c,17.4f,11.4f,17.4f,18.6f);line(c,3.8f,20.4f,20.2f,20.4f);break;
     case "globe":c.drawCircle(12,12,8.6f,p);line(c,3.4f,12,20.6f,12);c.drawOval(7.6f,3.5f,16.4f,20.5f,p);break;
+    // 扫码：取景框的四只角加一条扫描线。以前这个位置没有画法，落到 default 的占位框上，
+    // 同一个「趣智校园」在今日页和校园页看起来像两个不同的东西。
+    case "scan":line(c,3.4f,8.6f,3.4f,4.6f);line(c,3.4f,4.6f,7.4f,4.6f);line(c,16.6f,4.6f,20.6f,4.6f);line(c,20.6f,4.6f,20.6f,8.6f);line(c,20.6f,15.4f,20.6f,19.4f);line(c,20.6f,19.4f,16.6f,19.4f);line(c,7.4f,19.4f,3.4f,19.4f);line(c,3.4f,19.4f,3.4f,15.4f);line(c,5,12,19,12);break;
+    // 教务系统：一顶学士帽。不用 school 的牌坊——那是学校官网，两个入口不该长一个样。
+    case "cap":Path cap=new Path();cap.moveTo(2.8f,8.6f);cap.lineTo(12,3.6f);cap.lineTo(21.2f,8.6f);cap.lineTo(12,13.6f);cap.close();c.drawPath(cap,p);
+     Path gown=new Path();gown.moveTo(6.8f,10.9f);gown.lineTo(6.8f,15.2f);gown.quadTo(12,18.6f,17.2f,15.2f);gown.lineTo(17.2f,10.9f);c.drawPath(gown,p);
+     line(c,21.2f,8.6f,21.2f,14.4f);break;
+    // 更多：三个实心点。同样是以前缺一个画法。
+    case "more":p.setStyle(Paint.Style.FILL);c.drawCircle(12,5.8f,1.3f,p);c.drawCircle(12,12,1.3f,p);c.drawCircle(12,18.2f,1.3f,p);break;
     // Solid triangle, not the outline chevron: it has to read as "this opens a list". It fills most
     // of the 24dp box rather than a corner of it — a triangle that only spans a third of its frame
     // disappears next to 20sp text, which is exactly what happened at the old 8×5.5 shape.
