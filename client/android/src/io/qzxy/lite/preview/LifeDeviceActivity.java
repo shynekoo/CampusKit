@@ -6,7 +6,7 @@ import android.view.*;
 import android.widget.*;
 public final class LifeDeviceActivity extends Activity {
     private final java.util.concurrent.ExecutorService worker=java.util.concurrent.Executors.newSingleThreadExecutor();
-    private TextView info,status;private Button query,water;private String code;private boolean direct;private LifeDeviceProfile profile;private boolean busy;
+    private TextView info,status;private Button query,water;private String code;private boolean direct;private LifeDeviceProfile profile;private boolean busy,askedLogin;
     private int dp(int n){return Math.round(n*getResources().getDisplayMetrics().density);}
     @Override public void onCreate(Bundle saved){super.onCreate(saved);
         // "did" is a device id already; "qrId" is a sticker ticket that /qr/use must redeem.
@@ -25,7 +25,7 @@ public final class LifeDeviceActivity extends Activity {
     private TextView text(LinearLayout parent,String value,int size){TextView t=new TextView(this);t.setText(value);t.setTextSize(size);t.setTextColor(AppUi.INK);t.setPadding(0,dp(10),0,dp(10));parent.addView(t);return t;}
     private Button button(LinearLayout parent,String value,Runnable action){Button b=new Button(this);b.setText(value);b.setOnClickListener(v->action.run());parent.addView(b);return b;}
     private void query(){if(busy)return;busy=true;query.setEnabled(false);status.setText("正在读取设备信息…");final LifeDeviceProfile previous=profile;
-        worker.execute(()->{String stage="读取本机账号";try{org.json.JSONObject session=new LifeSessionVault(this).load();if(session==null){result(null,"请先在账号登录页登录慧生活，再返回读取设备资料。");return;}
+        worker.execute(()->{String stage="读取本机账号";try{org.json.JSONObject session=new LifeSessionVault(this).load();if(session==null){result(null,"已打开慧生活登录页，完成后再读取设备资料。");if(!askedLogin){askedLogin=true;startActivity(new Intent(this,LifeLoginActivity.class));}return;}
             String id;
             if(previous!=null)id=previous.id;
             else if(direct)id=code;

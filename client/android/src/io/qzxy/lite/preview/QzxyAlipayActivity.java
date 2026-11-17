@@ -9,7 +9,7 @@ import io.qzxy.lite.core.*;
 public final class QzxyAlipayActivity extends Activity {
  private final java.util.concurrent.ExecutorService worker=java.util.concurrent.Executors.newSingleThreadExecutor();
  private DeviceQr qr;private DeviceLookup device;private DeviceScreen screen;private TextView info,status;
- private Button open,refresh,details;private boolean busy,visible,closed,needsLogin;
+ private Button open,refresh,details;private boolean busy,visible,closed,needsLogin,askedLogin;
  @Override public void onCreate(Bundle state){super.onCreate(state);try{qr=DeviceQr.parse(getIntent().getStringExtra("qr"));}catch(Exception e){finish();return;}
   screen=new DeviceScreen(this,"趣智校园");refresh=screen.icon("↻","刷新设备状态",this::lookup);details=screen.icon("ⓘ","设备详情",this::showDetails);details.setEnabled(false);
   info=screen.text(screen.card,"正在读取设备…",18);
@@ -21,7 +21,7 @@ public final class QzxyAlipayActivity extends Activity {
  private AccountSession account()throws Exception{AccountSession s=new AccountVault(this).load();if(s==null)throw new HttpForm.SessionExpired();return s;}
  private void failure(Exception e,AccountSession checked){
   if(e instanceof HttpForm.SessionExpired){boolean cleared=false;try{cleared=AccountVault.clearExpired(this,checked);}catch(Exception ignored){}final boolean removed=cleared;
-   post(()->{device=null;needsLogin=removed;open.setText(removed?"重新登录":"开启使用");working(false);status.setText(removed?"登录已失效，请重新登录。":"账户状态已变化，请点击右上角刷新。");});
+   post(()->{device=null;needsLogin=removed;open.setText(removed?"重新登录":"开启使用");working(false);status.setText(removed?"登录已失效，请重新登录。":"账户状态已变化，请点击右上角刷新。");if(removed&&!askedLogin){askedLogin=true;startActivity(new Intent(this,AccountActivity.class).putExtra("returnToAccountInfo",true));}});
   }else post(()->{working(false);status.setText(failureMessage(e));});
  }
  static String failureMessage(Exception e){

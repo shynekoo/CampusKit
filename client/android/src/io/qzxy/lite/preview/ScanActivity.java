@@ -57,7 +57,7 @@ public final class ScanActivity extends Activity implements SurfaceHolder.Callba
     private DeviceLookup lookup;
     private String recognizedRaw;
     private boolean life798;
-    private boolean returningFromDevice;
+    private boolean returningFromDevice, askedLogin;
     /** Restored whenever the camera restarts, so the panel never keeps a stale result. */
     private String idleStatus = "";
 
@@ -366,6 +366,15 @@ public final class ScanActivity extends Activity implements SurfaceHolder.Callba
         return text.length() > 120 ? text.substring(0, 120) + "…" : text;
     }
 
+    /** A missing session is a reason to sign in, not just another line of status text. */
+    private void askLogin() {
+        if (askedLogin) return;
+        askedLogin = true;
+        Intent target = life798
+            ? new Intent(this, LifeLoginActivity.class)
+            : new Intent(this, AccountActivity.class).putExtra("returnToAccountInfo", true);
+        startActivity(target);
+    }
     private void setBusy(boolean value) {
         busy = value; retry.setEnabled(!value);
         query.setEnabled(!value && recognized != null);
@@ -378,7 +387,7 @@ public final class ScanActivity extends Activity implements SurfaceHolder.Callba
             String message; DeviceLookup found = null;
             try {
                 AccountSession session = new AccountVault(getApplicationContext()).load();
-                if (session == null) message = "请先返回“我的”完成登录，再查询设备。";
+                if (session == null) { message = "已打开登录页，完成后再查询设备。"; main.post(ScanActivity.this::askLogin); }
                 else {
                     found = SmsAccountApi.device(session, qr);
                     String note = pendingNote(found);
@@ -386,6 +395,7 @@ public final class ScanActivity extends Activity implements SurfaceHolder.Callba
                 }
             } catch (java.net.SocketTimeoutException timeout) { message = "查询超时，请检查网络后重试。"; }
             catch (org.json.JSONException invalid) { message = "设备资料格式与预期不符，暂不能确认设备。"; }
+            catch (HttpForm.SessionExpired expired) { message = "登录已失效，已打开登录页，完成后再查询设备。"; main.post(ScanActivity.this::askLogin); }
             catch (Exception failure) { message = "设备查询未完成，请检查网络与登录状态后重试。"; }
             final String result = message; final DeviceLookup device = found;
             main.post(() -> { if (!destroyed) { lookup = device; setBusy(false); status.setText(result); } });
@@ -414,7 +424,7 @@ public final class ScanActivity extends Activity implements SurfaceHolder.Callba
             String message;
             try {
                 AccountSession session = new AccountVault(getApplicationContext()).load();
-                if (session == null) message = "请先返回“我的”完成登录，再查询订单。";
+                if (session == null) { message = "已打开登录页，完成后再查询订单。"; main.post(ScanActivity.this::askLogin); }
                 else {
                     io.qzxy.lite.core.WaterOrder order = WaterApi.orderStatus(session, device);
                     message = order.describe() + remember(device, order);
@@ -422,6 +432,7 @@ public final class ScanActivity extends Activity implements SurfaceHolder.Callba
             } catch (java.net.SocketTimeoutException timeout) { message = "订单查询超时，请检查网络后重试；重试前请先确认现场水流状态。"; }
             catch (IllegalArgumentException unknown) { message = unknown.getMessage() + "。请稍后重试，不要直接开水。"; }
             catch (org.json.JSONException invalid) { message = "订单响应格式与预期不符，暂不能确认用水状态。"; }
+            catch (HttpForm.SessionExpired expired) { message = "登录已失效，已打开登录页，完成后再查询订单。"; main.post(ScanActivity.this::askLogin); }
             catch (Exception failure) { message = "订单查询未完成，请检查网络与登录状态后重试。"; }
             final String result = message;
             main.post(() -> { if (!destroyed) { setBusy(false); status.setText(result); } });

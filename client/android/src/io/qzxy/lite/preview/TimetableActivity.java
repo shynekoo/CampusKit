@@ -83,7 +83,8 @@ public final class TimetableActivity extends Activity {
 
     }
 
-    private void showExpiredNotice(){if(!accountVisible||!expiredNotice||isDestroyed()||isFinishing())return;expiredNotice=false;new android.app.AlertDialog.Builder(this).setTitle("趣智校园登录已失效").setMessage("请重新登录后使用趣智校园设备。").setNegativeButton("稍后",null).setPositiveButton("重新登录",(d,w)->startActivity(new Intent(this,AccountActivity.class).putExtra("returnToAccountInfo",true))).show();}
+    /** Session expiry is not a question: take them to the 趣智校园 login page itself. */
+    private void showExpiredNotice(){if(!accountVisible||!expiredNotice||isDestroyed()||isFinishing())return;expiredNotice=false;startActivity(new Intent(this,AccountActivity.class).putExtra("returnToAccountInfo",true));}
     private void checkQzxySession(){
         showExpiredNotice();if(sessionChecking)return;sessionChecking=true;
         backgroundWorker.execute(()->{io.qzxy.lite.core.AccountSession checked=null;boolean expired=false;

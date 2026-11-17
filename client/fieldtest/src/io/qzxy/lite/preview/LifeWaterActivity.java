@@ -9,7 +9,7 @@ import java.util.*;
 public final class LifeWaterActivity extends Activity {
  private final java.util.concurrent.ExecutorService worker=java.util.concurrent.Executors.newSingleThreadExecutor();
  private DeviceScreen screen;private String deviceDetails="正在读取设备…";
- private String did,qrId,uid="";private boolean busy,closed;private TextView info,status;private Button start,stop,refresh;private List<Integer> pays=Collections.emptyList();
+ private String did,qrId,uid="";private boolean busy,closed,askedLogin;private TextView info,status;private Button start,stop,refresh;private List<Integer> pays=Collections.emptyList();
  // 诊断用：最近一次设备详情原文、最近一次控制请求的路径与回复。只在本机显示/复制，不写入任何文件。
   private JSONObject rawDetail,lastReply;private String lastPath="";
  @Override public void onCreate(Bundle saved){super.onCreate(saved);try{String requested=getIntent().getStringExtra("did");qrId=getIntent().getStringExtra("qrId");if(qrId!=null&&!qrId.matches("[A-Za-z0-9_%+./=~?-]{1,300}"))throw new IllegalArgumentException();if(requested==null&&qrId==null)throw new IllegalArgumentException();if(requested!=null)did=LifeWaterProtocol.id(requested);}catch(Exception e){Toast.makeText(this,"没有可用的设备信息，请重新扫码",Toast.LENGTH_LONG).show();finish();return;}
@@ -23,7 +23,7 @@ public final class LifeWaterActivity extends Activity {
  @Override protected void onResume(){super.onResume();if(did!=null||qrId!=null)refresh();}
  private void disable(){screen.loading(busy);start.setEnabled(false);stop.setEnabled(false);refresh.setEnabled(!busy);}
  private void post(Runnable r){runOnUiThread(()->{if(!closed&&!isFinishing())r.run();});}
- private JSONObject session()throws Exception{JSONObject s=new LifeSessionVault(this).load();if(s==null)throw new LifeDeviceFailure("请先登录慧生活");return s;}
+ private JSONObject session()throws Exception{JSONObject s=new LifeSessionVault(this).load();if(s==null){post(()->{if(!askedLogin){askedLogin=true;startActivity(new Intent(this,LifeLoginActivity.class));}});throw new LifeDeviceFailure("请先登录慧生活");}return s;}
  private JSONObject detail(JSONObject s)throws Exception{return LifeDeviceApi.get(LifeDeviceApi.detailPath(did),s);}
  /**
   * 页面只有两种状态：设备空着就「开启用水」，本账号正在用就「结束用水」。
