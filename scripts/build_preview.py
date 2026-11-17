@@ -202,14 +202,21 @@ def main():
     key = ROOT / "tools/keys/preview.p12"
     key.parent.mkdir(parents=True, exist_ok=True)
     if not key.exists():
-        run([jdk / "bin/keytool.exe", "-genkeypair", "-keystore", key, "-storetype", "PKCS12",
-             "-storepass", "android", "-keypass", "android", "-alias", "preview", "-keyalg", "RSA",
-             "-keysize", "2048", "-validity", "3650", "-dname", "CN=QZXY Local Preview"])
+        raise RuntimeError("Missing signing key " + str(key) + "; restore it from your local backup")
+    # The keystore password never lives in source. Export QZXY_KS_PASS for CI, or keep it in
+    # tools/keys/keystore.pass (git-ignored) for local builds.
+    store_pass = os.environ.get("QZXY_KS_PASS", "").strip()
+    if not store_pass:
+        note = key.parent / "keystore.pass"
+        if note.exists():
+            store_pass = note.read_text(encoding="utf-8").strip()
+    if not store_pass:
+        raise RuntimeError("Keystore password missing: set QZXY_KS_PASS or create tools/keys/keystore.pass")
     delivery = ROOT / "delivery"
     delivery.mkdir(exist_ok=True)
     result = BUILD / "account-tests.apk" if device_tests else delivery / ("科信小助手-" + version + ".apk")
     signer = [jdk / "bin/java.exe", "-jar", tools / "lib/apksigner.jar"]
-    run(signer + ["sign", "--v4-signing-enabled", "false", "--ks", key, "--ks-key-alias", "preview", "--ks-pass", "pass:android",
+    run(signer + ["sign", "--v4-signing-enabled", "false", "--ks", key, "--ks-key-alias", "preview", "--ks-pass", "pass:" + store_pass,
                   "--out", result, aligned])
     run(signer + ["verify", "--verbose", result])
     if device_tests:

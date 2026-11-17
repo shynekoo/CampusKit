@@ -8,6 +8,7 @@
 *.jks
 *.keystore
 *.p12
+*.pass
 *.idsig
 local.properties
 .gradle/

@@ -33,6 +33,8 @@ python scripts/build_preview.py --field-water
 
 产出 `delivery/科信小助手-2.5.3.apk`（约 5.3 MB），构建即跑 1034 项核心断言，通过才出包。
 
+签名密钥 `tools/keys/preview.p12` 与其口令不进仓库：口令放 `tools/keys/keystore.pass`，或用环境变量 `QZXY_KS_PASS` 传入。证书 SHA-256 指纹 `13:B9:68:92:9F:5B:60:E5:CF:6B:5B:67:A5:13:16:78:AB:80:A3:6F:77:1C:07:DD:93:A9:62:4D:7E:BD:42:09`——换密钥会让已装用户无法覆盖安装，务必保留备份。
+
 ## 更新日志
 
 **v2.5.3**（2026-11-17）
