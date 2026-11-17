@@ -5,12 +5,10 @@ import android.app.Dialog;
 import android.content.Intent;
 import android.graphics.Typeface;
 import android.os.Bundle;
-import android.view.Gravity;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.NumberPicker;
 import android.widget.TextView;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -26,15 +24,21 @@ import java.util.concurrent.Executors;
  */
 public final class EduTimetableImportActivity extends Activity {
     private static final int WEB_REQUEST = 71;
+    private static final int ACCOUNT_REQUEST = 72;
     private static final long GRACE_MS = 5 * 60 * 1000L;
+
+    /** The saved account is missing or was rejected: the account screen must come first. */
+    private static final class AccountNeeded extends Exception {
+        AccountNeeded(String text) { super(text); }
+    }
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private DeviceScreen screen;
-    private TextView yearView, termView, status;
+    private TextView yearView, termView, status, account;
     private Button go;
     private final List<String[]> years = new ArrayList<>(), terms = new ArrayList<>();
     private int yearIndex, termIndex, generation;
-    private boolean busy;
+    private boolean busy, pendingImport;
 
     private int dp(int n) { return Math.round(n * getResources().getDisplayMetrics().density); }
 
@@ -54,6 +58,17 @@ public final class EduTimetableImportActivity extends Activity {
 
         status = screen.text(screen.card, "", 13);
         status.setTextColor(AppUi.MUTED);
+        status.setText("正在检查教务账号…");
+
+        // The same entry the grades screen keeps on screen: save the account here, or replace it.
+        account = new TextView(this);
+        account.setTextSize(13);
+        account.setTextColor(AppUi.ACCENT);
+        account.setPadding(dp(2), 0, dp(2), dp(8));
+        account.setText("教务账号（学号和密码）→");
+        account.setOnClickListener(v -> { if (!busy) openAccount(false); });
+        screen.card.addView(account);
+
         go = screen.primary("自动导入该学期课表", this::startImport);
 
         Button web = new Button(this);
@@ -64,9 +79,10 @@ public final class EduTimetableImportActivity extends Activity {
         web.setBackgroundColor(0x00ffffff);
         web.setOnClickListener(v -> startActivityForResult(new Intent(this, TimetableWebActivity.class), WEB_REQUEST));
         screen.root.addView(web, new LinearLayout.LayoutParams(-1, dp(44)));
-        screen.note("导入会替换当前课表「" + table + "」，写入后可以撤销。需要已在「教务账号」保存账号；学校要求验证码时请用网页手动导入。");
+        screen.note("导入会替换当前课表「" + table + "」，写入后可以撤销。没保存过账号时会先打开「教务账号」让你存一次；学校要求验证码时请用网页手动导入。");
 
         options();
+        probeAccount();
     }
 
     private TextView cell(LinearLayout row, String label, Runnable action) {
@@ -139,6 +155,32 @@ public final class EduTimetableImportActivity extends Activity {
         dialog.show();
     }
 
+    /**
+     * Is there already an account to sign in with? The answer only changes the wording here; the
+     * account screen is opened when it is actually needed, so the web import stays one tap away.
+     */
+    private void probeAccount() {
+        final int ticket = generation;
+        worker.execute(() -> {
+            EduVault.Credential stored = null;
+            try { stored = new EduVault(getApplicationContext()).load(); } catch (RuntimeException ignored) { }
+            final boolean ready = stored != null && stored.complete() && !stored.refused;
+            post(ticket, () -> {
+                if (busy) return;
+                status.setText(ready
+                    ? "已保存教务账号，可以自动登录并导入。"
+                    : "还没保存教务账号。点「自动导入」会先打开「教务账号」让你存一次。");
+                account.setText(ready ? "更换教务账号 →" : "教务账号（学号和密码）→");
+            });
+        });
+    }
+
+    /** Opens the account screen; {@code thenImport} makes the import start once the account is saved. */
+    private void openAccount(boolean thenImport) {
+        pendingImport = thenImport;
+        startActivityForResult(new Intent(this, EduAccountActivity.class), ACCOUNT_REQUEST);
+    }
+
     private void startImport() {
         if (busy) return;
         busy = true;
@@ -152,9 +194,9 @@ public final class EduTimetableImportActivity extends Activity {
             try {
                 EduVault.Credential credential = new EduVault(getApplicationContext()).load();
                 if (credential == null || !credential.complete())
-                    throw new IOException("还没有保存教务账号。请到「教务账号」保存一次，之后就能自动登录。");
+                    throw new AccountNeeded("还没保存教务账号，正在打开「教务账号」，保存一次就会自动开始导入。");
                 if (credential.refused)
-                    throw new IOException("保存的密码曾被学校拒绝。请到「教务账号」重新保存，或改用网页手动导入。");
+                    throw new AccountNeeded("保存的密码曾被学校拒绝。请重新保存一次，或改用网页手动导入。");
                 EduClient.reopen();
                 EduClient.remember(credential.user, credential.password, false);
                 if (!EduClient.signedIn()) EduClient.signIn();
@@ -169,6 +211,14 @@ public final class EduTimetableImportActivity extends Activity {
                         .putExtra("kept", parsed.kept)
                         .putExtra("skipped", parsed.skipped));
                     finish();
+                });
+            } catch (AccountNeeded need) {
+                post(ticket, () -> {
+                    busy = false;
+                    screen.loading(false);
+                    go.setEnabled(true);
+                    status.setText(need.getMessage());
+                    openAccount(true);
                 });
             } catch (Exception failure) {
                 final String message = describe(failure);
@@ -194,6 +244,18 @@ public final class EduTimetableImportActivity extends Activity {
 
     @Override protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
+        if (request == ACCOUNT_REQUEST) {
+            final boolean saved = result == RESULT_OK, resume = pendingImport;
+            pendingImport = false;
+            if (saved) {
+                status.setText("账号已保存。");
+                account.setText("更换教务账号 →");
+                if (resume) startImport();
+            } else {
+                status.setText("还没保存教务账号。导入前要先在「教务账号」存一次学号和密码。");
+            }
+            return;
+        }
         if (request == WEB_REQUEST && result == RESULT_OK && data != null && data.hasExtra("courses")) {
             // Manual web import keeps its own review-and-confirm dialog back on the timetable screen.
             setResult(RESULT_OK, new Intent().putExtra("courses", data.getStringExtra("courses")).putExtra("auto", false));

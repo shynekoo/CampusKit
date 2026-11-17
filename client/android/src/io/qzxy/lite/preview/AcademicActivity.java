@@ -44,7 +44,7 @@ public final class AcademicActivity extends Activity {
     private EduClient.Campus campus;
     private EduClient.Semester semester;
     private int generation;
-    private boolean busy, needsLogin, afterLogin, afterAccount, handoff, loggedOut, termChosen;
+    private boolean busy, needsLogin, afterLogin, afterAccount, handoff, loggedOut, termChosen, askedLogin;
     private final android.os.Handler watchdog = new android.os.Handler(android.os.Looper.getMainLooper());
 
     /** Nothing should be able to leave the progress bar running forever. */
@@ -197,9 +197,15 @@ public final class AcademicActivity extends Activity {
         busy = false;
         needsLogin = true;
         screen.loading(false);
-        status.setText("还没登录教务系统。点上面的「教务账号」把学号和密码存一次，以后会自动登录；也可以点「网页登录」手动登一次。");
+        status.setText("还没登录教务系统。把学号和密码存一次，以后会自动登录；也可以点「网页登录」手动登一次。");
         results.removeAllViews();
         fields.removeAllViews();
+        // Not signed in is the normal first-run state, so open the account screen instead of only
+        // describing it — once per visit, or the retry after a wrong password would bounce forever.
+        if (!askedLogin) {
+            askedLogin = true;
+            openAccount();
+        }
     }
 
     private void openLogin() {

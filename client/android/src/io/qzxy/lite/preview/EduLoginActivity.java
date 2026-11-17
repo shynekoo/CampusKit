@@ -73,6 +73,7 @@ public final class EduLoginActivity extends Activity {
                 if (HOST.equals(host) && !url.contains("login_slogin")) {
                     CookieManager.getInstance().flush();
                     status.setText("登录成功，正在返回…");
+                    setResult(RESULT_OK);
                     handler.postDelayed(EduLoginActivity.this::finish, 350);
                 } else {
                     status.setText("请登录教务系统。登录成功后会自动返回。");

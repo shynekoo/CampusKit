@@ -1,10 +1,10 @@
 package io.qzxy.lite.preview;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.text.InputType;
-import android.view.Gravity;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
@@ -22,6 +22,8 @@ import java.util.concurrent.Executors;
  * {@link EduVault}; this screen never writes it anywhere else and never logs it.</p>
  */
 public final class EduAccountActivity extends Activity {
+    private static final int WEB_REQUEST = 73;
+
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private DeviceScreen screen;
     private EditText user, password;
@@ -53,6 +55,16 @@ public final class EduAccountActivity extends Activity {
         screen.card.addView(status);
 
         save = screen.primary("保存并登录", this::start);
+
+        Button web = new Button(this);
+        web.setText("改用网页登录");
+        web.setAllCaps(false);
+        web.setTextSize(14);
+        web.setTextColor(AppUi.ACCENT);
+        web.setBackgroundColor(Color.TRANSPARENT);
+        web.setOnClickListener(v -> startActivityForResult(new Intent(this, EduLoginActivity.class), WEB_REQUEST));
+        screen.root.addView(web, new LinearLayout.LayoutParams(-1, dp(44)));
+
         Button clear = new Button(this);
         clear.setText("清除已保存的账号");
         clear.setAllCaps(false);
@@ -62,16 +74,7 @@ public final class EduAccountActivity extends Activity {
         clear.setOnClickListener(v -> clearAccount());
         screen.root.addView(clear, new LinearLayout.LayoutParams(-1, dp(44)));
 
-        TextView web = new TextView(this);
-        web.setText("学校要求验证码时改用网页登录 →");
-        web.setTextSize(13);
-        web.setTextColor(AppUi.MUTED);
-        web.setGravity(Gravity.CENTER);
-        web.setPadding(0, dp(6), 0, dp(6));
-        web.setOnClickListener(v -> startActivity(new android.content.Intent(this, EduLoginActivity.class)));
-        screen.root.addView(web);
-
-        screen.note("密码用本机密钥库加密后只存在这台设备，不上传任何服务器；查询成绩和空教室时会自动替你登录学校系统。");
+        screen.note("密码用本机密钥库加密后只存在这台设备，不上传任何服务器；查询成绩、空教室和导入课表时会自动替你登录学校系统。学校要求验证码时用「改用网页登录」。");
         prefill();
     }
 
@@ -181,6 +184,15 @@ public final class EduAccountActivity extends Activity {
     private void busy(boolean value) {
         busy = value;
         save.setEnabled(!value);
+    }
+
+    /** The school's own page signs in with cookies only; the caller can query right after it. */
+    @Override protected void onActivityResult(int request, int result, Intent data) {
+        super.onActivityResult(request, result, data);
+        if (request == WEB_REQUEST && result == RESULT_OK) {
+            status.setText("已在网页登录成功，返回后就能查了。想以后自动登录，请在上面保存学号和密码。");
+            setResult(RESULT_OK);
+        }
     }
 
     @Override protected void onDestroy() {
