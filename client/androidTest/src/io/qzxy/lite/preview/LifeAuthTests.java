@@ -4,10 +4,13 @@ import org.json.*;
 final class LifeAuthTests {
  static int n;static void check(boolean b){n++;if(!b)throw new AssertionError("Life auth check "+n);}
  static int run(Instrumentation runner)throws Exception{
-  n=0;JSONObject sms=LifeAuthApi.sms("13800000000","abcd",.25);check(sms.getString("un").equals("13800000000"));check(sms.getDouble("s")==.25);check(!sms.has("token"));
-  JSONObject login=LifeAuthApi.login("13800000000","123456");check(login.length()==2);check(!login.has("openCode"));
-  boolean rejected=false;try{LifeAuthApi.sms("bad","a",.2);}catch(Exception e){rejected=true;}check(rejected);
-  rejected=false;try{LifeAuthApi.sms("13800000000","a",Double.NaN);}catch(Exception e){rejected=true;}check(rejected);
+  n=0;
+  // 2.5.1 removed the phone/SMS login, so the request builders for it are gone. The test keeps the
+  // negative side: no leftover route may still be accepted by the allow-list.
+  boolean rejected=false;
+  for(String gone:new String[]{"/api/v1/acc/login/code","/api/v1/captcha/?s=0.25&r=123"}){rejected=false;try{LifeAuthApi.allowed(gone,new JSONObject(),null);}catch(Exception e){rejected=true;}check(rejected);}
+  JSONObject code=LifeAuthApi.alipay("synthetic-open-code");check(code.length()==1);check(code.getString("openCode").equals("synthetic-open-code"));
+  rejected=false;try{LifeAuthApi.alipay("short");}catch(Exception e){rejected=true;}check(rejected);
   rejected=false;try{LifeAuthApi.session(new JSONObject("{\"code\":-98}"));}catch(Exception e){rejected=true;}check(rejected);
   rejected=false;try{LifeAuthApi.session(new JSONObject("{\"code\":0,\"data\":{}}"));}catch(Exception e){rejected=true;}check(rejected);
   JSONObject al=new JSONObject().put("uid","synthetic-user").put("token","synthetic-token");JSONObject result=new JSONObject().put("code",0).put("data",new JSONObject().put("al",al));JSONObject session=LifeAuthApi.session(result);check(session.getString("uid").equals("synthetic-user"));
@@ -19,8 +22,8 @@ final class LifeAuthTests {
   rejected=false;try{LifeAuthApi.allowed("/api/v1/acc/stat?uid=synthetic-user",null,null);}catch(Exception e){rejected=true;}check(rejected);
   check(LifeAuthApi.statPath(session).equals("/api/v1/acc/stat?uid=synthetic-user"));
   check(LifeAuthApi.expired(-99));check(!LifeAuthApi.expired(-1));check(!LifeAuthApi.expired(0));check(!LifeAuthApi.expired(1));
-  LifeAuthApi.allowed(LifeAuthApi.captchaPath(.25,123),null,null);check(true);
   rejected=false;try{LifeAuthApi.allowed("/api/v1/acc/login",null,null);}catch(Exception e){rejected=true;}check(rejected);
+  LifeAuthApi.allowed("/api/v1/acc/login",LifeAuthApi.alipay("synthetic-open-code"),null);check(true);
   rejected=false;try{LifeAuthApi.resultCode(new JSONObject().put("code",.5));}catch(Exception e){rejected=true;}check(rejected);
   rejected=false;try{LifeAuthApi.credentials(new JSONObject().put("uid","user").put("token","bad\\r\\nheader".replace("\\r","\r").replace("\\n","\n")));}catch(Exception e){rejected=true;}check(rejected);
   LifeSessionVault vault=new LifeSessionVault(runner.getTargetContext());vault.clear();check(!vault.exists());vault.save(session);check(vault.exists());check(vault.load().getString("uid").equals("synthetic-user"));

@@ -945,6 +945,9 @@ public final class TimetableActivity extends Activity {
         campusEntry(card,"user",AppUi.ACCENT,"趣智校园","浴室、吹风机",()->startActivity(new Intent(this,AccountInfoActivity.class)),true);
         campusEntry(card,"water",0xff37668b,"慧生活798","饮水",()->startActivity(new Intent(this,AccountInfoActivity.class).putExtra("life798",true)),true);
         campusEntry(card,"info",0xff4a5b70,"数据与隐私","本机存了什么、发到哪里、怎么清除",()->startActivity(new Intent(this,PrivacyActivity.class)),true);
+        // Feedback sits above the update check: both are about the app itself rather than about an
+        // account, and a reader who came here to complain should not have to scroll past 检查更新.
+        campusEntry(card,"mail",0xff4a5b70,"意见反馈","邮箱与 QQ 群",()->startActivity(new Intent(this,FeedbackActivity.class)),true);
         // The start-up check is silent by design, so the manual one sits in the list next to the
         // other things that answer a question about the app itself, rather than on a footer line.
         campusEntry(card,"refresh",0xff4a5b70,"检查更新","当前 "+AppUi.version(this)+"，点按查询新版本",()->UpdateCheck.checkManually(this),false);

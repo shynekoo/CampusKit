@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="io.qzxy.lite.preview" android:versionCode="169" android:versionName="2.5.0">
+    package="io.qzxy.lite.preview" android:versionCode="172" android:versionName="2.5.2">
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="36" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -75,6 +75,7 @@
         <provider android:name=".ApkProvider" android:authorities="io.qzxy.lite.preview.apk"
             android:exported="false" android:grantUriPermissions="true" />
         <activity android:name=".PrivacyActivity" android:exported="false" android:configChanges="orientation|screenSize" />
+        <activity android:name=".FeedbackActivity" android:exported="false" android:configChanges="orientation|screenSize" />
 
         <receiver android:name=".ScheduleWidget" android:exported="false" android:label="科信小助手 2×2 课表">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/><action android:name="android.intent.action.DATE_CHANGED"/><action android:name="android.intent.action.TIME_SET"/><action android:name="android.intent.action.TIMEZONE_CHANGED"/></intent-filter>

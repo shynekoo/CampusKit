@@ -2,7 +2,7 @@
 
 趣智校园 / 慧生活798 的第三方安卓客户端。原生实现，无广告、无账号系统，凭据只保存在本机。
 
-当前版本：**v2.5.0**（版本代码 170）
+当前版本：**v2.5.2**（版本代码 172）
 
 ## 功能
 
@@ -31,9 +31,13 @@
 python scripts/build_preview.py --field-water
 ```
 
-产出 `delivery/科信小助手-2.5.0.apk`（约 5.3 MB），构建即跑 1034 项核心断言，通过才出包。
+产出 `delivery/科信小助手-2.5.2.apk`（约 5.3 MB），构建即跑 1034 项核心断言，通过才出包。
 
 ## 更新日志
+
+**v2.5.2**（2026-11-17）
+- 账号页新增「意见反馈」：邮箱与 QQ 群，点一下复制到剪贴板
+- 慧生活798 登录只保留支付宝授权，去掉手机号验证码登录
 
 **v2.5.0**（2026-11-16）
 - 开启用水固定走支付宝免密，去掉支付方式选择；设备未提供该方式时提前说明，不盲发请求
@@ -44,3 +48,9 @@ python scripts/build_preview.py --field-water
 ## 致谢
 
 - [nocookies111/life-798（WaterWidget）](https://github.com/nocookies111/life-798) —— 慧生活协议的请求头与业务码表
+
+## 许可证
+
+[MIT License](LICENSE) © 2026 shynekoo
+
+第三方组件（ZXing、PDFBox、支付宝 SDK 等）各自的许可证见 [`client/THIRD_PARTY.md`](client/THIRD_PARTY.md)。

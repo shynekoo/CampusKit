@@ -60,6 +60,9 @@ final class AppUi {
     case "room":rect(c,3,4,21,20);line(c,13,4,13,20);c.drawCircle(16.5f,12,.9f,p);line(c,3,20,21,20);break;
     case "torch":Path bolt=new Path();bolt.moveTo(13.4f,2.5f);bolt.lineTo(6.6f,13.2f);bolt.lineTo(11,13.2f);bolt.lineTo(10.2f,21.5f);bolt.lineTo(17.4f,10.6f);bolt.lineTo(12.8f,10.6f);bolt.close();c.drawPath(bolt,p);break;
     case "down":line(c,7,10,12,15);line(c,12,15,17,10);break;
+    // 意见反馈：one envelope for the address, two heads for the group chat.
+    case "mail":rect(c,3,5.4f,21,18.6f);line(c,3.6f,6.6f,12,13);line(c,12,13,20.4f,6.6f);break;
+    case "group":c.drawCircle(8.6f,8.6f,3.1f,p);c.drawArc(2.6f,13.2f,14.6f,24.4f,192,156,false,p);c.drawCircle(16.6f,9.6f,2.5f,p);c.drawArc(13.2f,14.2f,21.6f,23.6f,200,148,false,p);break;
     // Two official sites, two different marks: a portico for the university, a globe for the college.
     case "school":line(c,3.2f,9.6f,12,3.6f);line(c,12,3.6f,20.8f,9.6f);line(c,4.2f,9.6f,19.8f,9.6f);line(c,6.6f,11.4f,6.6f,18.6f);line(c,12,11.4f,12,18.6f);line(c,17.4f,11.4f,17.4f,18.6f);line(c,3.8f,20.4f,20.2f,20.4f);break;
     case "globe":c.drawCircle(12,12,8.6f,p);line(c,3.4f,12,20.6f,12);c.drawOval(7.6f,3.5f,16.4f,20.5f,p);break;

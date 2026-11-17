@@ -4,11 +4,9 @@ import java.net.*;
 import java.io.*;
 final class LifeAuthApi {
     static final String HOST="https://i.ilife798.com";
-    static JSONObject sms(String phone,String captcha,double seed)throws Exception{
-        phone(phone);if(captcha==null||!captcha.matches("[A-Za-z0-9]{1,12}")||!(seed>=0&&seed<1))throw new IllegalArgumentException("请填写图形验证码");
-        return new JSONObject().put("un",phone).put("authCode",captcha).put("s",seed);
-    }
-    static JSONObject login(String phone,String code)throws Exception{phone(phone);if(code==null||!code.matches("[0-9]{4,8}"))throw new IllegalArgumentException("请填写短信验证码");return new JSONObject().put("un",phone).put("authCode",code);}
+    // The phone + picture-captcha + SMS route is gone from the UI (2.5.1): with it went the request
+    // builders below, so this class can only ever post an Alipay authorization code or ask whether a
+    // saved session still works. Nothing here can start an SMS login.
     /**
      * 支付宝授权码换登录：官方登录页把它叫 openCode，服务器拿它去支付宝换取账号。
      * 这里只挡住空值和明显不是 token 的输入，真正的校验在服务器那边。
@@ -18,7 +16,6 @@ final class LifeAuthApi {
         if(code.length()<8||code.length()>512||!code.matches("[!-~]+"))throw new IllegalArgumentException("支付宝没有返回可用的授权码，请重试");
         return new JSONObject().put("openCode",code);
     }
-    static void phone(String phone){if(phone==null||!phone.matches("1[3-9][0-9]{9}"))throw new IllegalArgumentException("请填写正确的手机号");}
     static int resultCode(JSONObject response)throws Exception{
         Object value=response.opt("code");if(!(value instanceof Number))throw new IOException("响应缺少状态码");double code=((Number)value).doubleValue();if(Double.isNaN(code)||Double.isInfinite(code)||code!=Math.rint(code)||code<Integer.MIN_VALUE||code>Integer.MAX_VALUE)throw new IOException("响应状态码无效");return (int)code;
     }
@@ -38,15 +35,14 @@ final class LifeAuthApi {
         return new JSONObject().put("uid",uid).put("token",token);
     }
     static JSONObject session(JSONObject response)throws Exception{
-        if(resultCode(response)<0)throw new IOException("登录未成功，请核对验证码后重试");
+        if(resultCode(response)<0)throw new IOException("登录未成功，请重新用支付宝授权");
         return credentials(response.getJSONObject("data").getJSONObject("al"));
     }
-    static String captchaPath(double seed,long time){if(!(seed>=0&&seed<1)||time<0)throw new IllegalArgumentException();return "/api/v1/captcha/?s="+seed+"&r="+time;}
+    /** The two calls this build is still allowed to make: Alipay code in, session status out. */
     static void allowed(String path,JSONObject body,String token){
-        boolean captcha=path!=null&&path.matches("/api/v1/captcha/\\?s=[0-9.Ee+-]+&r=[0-9]+")&&body==null&&token==null;
-        boolean auth=("/api/v1/acc/login/code".equals(path)||"/api/v1/acc/login".equals(path))&&body!=null&&token==null;
+        boolean auth="/api/v1/acc/login".equals(path)&&body!=null&&token==null;
         boolean status=path!=null&&path.matches("/api/v1/acc/stat(\\?uid=[A-Za-z0-9_-]{1,128})?")&&body==null&&token!=null&&token.matches("[!-~]{1,4096}");
-        if(!captcha&&!auth&&!status)throw new IllegalArgumentException("未允许的请求");
+        if(!auth&&!status)throw new IllegalArgumentException("未允许的请求");
     }
     /**
      * 服务端自己的两个负数码，只有第一个跟凭据有关。
