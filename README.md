@@ -43,8 +43,8 @@
 
 | 项目 | 情况 |
 | :-- | :-- |
-| 最新版本 | **v2.5.3**（2026-11-17） |
-| 安装包 | 5,342,876 字节 · SHA-256 `7d2cf698bb35a8a6b29c9882b8c1aeab8ab7e301de1bec03b9363288467586cb` |
+| 最新版本 | **v2.5.6**（2026-11-17） |
+| 安装包 | 5,346,972 字节 · SHA-256 `5fac88d080fa99121f863e271403b6cecb0c5510e134ea3742263dbcc5413c83` |
 | 系统要求 | Android 7.0（API 24）及以上，targetSdk 36 |
 | 技术栈 | Java + 原生 View；无 Gradle、无第三方 UI 框架 |
 | 第三方库 | ZXing 3.5.3、PDFBox-Android 2.0.27.0、Bouncy Castle 1.72、支付宝 SDK 15.8.42 |
@@ -144,13 +144,13 @@ sequenceDiagram
 
 ## 下载
 
-1. 从 [Releases 最新版](https://github.com/shynekoo/CampusKit/releases/latest) 下载 `kexin-xiaozhushou-2.5.3.apk`（国内也可以用直链：<https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.5.3.apk?sharecode=BZD63HRP4B>）
+1. 从 [Releases 最新版](https://github.com/shynekoo/CampusKit/releases/latest) 下载 `kexin-xiaozhushou-2.5.6.apk`（国内也可以用直链：<https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.5.6.apk?sharecode=BZD63HRP4B>）
 2. 允许浏览器「安装未知应用」，装完打开即可，不需要 Root、不需要任何框架
 3. 想核对包有没有被改过：
 
 ```bash
-sha256sum kexin-xiaozhushou-2.5.3.apk
-# 7d2cf698bb35a8a6b29c9882b8c1aeab8ab7e301de1bec03b9363288467586cb
+sha256sum kexin-xiaozhushou-2.5.6.apk
+# 5fac88d080fa99121f863e271403b6cecb0c5510e134ea3742263dbcc5413c83
 ```
 
 > ⚠️ **升级请覆盖安装。** 换成别的签名只能卸载重装，而卸载会清掉课表与凭据——先在「课表 → 管理 → 导出备份」存一份，重装后再恢复。
@@ -260,6 +260,13 @@ docs/           README 用到的截图
 - **代码贡献**：先开 Issue 说清楚要改什么，再提 PR；改动需通过 `python scripts/test_core.py`，涉及界面的请附截图
 
 ## 更新日志
+
+**v2.5.6**（2026-11-17）
+
+- 修复慧生活798「进入独立用水」入口丢失：2.5.5 误用只读构建，用水控制没编进包；本版重新带上，支付宝免密登录照旧
+- 调课多段周次（`2-6周(双),11-15周`）不再被当作坏行跳过
+- 未登录自动跳对应登录页，登录完自动回原页并续跑被打断的查询
+- 校园页新增「教务系统」入口；「数据与隐私」移入「更多」
 
 **v2.5.3**（2026-11-17）
 
