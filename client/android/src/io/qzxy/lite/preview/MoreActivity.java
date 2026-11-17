@@ -26,7 +26,7 @@ import android.widget.Toast;
  * asked for; the page hands the address to whatever app already handles web pages.</p>
  */
 public final class MoreActivity extends Activity {
-    private static final String REPO = "https://github.com/shynekoo/kexin-xiaozhushou";
+    private static final String REPO = "https://github.com/shynekoo/CampusKit";
 
     private static final String MIT =
         "MIT License\n\n"
@@ -165,7 +165,7 @@ public final class MoreActivity extends Activity {
         root.addView(caption);
 
         LinearLayout card = card();
-        entry(card, "globe", "本项目 GitHub 仓库", "github.com/shynekoo/kexin-xiaozhushou", true, this::openRepository);
+        entry(card, "globe", "本项目 GitHub 仓库", "github.com/shynekoo/CampusKit", true, this::openRepository);
         entry(card, "score", "查看开源许可证", "MIT License", false, this::showLicence);
         root.addView(card);
 
