@@ -4,7 +4,7 @@
 <h1>科信小助手</h1>
 
 <p><b>河北工程大学科信学院 · 趣智校园 / 慧生活798 的第三方安卓客户端</b></p>
-<p>吃饭、接水、洗澡、看课表 —— 一个 APK，不用在四个应用之间来回跳。</p>
+<p>吃饭、接水、洗澡、看课表、取件码 —— 一个 APK，不用在多个应用之间来回跳。</p>
 
 <p>
 <a href="https://github.com/shynekoo/CampusKit/releases/latest"><img src="https://img.shields.io/github/v/release/shynekoo/CampusKit?label=release&style=flat-square&color=3b82f6" alt="Release"></a>
