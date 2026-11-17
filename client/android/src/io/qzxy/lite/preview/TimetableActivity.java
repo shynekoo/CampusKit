@@ -950,7 +950,8 @@ public final class TimetableActivity extends Activity {
         campusEntry(card,"mail",0xff4a5b70,"意见反馈","邮箱与 QQ 群",()->startActivity(new Intent(this,FeedbackActivity.class)),true);
         // The start-up check is silent by design, so the manual one sits in the list next to the
         // other things that answer a question about the app itself, rather than on a footer line.
-        campusEntry(card,"refresh",0xff4a5b70,"检查更新","当前 "+AppUi.version(this)+"，点按查询新版本",()->UpdateCheck.checkManually(this),false);
+        campusEntry(card,"refresh",0xff4a5b70,"检查更新","当前 "+AppUi.version(this)+"，点按查询新版本",()->UpdateCheck.checkManually(this),true);
+        campusEntry(card,"more",0xff4a5b70,"更多","GitHub 源码与开源许可证",()->startActivity(new Intent(this,MoreActivity.class)),false);
         gap(card,10);card.addView(body("科信小助手 "+AppUi.version(this)+" · 第三方校园客户端"));content.addView(card);
     }
 
