@@ -27,6 +27,8 @@ public final class EduLoginProtocol {
     public static final String USER = "yhm";
     public static final String PASSWORD = "mm";
     public static final String TOKEN = "csrftoken";
+    /** The cookie that carries the school's session: no header without it is signed in. */
+    public static final String SESSION_COOKIE = "JSESSIONID";
 
     private static final String ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     private static final Pattern INPUT = Pattern.compile("<input\\b[^>]*>", Pattern.CASE_INSENSITIVE);
@@ -68,6 +70,43 @@ public final class EduLoginProtocol {
     /** True when the response is the login form rather than data, i.e. the session is gone. */
     public static boolean isLoginForm(String html) {
         return html != null && (html.contains("id=\"yhm\"") || html.contains("name=\"yhm\""));
+    }
+
+    /** Cookies of a header as name → value, later duplicates winning as a browser does. */
+    public static Map<String, String> cookies(String header) {
+        Map<String, String> jar = new LinkedHashMap<>();
+        if (header == null) return jar;
+        for (String part : header.split(";")) {
+            int split = part.indexOf('=');
+            if (split <= 0) continue;
+            String name = part.substring(0, split).trim();
+            if (name.isEmpty()) continue;
+            jar.put(name, part.substring(split + 1).trim());
+        }
+        return jar;
+    }
+
+    /** Whether a Cookie header carries the school session, i.e. a usable sign-in. */
+    public static boolean hasSession(String header) {
+        String session = cookies(header).get(SESSION_COOKIE);
+        return session != null && !session.isEmpty();
+    }
+
+    /**
+     * One Cookie header out of two: a cookie named in {@code extra} wins over the same name in
+     * {@code base}. Used when the session the school's own page produced and the one this app holds
+     * are the same session seen twice — merging keeps both sides on one session instead of letting
+     * them invalidate each other.
+     */
+    public static String mergeCookies(String base, String extra) {
+        Map<String, String> jar = cookies(base);
+        jar.putAll(cookies(extra));
+        StringBuilder out = new StringBuilder();
+        for (Map.Entry<String, String> entry : jar.entrySet()) {
+            if (out.length() > 0) out.append("; ");
+            out.append(entry.getKey()).append('=').append(entry.getValue());
+        }
+        return out.toString();
     }
 
     public static boolean wrongPassword(String html) {

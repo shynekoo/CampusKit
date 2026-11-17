@@ -732,6 +732,37 @@ public final class CoreTests {
         equal(1, auto.from);
         equal(16, auto.to);
         equal(1, auto.parity);
+        java.util.List<String> pieces = EduTimetable.weekSegments("2-6周(双),11-15周", "");
+        equal(2, pieces.size());
+        equal("2-6周(双周)", pieces.get(0));
+        equal("11-15周", pieces.get(1));
+        pieces = EduTimetable.weekSegments("2-4周(双),5-14周", "");
+        equal(2, pieces.size());
+        equal("2-4周(双周)", pieces.get(0));
+        equal("5-14周", pieces.get(1));
+        java.util.List<TimetablePdfParser.Course> split = TimetableWebCourseParser.parseAll(3,
+            "传感器与检测技术",
+            "(3-4节)2-4周(双),5-14周/场地:东校区(科信学院)A11-205/教师:尹兵宽/教学班:传感器与检测技术");
+        equal(2, split.size());
+        equal(2, split.get(0).from);
+        equal(4, split.get(0).to);
+        equal(2, split.get(0).parity);
+        equal(5, split.get(1).from);
+        equal(14, split.get(1).to);
+        equal(0, split.get(1).parity);
+        java.util.List<TimetablePdfParser.Course> adjusted = TimetableWebCourseParser.parseAll(3,
+            "习近平新时代中国特色社会主义思想概论",
+            "【调】(9-10节)2-6周(双),11-15周/场地:东校区(科信学院)A11-104/教师:王泽超/教学班:习近平新时代中国特色社会主义思想概论");
+        equal(2, adjusted.size());
+        equal(9, adjusted.get(0).first);
+        equal(10, adjusted.get(0).last);
+        equal(6, adjusted.get(0).to);
+        equal(2, adjusted.get(0).parity);
+        equal(11, adjusted.get(1).from);
+        equal(15, adjusted.get(1).to);
+        equal(0, adjusted.get(1).parity);
+        rejects(() -> TimetableWebCourseParser.parseAll(3, "传感器与检测技术",
+            "(3-4节)坏周/场地:东校区A11-205/教师:尹兵宽/教学班:传感器与检测技术"));
         System.out.println("PASS: academic timetable fields become valid course rows");
         java.util.List<String> found = EduSite.timetableQueries(
             "<script>url:'/kbcx/xskbcx_cxXsKbcx.html?gnmkdm=N2151';var a='xskbcx_cxXsKb.html';</script>"
@@ -941,6 +972,20 @@ public final class CoreTests {
         equal(0, (int) EduLoginProtocol.base64Decode("AQAB")[1]);
         equal("", new String(EduLoginProtocol.base64Decode(""), "UTF-8"));
         equal("abc", new String(EduLoginProtocol.base64Decode("YWJj"), "UTF-8"));
+        // One session, two clients: the embedded page and the queries must end up on the same cookie
+        // header, or signing in on one side drops the other. The fresher value wins.
+        equal("3", EduLoginProtocol.cookies("a=1; b=2; abc=3").get("abc"));
+        equal(3, EduLoginProtocol.cookies("a=1; b=2; abc=3").size());
+        equal(false, EduLoginProtocol.cookies("").containsKey("a"));
+        equal(false, EduLoginProtocol.cookies(null).containsKey("a"));
+        equal(true, EduLoginProtocol.hasSession("route=abc; JSESSIONID=DEADBEEF.node1"));
+        equal(false, EduLoginProtocol.hasSession("route=abc; SERVERID=x"));
+        equal(false, EduLoginProtocol.hasSession(""));
+        equal(false, EduLoginProtocol.hasSession(null));
+        equal("route=a; JSESSIONID=new",
+            EduLoginProtocol.mergeCookies("route=a; JSESSIONID=old", "JSESSIONID=new"));
+        equal("route=a; JSESSIONID=new", EduLoginProtocol.mergeCookies("", "route=a; JSESSIONID=new"));
+        equal("", EduLoginProtocol.mergeCookies(null, null));
 
         java.security.KeyPairGenerator generator = java.security.KeyPairGenerator.getInstance("RSA");
         generator.initialize(1024);

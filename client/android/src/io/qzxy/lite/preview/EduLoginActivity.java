@@ -72,6 +72,9 @@ public final class EduLoginActivity extends Activity {
                 String host = Uri.parse(url).getHost();
                 if (HOST.equals(host) && !url.contains("login_slogin")) {
                     CookieManager.getInstance().flush();
+                    // This is a real session: hand it to the query screens so they reuse it instead
+                    // of signing in a second time and invalidating the one just created here.
+                    EduClient.capture();
                     status.setText("登录成功，正在返回…");
                     // 交还控制权给调用页（成绩、空教室、课表导入），它会带着这份 session 接着查。
                     handler.postDelayed(() -> { setResult(RESULT_OK); finish(); }, 350);

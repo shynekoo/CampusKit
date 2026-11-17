@@ -14,6 +14,15 @@ public final class LifeWaterActivity extends Activity {
   private JSONObject rawDetail,lastReply;private String lastPath="";
  @Override public void onCreate(Bundle saved){super.onCreate(saved);try{String requested=getIntent().getStringExtra("did");qrId=getIntent().getStringExtra("qrId");if(qrId!=null&&!qrId.matches("[A-Za-z0-9_%+./=~?-]{1,300}"))throw new IllegalArgumentException();if(requested==null&&qrId==null)throw new IllegalArgumentException();if(requested!=null)did=LifeWaterProtocol.id(requested);}catch(Exception e){Toast.makeText(this,"没有可用的设备信息，请重新扫码",Toast.LENGTH_LONG).show();finish();return;}
   screen=new DeviceScreen(this,"慧生活 · 用水");
+  // 运行记录入口就放在用水页自己的顶栏：这里才是出错的地方，读者不必先绕回登录页。
+  // 只在测试版出现；发布版这段被 javac 删掉。
+  if(BuildFlags.DIAGNOSTICS){
+   TextView logs=new TextView(this);logs.setText("日志");logs.setTextSize(13);logs.setTextColor(AppUi.MUTED);
+   logs.setPadding(screen.dp(12),screen.dp(10),screen.dp(2),screen.dp(10));logs.setGravity(Gravity.CENTER_VERTICAL);
+   logs.setContentDescription("运行记录");
+   logs.setOnClickListener(v->startActivity(new Intent(this,DiagActivity.class)));
+   screen.toolbar.addView(logs,new LinearLayout.LayoutParams(-2,-2));
+  }
   refresh=screen.icon("↻","刷新用水状态",()->refresh());screen.icon("ⓘ","设备详情",()->details());
   info=screen.text(screen.card,"正在核对设备…",18);
   start=screen.primary("开启用水",()->confirmStart());stop=screen.primary("结束用水",()->command(false,0));stop.setVisibility(View.GONE);

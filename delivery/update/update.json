@@ -1,13 +1,14 @@
 {
-  "version": "2.5.3",
-  "versionCode": 173,
+  "version": "2.5.6",
+  "versionCode": 177,
   "notes": [
-    "账号页新增「意见反馈」：邮箱与 QQ 群，点一下即可复制",
-    "账号页新增「更多」：直达 GitHub 源码与 MIT 开源许可证",
-    "慧生活798 登录只保留支付宝授权，去掉手机号验证码那条路",
-    "客户端按 MIT 许可证开源"
+    "修好了慧生活无法使用的问题：上一版设备页的「进入独立用水」入口丢了，只剩「在慧生活原版使用」；现在已恢复，支付宝免密登录照旧",
+    "调课那类多段周次的课（如「2-6周(双),11-15周」）以前导入会被跳过，现在能正常进课表",
+    "登录问题做了优化：没登录会自动跳登录页，登完自动回原页",
+    "校园页新加了「教务系统」入口；「数据与隐私」挪进「更多」",
+    "第一次用请先在账号页登录趣智校园、慧生活798及教务系统；账号密码加密存在本机，无后端，不上传、不汇总、不分享"
   ],
-  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.5.3.apk?sharecode=BZD63HRP4B",
-  "bytes": 5342876,
-  "sha256": "7d2cf698bb35a8a6b29c9882b8c1aeab8ab7e301de1bec03b9363288467586cb"
+  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.5.6.apk?sharecode=BZD63HRP4B",
+  "bytes": 5346972,
+  "sha256": "5fac88d080fa99121f863e271403b6cecb0c5510e134ea3742263dbcc5413c83"
 }

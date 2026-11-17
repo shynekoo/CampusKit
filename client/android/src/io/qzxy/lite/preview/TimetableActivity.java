@@ -342,6 +342,7 @@ public final class TimetableActivity extends Activity {
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
+        Diag.install(this);
         store = TimetableStore.open(this);
         // 0.7.7 and earlier stored a hand-typed pickup code here; the feature is gone, so drop it.
         getSharedPreferences("campus-v1", MODE_PRIVATE).edit().remove("pickup_code").apply();

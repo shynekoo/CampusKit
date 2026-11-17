@@ -74,8 +74,14 @@ final class LifeAuthApi {
         c.setRequestProperty("ApplicationType","1,1");c.setRequestProperty("VersionCode","31005");c.setRequestProperty("User-Agent","CampusKit/0.9.10 (Android; independent client)");
         if(token!=null)c.setRequestProperty("Authorization",token);
         try{if(body!=null){c.setRequestMethod("POST");c.setDoOutput(true);c.setRequestProperty("Content-Type","application/json; charset=utf-8");try(OutputStream out=c.getOutputStream()){out.write(body.toString().getBytes("UTF-8"));}}
-            if(c.getResponseCode()!=200)throw new IOException("服务暂不可用，请稍后重试");return TimetableBackup.read(c.getInputStream(),1024*1024);
+            int status=c.getResponseCode();
+            Diag.step("接口",(body!=null?"POST ":"GET ")+quiet(path)+" → HTTP "+status);
+            if(status!=200)throw new IOException("服务暂不可用，请稍后重试");return TimetableBackup.read(c.getInputStream(),1024*1024);
         }finally{c.disconnect();}
+    }
+    /** 路径里的 uid 是账号标识，记日志时只留字段名，够看出是哪一支接口就行。 */
+    private static String quiet(String path){
+        return path==null?"?":path.replaceAll("uid=[^&]*","uid=…");
     }
     static JSONObject post(String path,JSONObject body)throws Exception{return new JSONObject(new String(request(path,body),"UTF-8"));}
 }

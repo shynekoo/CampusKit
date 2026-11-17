@@ -1,8 +1,48 @@
 package io.qzxy.lite.core;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.*;
 
 /** Strict text adapter; unsupported/multiple blocks must not be silently truncated. */
 public final class TimetableWebCourseParser {
+    private static final Pattern SECTIONS = Pattern.compile("[（(](\\d+)(?:-(\\d+))?节[）)]");
+    private static final Pattern WEEK = Pattern.compile("(\\d{1,2})(?:-(\\d{1,2}))?周(?:[（(]([单双])(?:周)?[）)])?");
+    private static final Pattern SEPARATOR = Pattern.compile("[,，;；、]+");
+
+    /**
+     * 调课 rows often carry several week ranges in one cell, e.g. {@code 2-6周(双),11-15周}.
+     * Split them into separate courses; every segment still goes through the strict single-course
+     * parser below, so an incomplete row can never produce a half-written class.
+     */
+    public static List<TimetablePdfParser.Course> parseAll(int day, String title, String text) {
+        if(day<0 || day>6 || text==null || text.length()>12000) throw new IllegalArgumentException("课程内容无效");
+        String compact=text.replaceAll("\\s+", "").replace('：', ':');
+        Matcher sections=SECTIONS.matcher(compact);
+        if(!sections.find()) throw new IllegalArgumentException("暂不支持此网页节次格式，请使用 PDF 导入");
+        String sectionText=sections.group();
+        int start=sections.start(), end=sections.end();
+        if(sections.find()) throw new IllegalArgumentException("同一格有多门课程，未能完整分离，请使用 PDF 导入");
+        List<String> segments=new ArrayList<>();
+        List<TimetablePdfParser.Course> courses=new ArrayList<>();
+        int pos=end, lastEnd=end;
+        while(pos<compact.length() && segments.size()<12) {
+            Matcher week=WEEK.matcher(compact);
+            week.region(pos, compact.length());
+            if(!week.lookingAt()) break;
+            segments.add(week.group());
+            lastEnd=week.end();
+            Matcher separator=SEPARATOR.matcher(compact);
+            separator.region(lastEnd, compact.length());
+            if(!separator.lookingAt()) break;
+            pos=separator.end();
+        }
+        if(segments.isEmpty()) throw new IllegalArgumentException("暂不支持此网页周次格式，请使用 PDF 导入");
+        String suffix=compact.substring(lastEnd);
+        String prefix=compact.substring(0,start)+sectionText;
+        for(String segment:segments) courses.add(parse(day, title, prefix+segment+suffix));
+        return courses;
+    }
+
     public static TimetablePdfParser.Course parse(int day, String title, String text) {
         if(day<0 || day>6 || text==null || text.length()>12000) throw new IllegalArgumentException("课程内容无效");
         String compact=text.replaceAll("\\s+", "").replace('：', ':');

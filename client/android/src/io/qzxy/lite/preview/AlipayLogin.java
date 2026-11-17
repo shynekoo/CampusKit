@@ -39,13 +39,17 @@ final class AlipayLogin {
         try {
             result = new AuthTask(activity).authV2(AUTH_INFO, true);
         } catch (Throwable error) {
+            Diag.step("授权", "authV2 抛异常 " + error.getClass().getSimpleName());
             throw new Refused("没能唤起支付宝，请确认已安装并登录支付宝后重试。");
         }
         String status = value(result == null ? null : result.get("resultStatus"));
         String body = value(result == null ? null : result.get("result"));
+        String memo = value(result == null ? null : result.get("memo"));
+        // 这一行是整份记录里最关键的一行：有它，说明 SDK 回到了 App；没有它，就是回调丢了。
+        Diag.step("授权", "authV2 返回 status=" + status + " memo=" + memo
+            + " 结果=" + Diag.maskChain(body));
         if (!"9000".equals(status)) {
             if ("6001".equals(status)) throw new Refused("已取消支付宝授权。");
-            String memo = value(result == null ? null : result.get("memo"));
             throw new Refused(memo.isEmpty()
                 ? "支付宝授权未完成（状态 " + (status.isEmpty() ? "未知" : status) + "）。"
                 : memo);

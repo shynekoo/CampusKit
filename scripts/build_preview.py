@@ -28,7 +28,7 @@ CONTROL_ROUTES = (
     "/api/v1/dev/start",
     "/api/v1/dev/end",
 )
-FIELD_VERSION_NAME = "2.5.4"
+FIELD_VERSION_NAME = "2.5.6.b"
 FIELD_LABEL = "科信小助手"
 
 # Classes that only exist in the field-test source root. The check uses their dex type descriptors,
@@ -64,7 +64,7 @@ def check_route_boundary(dex_dir, field_water):
     return hits
 
 
-def write_build_flags(field_water, device_tests):
+def write_build_flags(field_water, device_tests, diagnostics):
     package = BUILD / "generated/io/qzxy/lite/preview"
     package.mkdir(parents=True, exist_ok=True)
     source = package / "BuildFlags.java"
@@ -75,14 +75,28 @@ def write_build_flags(field_water, device_tests):
         "    /** Compile-time switch: javac removes every branch guarded by a false constant. */\n"
         "    static final boolean WATER_CONTROL = " + ("true" if field_water else "false") + ";\n"
         "    static final boolean DEVICE_TESTS = " + ("true" if device_tests else "false") + ";\n"
+        "    /** 运行记录页与登录流程记录：测试版打开，发布版不留这条分支。 */\n"
+        "    static final boolean DIAGNOSTICS = " + ("true" if diagnostics else "false") + ";\n"
         "    private BuildFlags() { }\n"
         "}\n", encoding="utf-8")
     return source
 
 
+def option(name):
+    """--name value 或 --name=value，找不到就返回 None。"""
+    for index, value in enumerate(sys.argv):
+        if value == name and index + 1 < len(sys.argv):
+            return sys.argv[index + 1]
+        if value.startswith(name + "="):
+            return value.split("=", 1)[1]
+    return None
+
+
 def main():
     device_tests = "--device-tests" in sys.argv
     field_water = "--field-water" in sys.argv
+    # 运行记录随测试版走；发布版要让位给体积与「不记录东西」这条承诺，除非显式要求。
+    diagnostics = "--diagnostics" in sys.argv or (field_water and "--no-diagnostics" not in sys.argv)
     if "--skip-tests" not in sys.argv:
         run([sys.executable, ROOT / "scripts/test_core.py"])
     properties = subprocess.run(["java", "-XshowSettings:properties", "-version"], capture_output=True, text=True, errors="replace", check=True)
@@ -155,9 +169,17 @@ def main():
         # and the launcher label are unmistakable, and the water screen is a separate activity.
         tree = ET.parse(manifest)
         root = tree.getroot()
-        root.set(android_ns + "versionCode", str(int(manifest_root.get(android_ns + "versionCode")) + 1))
-        root.set(android_ns + "versionName", FIELD_VERSION_NAME)
-        version = FIELD_VERSION_NAME
+        version_name = option("--version-name") or FIELD_VERSION_NAME
+        if not re.fullmatch(r"[0-9A-Za-z.-]+", version_name):
+            raise RuntimeError("Unsafe version name")
+        explicit_code = option("--version-code")
+        version_code = int(explicit_code) if explicit_code else int(manifest_root.get(android_ns + "versionCode")) + 1
+        # 覆盖安装只看 versionCode：比线上包小就 INSTALL_FAILED_VERSION_DOWNGRADE，所以允许显式给定。
+        if version_code < 1:
+            raise RuntimeError("Unsafe version code")
+        root.set(android_ns + "versionCode", str(version_code))
+        root.set(android_ns + "versionName", version_name)
+        version = version_name
         application = root.find("application")
         application.set(android_ns + "label", FIELD_LABEL)
         ET.SubElement(application, "activity", {android_ns + "name": "io.qzxy.lite.preview.WaterActivity",
@@ -166,7 +188,7 @@ def main():
         manifest = BUILD / "field-manifest.xml"
         tree.write(manifest, encoding="utf-8", xml_declaration=True)
         manifest_root = root
-    write_build_flags(field_water, device_tests)
+    write_build_flags(field_water, device_tests, diagnostics)
     run([tools / "aapt2.exe", "compile", "--dir", app / "res", "-o", BUILD / "resources.zip"])
     run([tools / "aapt2.exe", "link", "-I", android, "--manifest", manifest,
          "--java", BUILD / "generated", "--custom-package", "io.qzxy.lite.preview",
@@ -232,6 +254,7 @@ def main():
               "account_login_implemented": True, "device_profile_implemented": True, "order_query_implemented": True,
               "recovery_store_implemented": True, "water_control_implemented": field_water,
               "field_water_build": field_water, "control_route_occurrences_in_dex": route_hits,
+              "diagnostics_implemented": diagnostics,
               "live_verification": "See analysis/account-balance-integration.md; this build performs no live requests",
               "live_water_supported": False,
               "source_sha256": input_hashes}

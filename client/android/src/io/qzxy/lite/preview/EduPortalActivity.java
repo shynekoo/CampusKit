@@ -25,27 +25,44 @@ import java.util.concurrent.Executors;
  * Opens the school's academic system already signed in.
  *
  * <p>The account saved in {@link EduVault} is handed to {@link EduClient}, which signs in the same
- * way the native grade/room queries do. The resulting session cookie is placed in the WebView before
- * the first page loads, so there is no password field to fill in. If no account is saved, or the
- * school asks for a captcha, the ordinary login page is shown instead — never a blank screen.</p>
+ * way the native grade/room queries do. The session it already holds — signed in here a moment ago,
+ * or on the grades screen — is reused as-is, and its cookie is placed in the WebView before the first
+ * page loads, so there is no password field to fill in. If no account is saved, or the school asks
+ * for a captcha, the ordinary login page is shown instead — never a blank screen. A login completed
+ * in that page is handed back to {@link EduClient} via {@link EduClient#capture()}, so the school
+ * sees one session rather than two competing ones.</p>
  *
  * <p>Navigation is pinned to the school's HTTPS hosts, no form data is saved and third-party cookies
- * are refused. Leaving the screen keeps the five-minute grace period the other academic screens use.</p>
+ * are refused. Leaving the screen keeps the session the other academic screens share.</p>
  */
 public final class EduPortalActivity extends Activity {
     private static final String HOME = EduClient.ORIGIN + "/xtgl/index_initMenu.html";
     private static final String LOGIN = EduClient.ORIGIN + "/xtgl/login_slogin.html";
     private static final int ACCOUNT_REQUEST = 74;
-    private static final long GRACE_MS = 5 * 60 * 1000L;
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private WebView web;
     private TextView status;
     private Button backButton;
     private int generation;
-    private boolean signedOut, askedAccount;
+    private boolean signedOut, askedAccount, recovered;
 
     private int dp(int n) { return Math.round(n * getResources().getDisplayMetrics().density); }
+
+    /** Puts the app's session cookie into the WebView, so its next page opens already signed in. */
+    private void install(String cookie, Runnable then) {
+        CookieManager cookies = CookieManager.getInstance();
+        for (String part : cookie.split(";")) if (part.contains("=")) cookies.setCookie(EduClient.ORIGIN, part.trim());
+        cookies.flush();
+        then.run();
+    }
+
+    /** A page load that carries the current session instead of starting another one. */
+    private void open(String url) {
+        String cookie = EduClient.browserCookie();
+        if (cookie.isEmpty()) web.loadUrl(url);
+        else install(cookie, () -> web.loadUrl(url));
+    }
 
     private static boolean school(String url) {
         if (url == null) return false;
@@ -88,8 +105,8 @@ public final class EduPortalActivity extends Activity {
         }
         LinearLayout first = new LinearLayout(this);
         backButton = action(first, WebBack.CLOSE, () -> WebBack.go(this, web));
-        action(first, "教务首页", () -> web.loadUrl(HOME));
-        action(first, "刷新", () -> web.reload());
+        action(first, "教务首页", () -> open(HOME));
+        action(first, "刷新", () -> open(web.getUrl() == null ? HOME : web.getUrl()));
         root.addView(first);
         LinearLayout second = new LinearLayout(this);
         action(second, "教务账号", this::openAccount);
@@ -126,8 +143,23 @@ public final class EduPortalActivity extends Activity {
                 return true;
             }
             @Override public void onPageFinished(WebView view, String url) {
-                if (url != null && url.contains("login_slogin"))
+                if (url == null) return;
+                if (url.contains("login_slogin")) {
+                    // A saved account means the page should never have to ask: the session was either
+                    // never installed or the school has ended it. One fresh sign-in per visit puts the
+                    // page back on the same session the other screens use; a rejected password stops
+                    // here rather than walking towards a lockout.
+                    if (!recovered) {
+                        recovered = true;
+                        if (EduClient.hasCredentials()) { relogin(); return; }
+                    }
                     status.setText("当前是登录页：可以在这里登录，或保存账号后下次自动登录。");
+                } else {
+                    // Whatever session this page ended up with is the app's session — including one the
+                    // user just typed. Adopting it means the queries reuse it rather than signing in
+                    // again and having the school drop this one.
+                    EduClient.capture();
+                }
                 WebBack.caption(backButton, view);
             }
             @Override public void doUpdateVisitedHistory(WebView view, String url, boolean reload) {
@@ -143,9 +175,10 @@ public final class EduPortalActivity extends Activity {
         autoSignIn();
     }
 
-    /** Native sign-in first; the cookie is installed before the WebView ever sees a page. */
+    /** The shared session first; the cookie is installed before the WebView ever sees a page. */
     private void autoSignIn() {
         final int ticket = ++generation;
+        recovered = false;
         worker.execute(() -> {
             EduVault.Credential credential = new EduVault(getApplicationContext()).load();
             if (credential == null || !credential.complete() || credential.refused) {
@@ -163,15 +196,13 @@ public final class EduPortalActivity extends Activity {
             try {
                 EduClient.reopen();
                 EduClient.remember(credential.user, credential.password, false);
-                if (!EduClient.signedIn()) EduClient.signIn();
+                final boolean reused = EduClient.signedIn();
+                if (!reused) EduClient.signIn();
                 final String cookie = EduClient.browserCookie();
                 if (cookie.isEmpty()) throw new EduClient.NotSignedIn();
                 post(ticket, () -> {
-                    CookieManager cookies = CookieManager.getInstance();
-                    for (String part : cookie.split(";")) if (part.contains("=")) cookies.setCookie(EduClient.ORIGIN, part.trim());
-                    cookies.flush();
-                    status.setText("已用保存的账号自动登录。");
-                    web.loadUrl(HOME);
+                    status.setText(reused ? "沿用已登录的教务会话。" : "已用保存的账号自动登录。");
+                    install(cookie, () -> web.loadUrl(HOME));
                 });
             } catch (Exception failure) {
                 final String message = EduClient.describe(failure);
@@ -183,8 +214,7 @@ public final class EduPortalActivity extends Activity {
         });
     }
 
-    private void openAccount() {
-        startActivityForResult(new Intent(this, EduAccountActivity.class), ACCOUNT_REQUEST);
+    private void openAccount() {        startActivityForResult(new Intent(this, EduAccountActivity.class), ACCOUNT_REQUEST);
     }
 
     /** Saving the account here signs straight into the portal, no need to reload the page by hand. */
@@ -194,6 +224,28 @@ public final class EduPortalActivity extends Activity {
             status.setText("账号已保存，正在自动登录教务系统…");
             autoSignIn();
         }
+    }
+
+    /**
+     * The school ended the session this app held: sign in once more with the saved account and load
+     * the page on the new cookie. The other academic screens share that same session, so they do not
+     * have to sign in again — and the school sees one login rather than one per screen.
+     */
+    private void relogin() {
+        status.setText("登录状态已失效，正在用保存的账号重新登录…");
+        final int ticket = generation;
+        worker.execute(() -> {
+            try {
+                EduClient.forgetSession();
+                EduClient.signIn();
+                String cookie = EduClient.browserCookie();
+                if (cookie.isEmpty()) throw new EduClient.NotSignedIn();
+                post(ticket, () -> install(cookie, () -> web.loadUrl(HOME)));
+            } catch (Exception failure) {
+                post(ticket, () -> status.setText("重新登录没成功："
+                    + EduClient.describe(failure) + " 也可以直接在这里登录。"));
+            }
+        });
     }
 
     private void signOut() {
@@ -225,8 +277,8 @@ public final class EduPortalActivity extends Activity {
         generation++;
         worker.shutdown();
         if (web != null) { web.stopLoading(); web.destroy(); }
-        // Same grace period as the grade screen: leaving does not end the session at once.
-        if (!signedOut) EduClient.signOutAfter(GRACE_MS);
+        // Same as the grade screen: leaving keeps the session the other screens reuse.
+        if (!signedOut) EduClient.release();
         super.onDestroy();
     }
 

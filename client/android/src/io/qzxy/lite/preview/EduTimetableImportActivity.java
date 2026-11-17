@@ -25,7 +25,6 @@ import java.util.concurrent.Executors;
 public final class EduTimetableImportActivity extends Activity {
     private static final int WEB_REQUEST = 71;
     private static final int ACCOUNT_REQUEST = 72;
-    private static final long GRACE_MS = 5 * 60 * 1000L;
 
     /** The saved account is missing or was rejected: the account screen must come first. */
     private static final class AccountNeeded extends Exception {
@@ -266,7 +265,7 @@ public final class EduTimetableImportActivity extends Activity {
     @Override protected void onDestroy() {
         generation++;
         worker.shutdown();
-        EduClient.signOutAfter(GRACE_MS);
+        EduClient.release();
         super.onDestroy();
     }
 

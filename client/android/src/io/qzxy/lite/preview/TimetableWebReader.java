@@ -10,7 +10,7 @@ final class TimetableWebReader {
         if(items.length()==0 || items.length()>500) throw new IllegalArgumentException("未找到完整课程");
         TimetablePdfParser.Result result=new TimetablePdfParser.Result();
         for(int i=0;i<items.length();i++) { JSONObject item=items.getJSONObject(i);
-            result.courses.add(TimetableWebCourseParser.parse(item.getInt("day"),item.optString("title"),item.getString("text"))); }
+            result.courses.addAll(TimetableWebCourseParser.parseAll(item.getInt("day"),item.optString("title"),item.getString("text"))); }
         return result;
     }
 }

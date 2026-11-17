@@ -1,5 +1,7 @@
 package io.qzxy.lite.core;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -54,25 +56,38 @@ public final class EduTimetable {
     }
 
     /**
-     * A single week range only: {@code 1-16周}, {@code 01-16}, {@code 1-16周(单周)}. Several ranges
-     * in one cell ({@code 1,3,5-16}) are refused rather than silently flattened into a wrong range.
+     * Week ranges, one entry per segment. 正方 writes 调课 rows as several ranges in one field,
+     * e.g. {@code 2-6周(双),11-15周}; each range becomes its own course instead of being dropped.
      */
-    public static String weeks(String raw, String parityRaw) {
+    public static List<String> weekSegments(String raw, String parityRaw) {
         String value = clean(raw);
         String parity = clean(parityRaw);
-        String single = "";
-        if (value.contains("单") || parity.contains("单")) single = "单";
-        else if (value.contains("双") || parity.contains("双")) single = "双";
-        String core = value.replaceAll("周.*$", "").replaceAll("[^0-9\\-,\\uFF0C]", "");
-        if (core.contains(",") || core.contains("\uFF0C") || core.indexOf('-') != core.lastIndexOf('-'))
-            throw new IllegalArgumentException("多段周次暂不支持");
-        Matcher range = RANGE.matcher(core);
-        if (!range.matches()) throw new IllegalArgumentException("周次字段无法识别：" + core);
-        int from = Integer.parseInt(range.group(1));
-        int to = range.group(2) == null ? from : Integer.parseInt(range.group(2));
-        if (from < 1 || to > 30 || from > to) throw new IllegalArgumentException("周次超出 1–30");
-        String text = (from == to ? Integer.toString(from) : from + "-" + to) + "周";
-        return single.isEmpty() ? text : text + "(" + single + "周)";
+        String global = parity.contains("单") ? "单" : parity.contains("双") ? "双" : "";
+        List<String> out = new ArrayList<>();
+        for (String part : value.split("[,，;；、]+")) {
+            String segment = part.trim();
+            if (segment.isEmpty()) continue;
+            String local = segment.contains("单") ? "单" : segment.contains("双") ? "双" : global;
+            String core = segment.replaceAll("周.*$", "").replaceAll("[^0-9\\-]", "");
+            if (core.indexOf('-') != core.lastIndexOf('-'))
+                throw new IllegalArgumentException("周次字段无法识别：" + core);
+            Matcher range = RANGE.matcher(core);
+            if (!range.matches()) throw new IllegalArgumentException("周次字段无法识别：" + core);
+            int from = Integer.parseInt(range.group(1));
+            int to = range.group(2) == null ? from : Integer.parseInt(range.group(2));
+            if (from < 1 || to > 30 || from > to) throw new IllegalArgumentException("周次超出 1–30");
+            String text = (from == to ? Integer.toString(from) : from + "-" + to) + "周";
+            out.add(local.isEmpty() ? text : text + "(" + local + "周)");
+        }
+        if (out.isEmpty()) throw new IllegalArgumentException("周次字段无法识别");
+        return out;
+    }
+
+    /** Backwards-compatible single-range form; callers that can split use {@link #weekSegments}. */
+    public static String weeks(String raw, String parityRaw) {
+        List<String> all = weekSegments(raw, parityRaw);
+        if (all.size() != 1) throw new IllegalArgumentException("多段周次暂不支持");
+        return all.get(0);
     }
 
     /** HTML fragments, entities and separators must not leak into a label or split a course cell. */

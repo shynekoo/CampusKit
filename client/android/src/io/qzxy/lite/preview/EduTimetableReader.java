@@ -41,15 +41,19 @@ final class EduTimetableReader {
             try {
                 int day = EduTimetable.day(value(item, "xqj", "day"), value(item, "xqjmc", "xqjdm"));
                 String sections = EduTimetable.sections(value(item, "jc", "jcdm2", "skjc", "kcsj"));
-                String weeks = EduTimetable.weeks(value(item, "zcd", "zcmc", "zc", "qsjsz"),
-                    value(item, "sfdsz", "dsz"));
+                String weekRaw = value(item, "zcd", "zcmc", "zc", "qsjsz");
+                String parityRaw = value(item, "sfdsz", "dsz");
+                java.util.List<String> weeks = EduTimetable.weekSegments(weekRaw, parityRaw);
                 String name = EduTimetable.clean(value(item, "kcmc", "kcmc1", "courseName"));
                 String room = EduTimetable.clean(value(item, "cdmc", "cdmc1", "jxdd", "place"));
                 String teacher = EduTimetable.clean(value(item, "xm", "jsxm", "teaxms", "teacher"));
-                String text = EduTimetable.courseText(sections, weeks, room, teacher, name);
-                // The same strict check the manual web import uses; a bad row never reaches storage.
-                TimetableWebCourseParser.parse(day, name, text);
-                courses.put(new JSONObject().put("day", day).put("title", name).put("text", text));
+                // One 正方 row can carry several week ranges (调课). Each becomes a separate
+                // course so the strict single-range parser still owns every written row.
+                for (String week : weeks) {
+                    String text = EduTimetable.courseText(sections, week, room, teacher, name);
+                    TimetableWebCourseParser.parse(day, name, text);
+                    courses.put(new JSONObject().put("day", day).put("title", name).put("text", text));
+                }
             } catch (Exception odd) {
                 skipped++;
             }

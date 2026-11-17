@@ -24,8 +24,10 @@ import org.json.JSONObject;
  * Read-only client for the school's academic system.
  *
  * <p>Signing in happens here when the user has saved an account: the same csrf token, RSA-encrypted
- * password and form post the school's own page uses, so no browser is involved. Without a saved
- * account the cookies of the embedded login page are borrowed instead. Every request is pinned to
+ * password and form post the school's own page uses, so no browser is involved. A session the user
+ * starts in the school's own page — the embedded login screen or the portal — is adopted instead of
+ * signing in a second time ({@link #capture}). One session then serves every academic screen and the
+ * embedded page alike. Every request is pinned to
  * the school's HTTPS host and to a short list of read-only paths — the same three pages the school's
  * own empty-classroom screen uses — so a feature here cannot quietly start touching course selection
  * or account data.</p>
@@ -68,6 +70,15 @@ final class EduClient {
     private static final String MENU = "/xtgl/index_initMenu.html";
     private static final String LOGOUT = "/xtgl/logout.html";
     private static final int TIMEOUT = 15000, MAX_BYTES = 2_000_000, MAX_PAGES = 30;
+    /**
+     * How long one session is kept after the last 教务 screen closes.
+     *
+     * <p>Everything academic — grades, empty classrooms, the timetable import, the portal — shares
+     * this one session, so a walk between those screens costs no sign-in and the school's log sees
+     * one login instead of four. The window is long enough to cover a normal app visit; 退出登录
+     * still ends the session at once, and the server drops an idle session by itself anyway.</p>
+     */
+    static final long IDLE_MS = 30 * 60 * 1000L;
 
     static final class NotSignedIn extends IOException {
         private static final long serialVersionUID = 1L;
@@ -139,6 +150,12 @@ final class EduClient {
 
     /** Session obtained by the built-in login; empty while signed out. */
     private static volatile String session = "";
+    /**
+     * Whose session {@link #session} is: the student number it was signed in with, or empty when the
+     * session came from the school's own page and cannot be attributed. Used only to decide whether
+     * a newly handed-over account is a different person or the same one already signed in.
+     */
+    private static volatile String sessionUser = "";
     /** Cookies held by the embedded browser; only used when no account is saved. */
     private static volatile String webCookies = "";
     /** The saved account, kept in this process only — the vault owns the durable copy. */
@@ -165,11 +182,20 @@ final class EduClient {
 
     /** Call on the UI thread before any query: WebView cookies are read there. */
     static void capture() {
+        String cookie;
         try {
-            String cookie = CookieManager.getInstance().getCookie(ORIGIN);
-            webCookies = cookie == null ? "" : cookie;
+            String raw = CookieManager.getInstance().getCookie(ORIGIN);
+            cookie = raw == null ? "" : raw;
         } catch (RuntimeException unavailable) {
-            webCookies = "";
+            cookie = "";
+        }
+        webCookies = cookie;
+        // A session the user started in the school's own page counts as signed in here too. Adopting
+        // it is what keeps the page and the JSON queries on one session: without it the queries
+        // signed in separately and the school dropped the page's session as the older one.
+        if (session.isEmpty() && EduLoginProtocol.hasSession(cookie)) {
+            session = EduLoginProtocol.mergeCookies("", cookie);
+            sessionUser = "";
         }
     }
 
@@ -185,13 +211,18 @@ final class EduClient {
         String nextUser = name == null ? "" : name;
         String nextSecret = secret == null ? "" : secret;
         boolean same = nextUser.equals(user) && nextSecret.equals(password);
-        // Same account with a live session: no need to sign in again.
-        if (same && !session.isEmpty()) return;
+        // A live session is kept — for the same account, or for one the school's own page signed in
+        // and this app adopted. Signing in again at this point is what used to end the session the
+        // user had just opened in that page.
+        boolean keep = !session.isEmpty()
+            && (same || sessionUser.isEmpty() || nextUser.equals(sessionUser));
         user = nextUser;
         password = nextSecret;
         rejected = same && refused;
-        session = "";
         closed = false;
+        if (keep) return;
+        session = "";
+        sessionUser = "";
     }
 
     static boolean signedIn() { return !session.isEmpty(); }
@@ -217,12 +248,31 @@ final class EduClient {
     }
 
     /**
+     * A 教务 screen closed: keep the session for the rest of the app visit instead of ending it.
+     *
+     * <p>Every academic screen calls this, and every one of them cancels it the moment the account is
+     * used again — so the grades, the empty-classroom screen, the timetable import and the portal all
+     * run on the single session this app signed in with. That is fewer logins (a school's lockout
+     * counter only counts logins) and, just as importantly, it stops the app from signing in again
+     * while the same account is open in a browser, which is what made the school end one of them.</p>
+     */
+    static void release() { signOutAfter(IDLE_MS); }
+
+    /** Drops the local copy of a session the school no longer honours, without a logout request. */
+    static void forgetSession() {
+        session = "";
+        sessionUser = "";
+        webCookies = "";
+    }
+
+    /**
      * Signs out this session after {@code delayMillis}, unless the account is used again in between.
      *
-     * <p>Leaving the screen used to end the school session at once, which meant every glance at the
-     * grades cost a fresh sign-in — and a fresh sign-in is what a school's lockout counter counts.
-     * A short grace period keeps a back-and-forth visit on one session while still not leaving the
-     * account open in the background; a manual 退出登录 still ends it immediately.</p>
+     * <p>Leaving a screen used to end the school session at once, which meant every glance at the
+     * grades cost a fresh sign-in — and a fresh sign-in is what a school's lockout counter counts,
+     * and what made a second sign-in drop the session open elsewhere. Screens now queue a sign-out
+     * a whole visit away and cancel it the moment the account is used again; 退出登录 still ends the
+     * session immediately.</p>
      */
     static void signOutAfter(long delayMillis) {
         cancelSignOut();
@@ -247,6 +297,7 @@ final class EduClient {
         if (!session.isEmpty() && !session.equals(held)) return;
         closed = true;
         session = "";
+        sessionUser = "";
         webCookies = "";
         gradesPage = "";
         menuLink = "";
@@ -725,6 +776,7 @@ final class EduClient {
         String cookies = cookies(jar);
         if (cookies.isEmpty()) throw new IOException("登录后没有拿到会话，请重试。");
         session = cookies;
+        sessionUser = user;
         closed = false;
     }
 

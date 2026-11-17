@@ -31,8 +31,6 @@ import java.util.concurrent.Executors;
  */
 public final class AcademicActivity extends Activity {
     private static final String[] WEEKDAYS = {"星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"};
-    /** How long a session survives leaving the screen, dropped as soon as it is used again. */
-    private static final long GRACE = 5 * 60 * 1000L;
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private final Map<String, String> pick = new LinkedHashMap<>();
@@ -872,15 +870,15 @@ public final class AcademicActivity extends Activity {
     }
 
     /**
-     * Leaving the screen queues the sign-out five minutes out instead of ending the session here:
-     * a quick look at the timetable and back keeps one session — fewer logins, and a school's
-     * lockout counter only counts logins. Coming back cancels the queued sign-out; 退出登录 still
-     * ends the session immediately.
+     * Leaving the screen queues a sign-out a whole visit out instead of ending the session here, so
+     * the grades, the empty-classroom screen, the timetable import and the portal all reuse the one
+     * session this app signed in with. Coming back cancels the queued sign-out; 退出登录 still ends
+     * the session immediately.
      */
     @Override protected void onStop() {
         super.onStop();
         if (handoff) { handoff = false; return; }
-        EduClient.signOutAfter(GRACE);
+        EduClient.release();
         loggedOut = true;
     }
 

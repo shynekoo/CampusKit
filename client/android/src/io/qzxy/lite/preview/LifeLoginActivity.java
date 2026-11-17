@@ -4,6 +4,7 @@ import android.os.*;
 import android.view.*;
 import android.widget.*;
 import android.graphics.*;
+import android.content.*;
 import org.json.*;
 /**
  * 慧生活798 的登录页。
@@ -30,6 +31,7 @@ public final class LifeLoginActivity extends Activity {
 
     @Override public void onCreate(Bundle state){
         super.onCreate(state);
+        Diag.install(this);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);
         int side=AppUi.side(this,20);
@@ -43,8 +45,19 @@ public final class LifeLoginActivity extends Activity {
                 v.setPadding(bars.left,bars.top,bars.right,bars.bottom);return insets;});
         }
 
+        // 顶部这一行：左边回上一页，右边是运行记录。日志只在测试版出现——发布版里这段
+        // 被 javac 删掉，读者看不到一个自己用不上的入口。
+        LinearLayout top=new LinearLayout(this);top.setOrientation(0);top.setGravity(Gravity.CENTER_VERTICAL);
         TextView back=text("‹ 返回科信小助手",14);back.setTextColor(AppUi.ACCENT);back.setPadding(0,dp(8),0,dp(8));
-        back.setOnClickListener(v->finish());form.addView(back);
+        back.setOnClickListener(v->finish());
+        top.addView(back,new LinearLayout.LayoutParams(0,-2,1));
+        if(BuildFlags.DIAGNOSTICS){
+            TextView logs=text("日志",13);logs.setTextColor(AppUi.MUTED);
+            logs.setPadding(dp(14),dp(10),dp(2),dp(10));
+            logs.setOnClickListener(v->startActivity(new Intent(this,DiagActivity.class)));
+            top.addView(logs,new LinearLayout.LayoutParams(-2,-2));
+        }
+        form.addView(top);
         TextView title=text("登录慧生活798",24);title.setTypeface(null,Typeface.BOLD);form.addView(title);
         TextView intro=muted("第三方客户端。用支付宝授权登录，登录凭据加密保存在本机。",13);
         intro.setPadding(0,dp(6),0,dp(16));form.addView(intro);
@@ -75,6 +88,7 @@ public final class LifeLoginActivity extends Activity {
         // A saved session is worth saying before the reader taps anything, but it is only a hint: an
         // unreadable vault must not stop the page from opening.
         try{if(new LifeSessionVault(this).exists())status.setText("已保存账号，可检查登录状态或重新登录。");}catch(Exception ignored){}
+        Diag.step("登录","打开登录页 "+AppUi.version(this));
     }
     private Button primary(LinearLayout form,String label,Runnable action){
         Button b=new Button(this);b.setText(label);b.setAllCaps(false);b.setTextSize(16);b.setTextColor(0xffffffff);
@@ -91,7 +105,8 @@ public final class LifeLoginActivity extends Activity {
         if(busy||closed)return;
         busy=true;status.setText("正在处理…");enable(false);
         worker.execute(()->{
-            String message;try{message=job.execute();}catch(Exception error){message=explain(error);}
+            String message;try{message=job.execute();}catch(Exception error){message=explain(error);
+                Diag.step("异常",error.getClass().getSimpleName()+": "+(error.getMessage()==null?"":error.getMessage()));}
             final String result=message;
             runOnUiThread(()->{if(isDestroyed())return;busy=false;enable(true);status.setText(result);});
         });
@@ -112,14 +127,23 @@ public final class LifeLoginActivity extends Activity {
      */
     private void alipaySignIn(){
         if(busy)return;
-        if(!consent.isChecked()){status.setText("请先确认登录信息用途");return;}
+        if(!consent.isChecked()){Diag.step("登录","未确认用途，停在页面上");status.setText("请先确认登录信息用途");return;}
         run(()->{
+            Diag.step("授权","开始唤起支付宝");
+            long started=android.os.SystemClock.elapsedRealtime();
             String openCode=AlipayLogin.code(this);
+            // 这一步的耗时是判断「回调是丢了还是慢」的分界：正常授权几秒就回来。
+            Diag.step("授权","拿到授权码 "+Diag.maskCode(openCode)
+                +" 用时 "+(android.os.SystemClock.elapsedRealtime()-started)+"ms");
             JSONObject response=LifeAuthApi.post("/api/v1/acc/login",LifeAuthApi.alipay(openCode));
-            if(LifeAuthApi.resultCode(response)<0){String why=LifeAuthApi.message(response);return why.isEmpty()?"支付宝授权成功，但慧生活没有接受这次登录":why;}
+            int result=LifeAuthApi.resultCode(response);
+            String why=LifeAuthApi.message(response);
+            Diag.step("登录","服务端 code="+result+(why.isEmpty()?"":" msg="+why));
+            if(result<0){return why.isEmpty()?"支付宝授权成功，但慧生活没有接受这次登录":why;}
             JSONObject session=LifeAuthApi.session(response);
             if(closed||isFinishing()||isDestroyed())return "已取消保存";
             new LifeSessionVault(this).save(session);
+            Diag.step("登录","凭据已保存，登录完成");
             runOnUiThread(()->{if(isDestroyed()||isFinishing())return;setResult(RESULT_OK);finish();});
             return "已通过支付宝登录，凭据已加密保存在本机。";
         });
