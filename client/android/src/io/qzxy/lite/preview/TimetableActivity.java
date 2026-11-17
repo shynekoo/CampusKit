@@ -683,7 +683,7 @@ public final class TimetableActivity extends Activity {
         LinearLayout line=new LinearLayout(this);line.setGravity(android.view.Gravity.CENTER_VERTICAL);
         line.setPadding(dp(16),dp(14),dp(14),dp(14));
         line.setOnClickListener(v->action.run());line.setFocusable(true);
-        android.widget.ImageView mark=new android.widget.ImageView(this);mark.setImageDrawable(AppUi.icon(this,icon,tint,24));mark.setBackground(AppUi.shape(this,AppUi.SOFT,12));mark.setPadding(dp(8),dp(8),dp(8),dp(8));mark.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);line.addView(mark,new LinearLayout.LayoutParams(dp(40),dp(40)));AppUi.press(line,0xffffffff,8);
+        android.widget.ImageView mark=new android.widget.ImageView(this);mark.setImageDrawable(AppUi.icon(this,icon,AppUi.ACCENT,24));mark.setBackground(AppUi.shape(this,AppUi.SOFT,12));mark.setPadding(dp(8),dp(8),dp(8),dp(8));mark.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);line.addView(mark,new LinearLayout.LayoutParams(dp(40),dp(40)));AppUi.press(line,0xffffffff,8);
         LinearLayout labels=column();labels.setPadding(dp(14),0,0,0);
         labels.addView(bold(title,16));
         TextView caption=text(subtitle,12);caption.setTextColor(AppUi.MUTED);caption.setPadding(0,dp(2),0,0);labels.addView(caption);
@@ -842,32 +842,32 @@ public final class TimetableActivity extends Activity {
     }
 
     /**
-     * 同一项服务在今日页和校园页共用这个图标与这个色调。两页各配一套颜色的结果是：读者要在
-     * 两个页面上把同一个东西各认一遍，所以颜色只在这里定义一次。
+     * Every icon on 今日 and 校园 is drawn in the one accent colour. Colour is not carrying meaning
+     * here — the label and the icon already say which service this is — so a second hue only made
+     * one row look like it belonged to something else.
      */
-    private static final int TINT_LIFE = 0xff37668b, TINT_EDU = 0xff8a5a2b, TINT_APP = 0xff4a5b70;
 
     /** Four compact daily actions, paired by purpose. */
     private void shortcutsCard(LinearLayout parent) {
         LinearLayout card=whiteCard();cardHeader(card,"校园生活",null,null);gap(card,8);
         LinearLayout row=new LinearLayout(this);
-        row.addView(shortcutTile("water",TINT_LIFE,"慧生活","用水",this::openLife798),new LinearLayout.LayoutParams(0,-2,1));
-        row.addView(shortcutTile("scan",AppUi.ACCENT,"趣智校园","扫码",()->startActivity(new Intent(this,ScanActivity.class))),new LinearLayout.LayoutParams(0,-2,1));
-        row.addView(shortcutTile("pay",AppUi.ACCENT,"易校园","付款码",this::openCampusPayCode),new LinearLayout.LayoutParams(0,-2,1));
-        row.addView(shortcutTile("parcel",AppUi.ACCENT,"身份码","淘宝·菜鸟驿站",this::openPickupCode),new LinearLayout.LayoutParams(0,-2,1));
+        row.addView(shortcutTile("water","慧生活","用水",this::openLife798),new LinearLayout.LayoutParams(0,-2,1));
+        row.addView(shortcutTile("scan","趣智校园","扫码",()->startActivity(new Intent(this,ScanActivity.class))),new LinearLayout.LayoutParams(0,-2,1));
+        row.addView(shortcutTile("pay","易校园","付款码",this::openCampusPayCode),new LinearLayout.LayoutParams(0,-2,1));
+        row.addView(shortcutTile("parcel","身份码","淘宝·菜鸟驿站",this::openPickupCode),new LinearLayout.LayoutParams(0,-2,1));
         card.addView(row);parent.addView(card,new LinearLayout.LayoutParams(-1,-2));
     }
     /** Grades, empty classrooms, the auto-signed-in portal and the two official school sites. */
     private void academicCard(LinearLayout parent) {
         LinearLayout card=whiteCard();cardHeader(card,"教务",null,null);gap(card,8);
         LinearLayout row=new LinearLayout(this);
-        row.addView(shortcutTile("score",AppUi.ACCENT,"成绩","查询",()->openEdu("grades")),new LinearLayout.LayoutParams(0,-2,1));
-        row.addView(shortcutTile("room",AppUi.ACCENT,"空教室","查询",()->openEdu("rooms")),new LinearLayout.LayoutParams(0,-2,1));
-        row.addView(shortcutTile("cap",TINT_EDU,"教务系统","自动登录",()->startActivity(new Intent(this,EduPortalActivity.class))),new LinearLayout.LayoutParams(0,-2,1));
+        row.addView(shortcutTile("score","成绩","查询",()->openEdu("grades")),new LinearLayout.LayoutParams(0,-2,1));
+        row.addView(shortcutTile("room","空教室","查询",()->openEdu("rooms")),new LinearLayout.LayoutParams(0,-2,1));
+        row.addView(shortcutTile("cap","教务系统","自动登录",()->startActivity(new Intent(this,EduPortalActivity.class))),new LinearLayout.LayoutParams(0,-2,1));
         card.addView(row);
         LinearLayout sites=new LinearLayout(this);
-        sites.addView(shortcutTile("school",AppUi.ACCENT,"河工程官网","hebeu.edu.cn",()->openSchoolSite("河北工程大学官网","https://www.hebeu.edu.cn/")),new LinearLayout.LayoutParams(0,-2,1));
-        sites.addView(shortcutTile("globe",AppUi.ACCENT,"科信官网","kexin.hebeu.edu.cn",()->openSchoolSite("科信学院官网","https://kexin.hebeu.edu.cn/")),new LinearLayout.LayoutParams(0,-2,1));
+        sites.addView(shortcutTile("school","河工程官网","hebeu.edu.cn",()->openSchoolSite("河北工程大学官网","https://www.hebeu.edu.cn/")),new LinearLayout.LayoutParams(0,-2,1));
+        sites.addView(shortcutTile("globe","科信官网","kexin.hebeu.edu.cn",()->openSchoolSite("科信学院官网","https://kexin.hebeu.edu.cn/")),new LinearLayout.LayoutParams(0,-2,1));
         card.addView(sites);parent.addView(card,new LinearLayout.LayoutParams(-1,-2));
     }
     private void openEdu(String mode){
@@ -881,12 +881,12 @@ public final class TimetableActivity extends Activity {
             .putExtra(SchoolSiteActivity.EXTRA_TITLE,title));}
         catch(RuntimeException unavailable){notice("无法打开学校网站。");}
     }
-    private View shortcutTile(String icon,int tint,String title,String subtitle,Runnable action) {
+    private View shortcutTile(String icon,String title,String subtitle,Runnable action) {
         // Four of these share the width of the card. On a narrow phone they lose a little icon and
         // a point of type rather than letting the labels wrap into uneven columns.
         boolean compact=AppUi.compact(this);int size=compact?dp(40):dp(44);
         LinearLayout tile=column();tile.setGravity(android.view.Gravity.CENTER);tile.setPadding(dp(3),dp(10),dp(3),dp(10));tile.setMinimumHeight(dp(96));AppUi.press(tile,0xffffffff,10);tile.setOnClickListener(v->action.run());
-        android.widget.ImageView mark=new android.widget.ImageView(this);mark.setImageDrawable(AppUi.icon(this,icon,tint,24));mark.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);mark.setBackground(AppUi.shape(this,AppUi.SOFT,22));mark.setPadding(dp(9),dp(9),dp(9),dp(9));tile.addView(mark,new LinearLayout.LayoutParams(size,size));
+        android.widget.ImageView mark=new android.widget.ImageView(this);mark.setImageDrawable(AppUi.icon(this,icon,AppUi.ACCENT,24));mark.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);mark.setBackground(AppUi.shape(this,AppUi.SOFT,22));mark.setPadding(dp(9),dp(9),dp(9),dp(9));tile.addView(mark,new LinearLayout.LayoutParams(size,size));
         TextView name=bold(title,compact?12:13);name.setGravity(android.view.Gravity.CENTER);name.setPadding(0,dp(8),0,0);name.setMaxLines(2);name.setEllipsize(android.text.TextUtils.TruncateAt.END);tile.addView(name);
         TextView hint=text(subtitle,compact?11:12);hint.setTextColor(AppUi.MUTED);hint.setGravity(android.view.Gravity.CENTER);hint.setMaxLines(2);hint.setEllipsize(android.text.TextUtils.TruncateAt.END);tile.addView(hint);tile.setContentDescription(title+"，"+subtitle);return tile;
     }
@@ -950,18 +950,18 @@ public final class TimetableActivity extends Activity {
         ScrollView scroll=new ScrollView(this);LinearLayout content=column();scroll.addView(content);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
         LinearLayout card=whiteCard();
         campusEntry(card,"scan",AppUi.ACCENT,"趣智校园","浴室、吹风机",()->startActivity(new Intent(this,AccountInfoActivity.class)),true);
-        campusEntry(card,"water",TINT_LIFE,"慧生活798","饮水",()->startActivity(new Intent(this,AccountInfoActivity.class).putExtra("life798",true)),true);
+        campusEntry(card,"water",AppUi.ACCENT,"慧生活798","饮水",()->startActivity(new Intent(this,AccountInfoActivity.class).putExtra("life798",true)),true);
         // 教务系统指向本应用自己的教务页（自动登录 + 网页登录两条路都在里面），不是学校的空白登录表单：
         // 没存账号时那一页会直接把教务账号页拉起来，等于先看到登录，再看到系统。
-        campusEntry(card,"cap",TINT_EDU,"教务系统","成绩、空教室与自动登录",()->startActivity(new Intent(this,EduPortalActivity.class)),true);
+        campusEntry(card,"cap",AppUi.ACCENT,"教务系统","成绩、空教室与自动登录",()->startActivity(new Intent(this,EduPortalActivity.class)),true);
         // 数据与隐私 已移到「更多」：它讲的是这个应用本身存了什么，不是一项校园服务。
         // Feedback sits above the update check: both are about the app itself rather than about an
         // account, and a reader who came here to complain should not have to scroll past 检查更新.
-        campusEntry(card,"mail",TINT_APP,"意见反馈","邮箱与 QQ 群",()->startActivity(new Intent(this,FeedbackActivity.class)),true);
+        campusEntry(card,"mail",AppUi.ACCENT,"意见反馈","邮箱与 QQ 群",()->startActivity(new Intent(this,FeedbackActivity.class)),true);
         // The start-up check is silent by design, so the manual one sits in the list next to the
         // other things that answer a question about the app itself, rather than on a footer line.
-        campusEntry(card,"refresh",TINT_APP,"检查更新","当前 "+AppUi.version(this)+"，点按查询新版本",()->UpdateCheck.checkManually(this),true);
-        campusEntry(card,"more",TINT_APP,"更多","数据与隐私、源码与许可证",()->startActivity(new Intent(this,MoreActivity.class)),false);
+        campusEntry(card,"refresh",AppUi.ACCENT,"检查更新","当前 "+AppUi.version(this)+"，点按查询新版本",()->UpdateCheck.checkManually(this),true);
+        campusEntry(card,"more",AppUi.ACCENT,"更多","数据与隐私、源码与许可证",()->startActivity(new Intent(this,MoreActivity.class)),false);
         gap(card,10);card.addView(body("科信小助手 "+AppUi.version(this)+" · 第三方校园客户端"));content.addView(card);
     }
 
