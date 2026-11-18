@@ -140,7 +140,7 @@ final class NoticeDialog {
         start.setText("知道了，开始使用");
         start.setAllCaps(false);
         start.setTextSize(16);
-        start.setTextColor(0xffffffff);
+        start.setTextColor(AppUi.ON_ACCENT);
         start.setMinHeight(50 * dp);
         GradientDrawable fill = new GradientDrawable();
         fill.setColor(AppUi.ACCENT);
@@ -153,7 +153,7 @@ final class NoticeDialog {
         panel.addView(quiet, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        AlertDialog dialog = new AlertDialog.Builder(activity).setView(panel).create();
+        AlertDialog dialog = Theme.dialog(activity).setView(panel).create();
         start.setOnClickListener(v -> {
             if (recordChoice) {
                 activity.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()

@@ -60,7 +60,7 @@ public final class MoreActivity extends Activity {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(18), dp(16), dp(18), dp(16));
-        card.setBackground(AppUi.outlined(this, 0xffffffff, 18, AppUi.LINE));
+        card.setBackground(AppUi.outlined(this, AppUi.SURFACE, 18, AppUi.LINE));
         return card;
     }
 
@@ -127,7 +127,7 @@ public final class MoreActivity extends Activity {
         body.setPadding(dp(18), dp(8), dp(18), dp(8));
         ScrollView scroll = new ScrollView(this);
         scroll.addView(body);
-        new AlertDialog.Builder(this)
+        Theme.dialog(this)
             .setTitle("MIT License")
             .setView(scroll)
             .setPositiveButton("关闭", null)
@@ -173,6 +173,11 @@ public final class MoreActivity extends Activity {
         // 数据与隐私 从校园页挪到这里：它回答的是「这个应用本身动了什么」，与源码、许可证同类，
         // 而不是像趣智校园/慧生活那样的一项校园服务。
         entry(card, "info", "数据与隐私", "本机存了什么、发到哪里、怎么清除", true, this::openPrivacy);
+        // 日志只在测试版出现：发布版里这段被 javac 删掉，读者看不到一个自己用不上的入口。
+        if (BuildFlags.DIAGNOSTICS) {
+            entry(card, "today", "日志", "这次启动走了哪几步，可复制发给开发者", true,
+                () -> startActivity(new Intent(this, DiagActivity.class)));
+        }
         entry(card, "globe", "本项目 GitHub 仓库", "github.com/shynekoo/CampusKit", true, this::openRepository);
         entry(card, "score", "查看开源许可证", "MIT License", false, this::showLicence);
         root.addView(card);

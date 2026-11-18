@@ -45,18 +45,11 @@ public final class LifeLoginActivity extends Activity {
                 v.setPadding(bars.left,bars.top,bars.right,bars.bottom);return insets;});
         }
 
-        // 顶部这一行：左边回上一页，右边是运行记录。日志只在测试版出现——发布版里这段
-        // 被 javac 删掉，读者看不到一个自己用不上的入口。
+        // 顶部这一行只留返回：日志的入口在首页「更多」（AccountInfoActivity），那里任何状态都进得来。
         LinearLayout top=new LinearLayout(this);top.setOrientation(0);top.setGravity(Gravity.CENTER_VERTICAL);
         TextView back=text("‹ 返回科信小助手",14);back.setTextColor(AppUi.ACCENT);back.setPadding(0,dp(8),0,dp(8));
         back.setOnClickListener(v->finish());
         top.addView(back,new LinearLayout.LayoutParams(0,-2,1));
-        if(BuildFlags.DIAGNOSTICS){
-            TextView logs=text("日志",13);logs.setTextColor(AppUi.MUTED);
-            logs.setPadding(dp(14),dp(10),dp(2),dp(10));
-            logs.setOnClickListener(v->startActivity(new Intent(this,DiagActivity.class)));
-            top.addView(logs,new LinearLayout.LayoutParams(-2,-2));
-        }
         form.addView(top);
         TextView title=text("登录慧生活798",24);title.setTypeface(null,Typeface.BOLD);form.addView(title);
         TextView intro=muted("第三方客户端。用支付宝授权登录，登录凭据加密保存在本机。",13);
@@ -73,7 +66,7 @@ public final class LifeLoginActivity extends Activity {
 
         status=text("",13);status.setTextColor(AppUi.MUTED);status.setPadding(0,dp(16),0,dp(10));form.addView(status);
         LinearLayout secondary=new LinearLayout(this);secondary.setOrientation(1);
-        secondary.setBackground(AppUi.outlined(this,0xffffffff,10,AppUi.LINE));
+        secondary.setBackground(AppUi.outlined(this,AppUi.SURFACE,10,AppUi.LINE));
         form.addView(secondary,new LinearLayout.LayoutParams(-1,-2));
         verify=quiet(secondary,"检查登录状态",()->run(()->{
             JSONObject session=new LifeSessionVault(this).load();if(session==null)return "尚未登录，请先完成支付宝授权";
@@ -91,7 +84,7 @@ public final class LifeLoginActivity extends Activity {
         Diag.step("登录","打开登录页 "+AppUi.version(this));
     }
     private Button primary(LinearLayout form,String label,Runnable action){
-        Button b=new Button(this);b.setText(label);b.setAllCaps(false);b.setTextSize(16);b.setTextColor(0xffffffff);
+        Button b=new Button(this);b.setText(label);b.setAllCaps(false);b.setTextSize(16);b.setTextColor(AppUi.ON_ACCENT);
         b.setBackground(AppUi.shape(this,AppUi.ACCENT,12));b.setOnClickListener(v->action.run());
         form.addView(b,new LinearLayout.LayoutParams(-1,dp(48)));return b;
     }

@@ -43,13 +43,13 @@
 
 | 项目 | 情况 |
 | :-- | :-- |
-| 最新版本 | **v2.5.6**（2026-11-17） |
-| 安装包 | 5,346,972 字节 · SHA-256 `5fac88d080fa99121f863e271403b6cecb0c5510e134ea3742263dbcc5413c83` |
+| 最新版本 | **v2.5.6.11**（2026-11-18） |
+| 安装包 | 5,367,674 字节 · SHA-256 `be809bb0d88c7214de914e37a8f6b4f8dcab8a120a6623eddda1ad2079ca23a1` |
 | 系统要求 | Android 7.0（API 24）及以上，targetSdk 36 |
 | 技术栈 | Java + 原生 View；无 Gradle、无第三方 UI 框架 |
 | 第三方库 | ZXing 3.5.3、PDFBox-Android 2.0.27.0、Bouncy Castle 1.72、支付宝 SDK 15.8.42 |
 | 代码量 | 约 1.5 万行 Java（110 个受版本管理的文件）+ 约 1000 行 Python 构建脚本 |
-| 测试 | 出包流程内跑 1034 项核心断言，全过才生成 APK |
+| 测试 | 出包流程内跑 1067 项核心断言，全过才生成 APK |
 
 ## 界面
 
@@ -71,6 +71,7 @@
 | **取件身份码** | 一键跳到淘宝 → 菜鸟驿站身份码 | 只做唤起与跳转，应用本身不访问取件数据 |
 | **应用内更新** | 启动时检查版本清单，下载后校验字节数与 SHA-256 才安装 | 最后一步必须你点「安装」，应用不会静默装东西 |
 | **意见反馈 / 更多** | 邮箱与 QQ 群（点一下复制）、仓库地址、内嵌 MIT 许可证全文 | 许可证弹窗离线可读 |
+| **外观与主题** | 深色模式（自动 / 浅色 / 深色）、主题色、悬浮底栏、返回手势动画；课表配色、课程文字颜色、圆角、格子不透明度、网格线开关 | 颜色从一处静态调色板下发，换主题不需要第二套布局；偏好存在本机 |
 
 ## 工作原理
 
@@ -144,13 +145,13 @@ sequenceDiagram
 
 ## 下载
 
-1. 从 [Releases 最新版](https://github.com/shynekoo/CampusKit/releases/latest) 下载 `kexin-xiaozhushou-2.5.6.apk`（国内也可以用直链：<https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.5.6.apk?sharecode=BZD63HRP4B>）
+1. 从 [Releases 最新版](https://github.com/shynekoo/CampusKit/releases/latest) 下载 `kexin-xiaozhushou-2.5.6.11.apk`（国内也可以用直链：<https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.5.6.11.apk?sharecode=BZD63HRP4B>）
 2. 允许浏览器「安装未知应用」，装完打开即可，不需要 Root、不需要任何框架
 3. 想核对包有没有被改过：
 
 ```bash
-sha256sum kexin-xiaozhushou-2.5.6.apk
-# 5fac88d080fa99121f863e271403b6cecb0c5510e134ea3742263dbcc5413c83
+sha256sum kexin-xiaozhushou-2.5.6.11.apk
+# be809bb0d88c7214de914e37a8f6b4f8dcab8a120a6623eddda1ad2079ca23a1
 ```
 
 > ⚠️ **升级请覆盖安装。** 换成别的签名只能卸载重装，而卸载会清掉课表与凭据——先在「课表 → 管理 → 导出备份」存一份，重装后再恢复。
@@ -260,6 +261,13 @@ docs/           README 用到的截图
 - **代码贡献**：先开 Issue 说清楚要改什么，再提 PR；改动需通过 `python scripts/test_core.py`，涉及界面的请附截图
 
 ## 更新日志
+
+**v2.5.6.11**（2026-11-18）
+
+- 账号页新增「外观与主题」：分应用主题与课表外观两页
+- 应用主题：明暗模式（自动 / 浅色 / 深色）、主题色彩（默认 / 自定义）、悬浮底栏样式、返回手势动画
+- 课表外观：课程配色（默认 / 自定义，18 个色槽逐个可调）、课程文字颜色、格子圆角、格子不透明度、显示网格线开关；改动在上面就能看到实时预览
+- 深色是一套单独挑的灰阶，不是把浅色反相：正文、卡片、对话框、状态栏都跟着走
 
 **v2.5.6**（2026-11-17）
 

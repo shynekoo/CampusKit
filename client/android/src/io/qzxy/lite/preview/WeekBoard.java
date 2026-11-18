@@ -29,10 +29,21 @@ final class WeekBoard extends android.view.ViewGroup {
         void addAt(int day, int section);
     }
     static final int PALETTE = io.qzxy.lite.core.TimetablePalette.SIZE;
-    static final int[] FILLS = new int[PALETTE];
-    static final int[] INKS = new int[PALETTE];
-    static {
-        for (int i = 1; i <= PALETTE; i++) { FILLS[i - 1] = io.qzxy.lite.core.TimetablePalette.fill(i); INKS[i - 1] = io.qzxy.lite.core.TimetablePalette.ink(i); }
+    /**
+     * Colours come from {@link Theme} on every call rather than from a copy taken at class load:
+     * 课程配色 can be changed while the timetable is on screen, and a stale copy is exactly the bug
+     * where the settings preview updates but the board behind it does not.
+     *
+     * <p>{@code fill}/{@code ink} take the editor's 1-based choice (0 meaning 自动); {@code fillAt}/
+     * {@code inkAt} take the board's 0-based palette slot.</p>
+     */
+    static int fillAt(int slot) { return Theme.cellFill(slot); }
+    static int inkAt(int slot) { return Theme.inkFor(slot); }
+    static int fill(int choice) {
+        return choice < 1 || choice > PALETTE ? io.qzxy.lite.core.TimetablePalette.AUTO_FILL : fillAt(choice - 1);
+    }
+    static int ink(int choice) {
+        return choice < 1 || choice > PALETTE ? io.qzxy.lite.core.TimetablePalette.AUTO_INK : inkAt(choice - 1);
     }
     private android.graphics.Bitmap photo;
     void setPhoto(android.graphics.Bitmap bitmap){photo=bitmap;invalidate();}
@@ -77,13 +88,9 @@ final class WeekBoard extends android.view.ViewGroup {
         return result;
     }
 
-    /** Palette swatch for the editor: index 0 is "auto", 1..PALETTE are the fixed colours. */
-    static int fill(int index) { return io.qzxy.lite.core.TimetablePalette.fill(index); }
-    static int ink(int index) { return io.qzxy.lite.core.TimetablePalette.ink(index); }
-
     WeekBoard(Context context,List<JSONObject> courses,String[] dates,int today,Map<String,Integer> autoColors,Listener listener) {
         super(context);this.dates=dates;this.today=today;this.autoColors=autoColors;this.listener=listener;
-        setWillNotDraw(false);setBackgroundColor(0xffffffff);
+        setWillNotDraw(false);setBackgroundColor(AppUi.SURFACE);
         tapSlop=ViewConfiguration.get(context).getScaledTouchSlop();
         int max=10;
         for(JSONObject c:courses)max=Math.max(max,c.optInt("last"));sections=max;
@@ -99,13 +106,13 @@ final class WeekBoard extends android.view.ViewGroup {
         for(Block block:blocks) {
             JSONObject c=block.courses.get(0);int color=colorIndex(c);
             LinearLayout view=new LinearLayout(context);view.setOrientation(LinearLayout.VERTICAL);block.view=view;
-            TextView title=new TextView(context);block.title=title;title.setTextColor(INKS[color]);title.setGravity(Gravity.TOP|Gravity.LEFT);
+            TextView title=new TextView(context);block.title=title;title.setTextColor(inkAt(color));title.setGravity(Gravity.TOP|Gravity.LEFT);
             title.setTypeface(Typeface.DEFAULT,Typeface.BOLD);title.setIncludeFontPadding(false);title.setText(c.optString("name")+(block.courses.size()>1?" +"+(block.courses.size()-1):""));
             title.setEllipsize(android.text.TextUtils.TruncateAt.END);view.addView(title,new LinearLayout.LayoutParams(-1,0,1));
-            TextView room=new TextView(context);block.room=room;room.setTextColor(INKS[color]);room.setGravity(Gravity.LEFT);room.setIncludeFontPadding(false);
+            TextView room=new TextView(context);block.room=room;room.setTextColor(inkAt(color));room.setGravity(Gravity.LEFT);room.setIncludeFontPadding(false);
             block.roomText=c.optString("room").replaceFirst("^([A-Za-z]+[0-9]+)[-－](.+)$","$1\n$2");
             room.setText(block.roomText);room.setEllipsize(android.text.TextUtils.TruncateAt.END);view.addView(room,new LinearLayout.LayoutParams(-1,-2));
-            GradientDrawable bg=new GradientDrawable();bg.setColor(FILLS[color]);bg.setCornerRadius(dp(8));view.setBackground(bg);
+            GradientDrawable bg=new GradientDrawable();bg.setColor(fillAt(color));bg.setCornerRadius(dp(Theme.radius()));view.setBackground(bg);
             String description="周"+new String[]{"一","二","三","四","五","六","日"}[block.day]+" 第"+block.first+"至"+block.last+"节";
             for(JSONObject course:block.courses)description+="，"+course.optString("name")+"，"+course.optString("room");
             view.setContentDescription(description+"，点击查看详情");view.setOnClickListener(v->listener.open(block.courses));view.setFocusable(true);addView(view);
@@ -190,14 +197,25 @@ final class WeekBoard extends android.view.ViewGroup {
             float scale=Math.max((float)getWidth()/photo.getWidth(),(float)getHeight()/photo.getHeight());
             float w=photo.getWidth()*scale,h=photo.getHeight()*scale;
             canvas.drawBitmap(photo,null,new RectF((getWidth()-w)/2,(getHeight()-h)/2,(getWidth()+w)/2,(getHeight()+h)/2),null);
-            canvas.drawColor(0xbfffffff);
+            // 背景图 under 深色 theme: the veil has to be the page's colour, not paper, or the whole
+            // board turns into a bright rectangle in an otherwise dark app.
+            canvas.drawColor(Theme.dark()?0xc0101419:0xbfffffff);
         }
-        if(today>=0){paint.setColor(photo==null?0xfff5f8fd:0x60e6edfa);canvas.drawRect(axis+today*column,head,axis+(today+1)*column,getHeight(),paint);paint.setColor(AppUi.ACCENT);canvas.drawRoundRect(axis+today*column+dp(3),dp(4),axis+(today+1)*column-dp(3),dp(43),dp(10),dp(10),paint);}
-        paint.setColor(0xffeff2f6);paint.setStrokeWidth(dp(0.6f));
-        for(int n=0;n<=sections;n++)canvas.drawLine(axis,head+n*row,getWidth(),head+n*row,paint);
+        if(today>=0){paint.setColor(photo==null?(Theme.dark()?0xff1c2531:0xfff5f8fd):0x60e6edfa);canvas.drawRect(axis+today*column,head,axis+(today+1)*column,getHeight(),paint);paint.setColor(AppUi.ACCENT);canvas.drawRoundRect(axis+today*column+dp(3),dp(4),axis+(today+1)*column-dp(3),dp(43),dp(10),dp(10),paint);}
+        // 显示网格线: on, the table is ruled in both directions; off, the cells are separated by the
+        // space between them alone. The rule also draws the header baseline, which is why the header
+        // keeps its line either way — without it the dates float above nothing.
+        if(Theme.grid()){
+            paint.setColor(AppUi.LINE);paint.setStrokeWidth(dp(0.6f));
+            for(int n=0;n<=sections;n++)canvas.drawLine(axis,head+n*row,getWidth(),head+n*row,paint);
+            for(int n=0;n<=7&&axis+n*column<=getWidth();n++)canvas.drawLine(axis+n*column,head,axis+n*column,getHeight(),paint);
+        }else{
+            paint.setColor(AppUi.LINE);paint.setStrokeWidth(dp(0.6f));
+            canvas.drawLine(axis,head,getWidth(),head,paint);
+        }
         label(canvas,"节",axis/2,dp(28),10,AppUi.MUTED,false);
-        for(int n=0;n<7;n++) {float x=axis+(n+.5f)*column;label(canvas,"周"+new String[]{"一","二","三","四","五","六","日"}[n],x,dp(20),11,n==today?0xffffffff:AppUi.INK,true);
-            label(canvas,dates[n],x,dp(37),10,n==today?0xe6ffffff:AppUi.MUTED,false);}
+        for(int n=0;n<7;n++) {float x=axis+(n+.5f)*column;label(canvas,"周"+new String[]{"一","二","三","四","五","六","日"}[n],x,dp(20),11,n==today?AppUi.ON_ACCENT:AppUi.INK,true);
+            label(canvas,dates[n],x,dp(37),10,n==today?(AppUi.ON_ACCENT&0x00ffffff)|0xcc000000:AppUi.MUTED,false);}
         for(int n=1;n<=sections;n++) {
             float center=head+(n-.5f)*row;
             // Times drop a step on a narrow gutter so 08:30 still fits between the rule and the axis.

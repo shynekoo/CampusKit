@@ -161,7 +161,7 @@ public final class EduQueryActivity extends Activity {
         read.setText("读取本页");
         read.setAllCaps(false);
         read.setTextSize(16);
-        read.setTextColor(0xffffffff);
+        read.setTextColor(AppUi.ON_ACCENT);
         read.setBackground(AppUi.shape(this, AppUi.ACCENT, 12));
         AppUi.press(read, AppUi.ACCENT, 12);
         read.setEnabled(false);
@@ -175,7 +175,7 @@ public final class EduQueryActivity extends Activity {
     }
 
     private void clearLogin() {
-        new AlertDialog.Builder(this)
+        Theme.dialog(this)
             .setMessage("清除「科信小助手」内教务网页的登录状态？已导入的课程和其他数据不受影响。")
             .setNegativeButton("取消", null)
             .setPositiveButton("清除", (d, w) -> CookieManager.getInstance().removeAllCookies(ok -> {

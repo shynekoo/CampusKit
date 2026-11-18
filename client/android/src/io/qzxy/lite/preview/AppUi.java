@@ -5,9 +5,20 @@ import android.graphics.*;
 import android.graphics.drawable.*;
 import android.view.View;
 
-/** The app's light theme and native outline icon family. No font glyph icons. */
+/** The app's colours and native outline icon family. No font glyph icons. */
 final class AppUi {
- static final int BG=0xfff6f7f9,SURFACE=0xffffffff,INK=0xff202735,MUTED=0xff596575,ACCENT=0xff275dad,LINE=0xffe3e7ed,SOFT=0xffedf2f9;
+ /**
+  * The palette every screen draws from. Deliberately not {@code final}: 外观与主题 repaints the app by
+  * rewriting these six values before a page is built, which is why no view needs to know whether it
+  * is being drawn light or dark. {@link Theme#load} owns them; nothing else may assign.
+  */
+ static int BG=0xfff6f7f9,SURFACE=0xffffffff,INK=0xff202735,MUTED=0xff596575,ACCENT=0xff275dad,LINE=0xffe3e7ed,SOFT=0xffedf2f9;
+ /**
+  * Text and icons drawn on top of {@link #ACCENT}. White while the accent is a dark blue; the dark
+  * theme lightens the accent for legibility on a dark page, and white on that would be the one
+  * label nobody can read.
+  */
+ static int ON_ACCENT=0xffffffff;
  /** Destructive actions only: deleting a timetable, wiping local data. */
  static final int DANGER=0xffc0392b;
  static int dp(Context c,int n){return Math.round(n*c.getResources().getDisplayMetrics().density);}
@@ -38,7 +49,7 @@ final class AppUi {
  static String version(Context c){try{return c.getPackageManager().getPackageInfo(c.getPackageName(),0).versionName;}catch(Exception unknown){return "";}}
  static GradientDrawable shape(Context c,int color,int radius){GradientDrawable g=new GradientDrawable();g.setColor(color);g.setCornerRadius(dp(c,radius));return g;}
  static GradientDrawable outlined(Context c,int fill,int radius,int stroke){GradientDrawable g=shape(c,fill,radius);g.setStroke(Math.max(1,dp(c,1)),stroke);return g;}
- static void press(View v,int fill,int radius){v.setBackground(new RippleDrawable(ColorStateList.valueOf(0x1f275dad),shape(v.getContext(),fill,radius),null));v.setFocusable(true);}
+ static void press(View v,int fill,int radius){v.setBackground(new RippleDrawable(ColorStateList.valueOf((0x1f<<24)|(ACCENT&0xffffff)),shape(v.getContext(),fill,radius),null));v.setFocusable(true);}
  static Drawable icon(Context c,String name,int color,int size){Icon d=new Icon(name,color);d.setBounds(0,0,dp(c,size),dp(c,size));return d;}
  static final class Icon extends Drawable {
   final String name;final Paint p=new Paint(3);int color;
@@ -75,6 +86,11 @@ final class AppUi {
      line(c,21.2f,8.6f,21.2f,14.4f);break;
     // 更多：三个实心点。同样是以前缺一个画法。
     case "more":p.setStyle(Paint.Style.FILL);c.drawCircle(12,5.8f,1.3f,p);c.drawCircle(12,12,1.3f,p);c.drawCircle(12,18.2f,1.3f,p);break;
+    // 外观与主题：一个填掉一半的圆。这是「明与暗」四个字最省画笔的写法，也不必借用太阳或月亮
+    // ——那两个都被天气预报用烂了，在这里还容易被读成天气。
+    case "theme":c.drawCircle(12,12,8.4f,p);p.setStyle(Paint.Style.FILL);
+     Path half=new Path();half.addArc(3.6f,3.6f,20.4f,20.4f,90,180);half.close();c.drawPath(half,p);
+     p.setStyle(Paint.Style.STROKE);break;
     // Solid triangle, not the outline chevron: it has to read as "this opens a list". It fills most
     // of the 24dp box rather than a corner of it — a triangle that only spans a third of its frame
     // disappears next to 20sp text, which is exactly what happened at the old 8×5.5 shape.

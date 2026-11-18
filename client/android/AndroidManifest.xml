@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="io.qzxy.lite.preview" android:versionCode="176" android:versionName="2.5.5">
+    package="io.qzxy.lite.preview" android:versionCode="189" android:versionName="2.5.6.11">
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="36" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -26,7 +26,7 @@
             <data android:scheme="tbopen" />
         </intent>
     </queries>
-    <application android:label="科信小助手" android:theme="@style/AppTheme" android:usesCleartextTraffic="false"
+    <application android:name=".App" android:label="科信小助手" android:theme="@style/AppTheme" android:usesCleartextTraffic="false"
         android:icon="@mipmap/ic_app" android:roundIcon="@mipmap/ic_app" android:allowBackup="false" android:supportsRtl="true">
         <!-- Declared by the Alipay SDK's own manifest; optional, so devices without it still install. -->
         <uses-library android:name="org.apache.http.legacy" android:required="false" />
@@ -77,6 +77,7 @@
         <activity android:name=".PrivacyActivity" android:exported="false" android:configChanges="orientation|screenSize" />
         <activity android:name=".FeedbackActivity" android:exported="false" android:configChanges="orientation|screenSize" />
         <activity android:name=".MoreActivity" android:exported="false" android:configChanges="orientation|screenSize" />
+        <activity android:name=".AppearanceActivity" android:exported="false" android:configChanges="orientation|screenSize" />
         <!-- 运行记录：入口只在测试版的登录页，发布版读者到不了这一页。 -->
         <activity android:name=".DiagActivity" android:exported="false" android:configChanges="orientation|screenSize" />
 

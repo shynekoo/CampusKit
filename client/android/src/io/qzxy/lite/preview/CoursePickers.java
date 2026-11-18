@@ -18,7 +18,7 @@ final class CoursePickers {
  static int dp(Activity a,int n){return AppUi.dp(a,n);}
  static LinearLayout column(Activity a){LinearLayout v=new LinearLayout(a);v.setOrientation(1);return v;}
  static TextView text(Activity a,String value,int size){TextView v=new TextView(a);v.setText(value);v.setTextSize(size);v.setTextColor(AppUi.INK);v.setGravity(Gravity.CENTER);return v;}
- static Button button(Activity a,String label,boolean primary){Button b=new Button(a);b.setText(label);b.setTextSize(16);b.setAllCaps(false);b.setMinHeight(dp(a,48));b.setTextColor(primary?Color.WHITE:AppUi.ACCENT);AppUi.press(b,primary?AppUi.ACCENT:AppUi.SOFT,12);return b;}
+ static Button button(Activity a,String label,boolean primary){Button b=new Button(a);b.setText(label);b.setTextSize(16);b.setAllCaps(false);b.setMinHeight(dp(a,48));b.setTextColor(primary?AppUi.ON_ACCENT:AppUi.ACCENT);AppUi.press(b,primary?AppUi.ACCENT:AppUi.SOFT,12);return b;}
  static Dialog sheet(Activity a,String title,LinearLayout body){
   SlidingDialog d=new SlidingDialog(a);d.requestWindowFeature(Window.FEATURE_NO_TITLE);
   LinearLayout root=column(a);root.setPadding(dp(a,16),dp(a,12),dp(a,16),dp(a,20));
@@ -65,7 +65,7 @@ final class CoursePickers {
   // Five columns, not a count derived from the width: the term is a 5×4 block, and a grid that
   // reflows between four and six columns makes the same week move every time it is opened.
   LinearLayout body=column(a);int columns=WEEK_COLUMNS;
-  AlertDialog dialog=new AlertDialog.Builder(a).setTitle("选择周次").setView(body).setNegativeButton("取消",null).create();
+  AlertDialog dialog=Theme.dialog(a).setTitle("选择周次").setView(body).setNegativeButton("取消",null).create();
   body.setPadding(dp(a,12),dp(a,8),dp(a,12),dp(a,8));
   int last=Math.max(1,Math.max(current,thisWeek));
   if(allowed!=null&&!allowed.isEmpty())for(int week:allowed)last=Math.max(last,week);
@@ -94,7 +94,7 @@ final class CoursePickers {
  }
  static Dialog weeks(Activity a,boolean[] current,WeekResult result){
   boolean[] draft=current.clone();LinearLayout body=column(a);int columns=WEEK_COLUMNS;Button[] cells=new Button[LAST_WEEK];
-  Runnable paint=()->{for(int i=0;i<LAST_WEEK;i++){Button b=cells[i];b.setSelected(draft[i]);b.setTextColor(draft[i]?Color.WHITE:AppUi.INK);AppUi.press(b,draft[i]?AppUi.ACCENT:AppUi.SOFT,10);b.setContentDescription("第"+(i+1)+"周，"+(draft[i]?"已选":"未选"));}};
+  Runnable paint=()->{for(int i=0;i<LAST_WEEK;i++){Button b=cells[i];b.setSelected(draft[i]);b.setTextColor(draft[i]?AppUi.ON_ACCENT:AppUi.INK);AppUi.press(b,draft[i]?AppUi.ACCENT:AppUi.SOFT,10);b.setContentDescription("第"+(i+1)+"周，"+(draft[i]?"已选":"未选"));}};
   for(int start=0;start<LAST_WEEK;start+=columns){LinearLayout row=new LinearLayout(a);body.addView(row);for(int col=0;col<columns;col++){int i=start+col;LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(a,48),1);p.setMargins(dp(a,4),dp(a,4),dp(a,4),dp(a,4));if(i>=LAST_WEEK){row.addView(new View(a),p);continue;}Button b=button(a,String.valueOf(i+1),false);b.setPadding(0,0,0,0);b.setMinWidth(0);cells[i]=b;row.addView(b,p);b.setOnClickListener(v->{draft[i]=!draft[i];paint.run();});}}
   paint.run();LinearLayout presets=new LinearLayout(a);body.addView(presets);String[] labels={"全选","单周","双周"};for(int mode=0;mode<3;mode++){final int m=mode;Button b=button(a,labels[mode],false);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(a,48),1);p.setMargins(dp(a,4),dp(a,12),dp(a,4),0);presets.addView(b,p);b.setOnClickListener(v->{for(int i=0;i<draft.length;i++)draft[i]=i<LAST_WEEK&&(m==0||(i+1)%2==(m==1?1:0));paint.run();});}
   TextView error=text(a,"",14);error.setTextColor(0xffb3261e);body.addView(error);Dialog dialog=sheet(a,"选择上课周次",body);LinearLayout actions=new LinearLayout(a);body.addView(actions);Button cancel=button(a,"取消",false),done=button(a,"确定",true);for(Button b:new Button[]{cancel,done}){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(a,52),1);p.setMargins(dp(a,4),0,dp(a,4),0);actions.addView(b,p);}cancel.setOnClickListener(v->dialog.dismiss());done.setOnClickListener(v->{boolean any=false;for(boolean chosen:draft)any|=chosen;if(!any){error.setText("至少选择一周");return;}result.accept(draft.clone());dialog.dismiss();});dialog.show();return dialog;

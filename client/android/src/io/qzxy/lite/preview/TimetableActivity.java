@@ -30,7 +30,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 /** Local timetable, independent of the water account and network. Times are section numbers. */
-public final class TimetableActivity extends Activity {
+public final class TimetableActivity extends Activity implements App.Themed {
     private static final String[] DAYS = {"周一", "周二", "周三", "周四", "周五", "周六", "周日"};
     private final List<JSONObject> courses = new ArrayList<>();
     private SharedPreferences store;
@@ -73,6 +73,9 @@ public final class TimetableActivity extends Activity {
     private static final String[] PICKUP_FALLBACK_PACKAGES = {TAOBAO_PACKAGE, CAINIAO_PACKAGE, "com.eg.android.AlipayGphone"};
     private final java.util.concurrent.ExecutorService backgroundWorker = java.util.concurrent.Executors.newSingleThreadExecutor();
     @Override protected void onDestroy() { backgroundWorker.shutdown(); clockHandler.removeCallbacks(clockTick);if(store!=null)store.unregisterOnSharedPreferenceChangeListener(timetableChanged); super.onDestroy(); }
+
+    /** 外观与主题 changed while this page was behind it: draw the same tab again in the new look. */
+    @Override public void onThemeChanged() { render(); }
 
     @Override protected void onResume() {
         super.onResume();
@@ -189,7 +192,7 @@ public final class TimetableActivity extends Activity {
         if(fallback!=null && tryStart(fallback)) {
             android.widget.Toast.makeText(this,"已打开易校园，请点击付款码。",android.widget.Toast.LENGTH_LONG).show();return;
         }
-        new AlertDialog.Builder(this).setTitle("未找到易校园").setMessage("请先安装易校园并登录，再回来打开付款码。")
+        Theme.dialog(this).setTitle("未找到易校园").setMessage("请先安装易校园并登录，再回来打开付款码。")
             .setPositiveButton("知道了",null).show();
     }
 
@@ -205,7 +208,7 @@ public final class TimetableActivity extends Activity {
             if (data.getBooleanExtra("auto", false)) autoImport(data);
             else {
                 try { previewPdf(TimetableWebReader.parse(data.getStringExtra("courses")), "核对教务课表"); }
-                catch(Exception invalid) { new AlertDialog.Builder(this).setMessage("网页课表未能完整识别，已有课表未修改。"+invalid.getMessage()).setPositiveButton("知道了",null).show(); }
+                catch(Exception invalid) { Theme.dialog(this).setMessage("网页课表未能完整识别，已有课表未修改。"+invalid.getMessage()).setPositiveButton("知道了",null).show(); }
             }
             return;
         }
@@ -235,7 +238,7 @@ public final class TimetableActivity extends Activity {
             if (replacement.size()>500) throw new IllegalArgumentException("导入后超过 500 条课程，请先整理已有课程。");
             summary.append(parsed.notes).append("\n将新增 ").append(added).append(" 条，跳过相同课程。现有课程保留。\n开学日期需要按学校安排设置。");
             ScrollView scroll = new ScrollView(this); TextView body=text(summary.toString(), 15); body.setPadding(dp(20),dp(8),dp(20),dp(8)); scroll.addView(body);
-            AlertDialog dialog = new AlertDialog.Builder(this).setTitle(title).setView(scroll).setNegativeButton("取消",null).setPositiveButton("确认导入",null).create();
+            AlertDialog dialog = Theme.dialog(this).setTitle(title).setView(scroll).setNegativeButton("取消",null).setPositiveButton("确认导入",null).create();
             dialog.setOnShowListener(d -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
                 JSONArray array = new JSONArray(); for(JSONObject c:replacement) array.put(c);
                 String notes=store.getString("import_notes", "");
@@ -247,7 +250,7 @@ public final class TimetableActivity extends Activity {
                 if(monday.isEmpty()) semester();
             })); dialog.show();
         } catch(Exception invalid) {
-            new AlertDialog.Builder(this).setMessage("课表信息未通过校验，未修改已有课程。"+(invalid.getMessage()==null?"":invalid.getMessage())).setPositiveButton("知道了",null).show();
+            Theme.dialog(this).setMessage("课表信息未通过校验，未修改已有课程。"+(invalid.getMessage()==null?"":invalid.getMessage())).setPositiveButton("知道了",null).show();
         }
     }
     /** A chosen term replaces the timetable in one step; one undo copy is kept for that import. */
@@ -290,7 +293,7 @@ public final class TimetableActivity extends Activity {
                 + (skipped > 0 ? "\n另有 " + skipped + " 条记录字段不完整，已跳过。" : "")
                 + (monday.isEmpty() ? "\n记得在「开学日期」里设置本学期第一周的周一。" : "")
                 + "\n点「撤销」可恢复导入前的课表。";
-            new AlertDialog.Builder(this).setTitle("课表已导入").setMessage(message)
+            Theme.dialog(this).setTitle("课表已导入").setMessage(message)
                 .setNegativeButton("撤销",(d,w)->undoImport()).setPositiveButton("知道了",null).show();
         } catch (Exception invalid) {
             notice("自动导入的课表未通过校验，原课表未修改。"
@@ -430,20 +433,20 @@ public final class TimetableActivity extends Activity {
     private static int todayIndex() { return (Calendar.getInstance().get(Calendar.DAY_OF_WEEK) + 5) % 7; }
     private static String todayIso() { return new SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(new Date()); }
 
-    private void notice(String message){new AlertDialog.Builder(this).setMessage(message).setPositiveButton("知道了",null).show();}
+    private void notice(String message){Theme.dialog(this).setMessage(message).setPositiveButton("知道了",null).show();}
     private void document(String action,String type,int code){
         Intent intent=new Intent(action).setType(type).addCategory(Intent.CATEGORY_OPENABLE);
         if(action.equals(Intent.ACTION_CREATE_DOCUMENT))intent.putExtra(Intent.EXTRA_TITLE,"科信小助手-课表-"+todayIso()+".json");
         try{startActivityForResult(intent,code);}catch(Exception e){notice("无法打开系统文件选择器");}
     }
-    private void backgroundMenu(){new AlertDialog.Builder(this).setTitle("课表背景").setItems(new String[]{"选择背景图片","恢复默认背景"},(d,index)->{
+    private void backgroundMenu(){Theme.dialog(this).setTitle("课表背景").setItems(new String[]{"选择背景图片","恢复默认背景"},(d,index)->{
         if(index==0)document(Intent.ACTION_OPEN_DOCUMENT,"image/*",80);
         else if(TimetableStore.background(this,"")){backgroundImage=null;render();}else notice("保存失败，请重试");
     }).setNegativeButton("取消",null).show();}
-    private void widgetHelp(){new AlertDialog.Builder(this).setTitle("添加桌面课表")
+    private void widgetHelp(){Theme.dialog(this).setTitle("添加桌面课表")
         .setMessage("如果没有出现添加窗口，请在系统设置中允许「科信小助手」的桌面快捷方式权限，再返回重试。红米路径：权限管理 → 其他权限 → 桌面快捷方式 → 始终允许。也可在桌面小部件列表的安卓小部件中查找「科信小助手」。")
         .setPositiveButton("打开应用设置",(d,w)->{try{startActivity(new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getPackageName())));}catch(Exception e){notice("请在系统设置中找到「科信小助手」的权限管理。");}}).setNegativeButton("关闭",null).show();}
-    private void addScheduleWidget(){new AlertDialog.Builder(this).setTitle("桌面课表尺寸").setItems(new String[]{"2 × 2 · 当前 / 下一节","3 × 2 · 今日课程","4 × 2 · 宽版课表"},(d,index)->pinScheduleWidget(new Class<?>[]{ScheduleWidget.class,ScheduleWidgetMedium.class,ScheduleWidgetWide.class}[index])).setNegativeButton("取消",null).show();}
+    private void addScheduleWidget(){Theme.dialog(this).setTitle("桌面课表尺寸").setItems(new String[]{"2 × 2 · 当前 / 下一节","3 × 2 · 今日课程","4 × 2 · 宽版课表"},(d,index)->pinScheduleWidget(new Class<?>[]{ScheduleWidget.class,ScheduleWidgetMedium.class,ScheduleWidgetWide.class}[index])).setNegativeButton("取消",null).show();}
     private void pinScheduleWidget(Class<?> widgetType){
         android.appwidget.AppWidgetManager manager=android.appwidget.AppWidgetManager.getInstance(this);
         android.content.ComponentName provider=new android.content.ComponentName(this,widgetType);
@@ -469,7 +472,7 @@ public final class TimetableActivity extends Activity {
                     final android.graphics.Bitmap bitmap=TimetableBackup.decode(encoded);
                     runOnUiThread(()->{if(isDestroyed())return;importing=false;backgroundImage=bitmap;render();});
                 }else{JSONObject backup=TimetableBackup.parse(TimetableBackup.read(getContentResolver().openInputStream(uri),6*1024*1024));int count=new JSONArray(backup.getString("courses")).length();
-                    runOnUiThread(()->{if(isDestroyed())return;importing=false;render();new AlertDialog.Builder(this).setTitle("恢复课表备份")
+                    runOnUiThread(()->{if(isDestroyed())return;importing=false;render();Theme.dialog(this).setTitle("恢复课表备份")
                         .setMessage("备份含 "+count+" 条课程，开学日期："+backup.optString("monday")+"。恢复会替换当前课表「"+TimetableStore.currentName(this)+"」的课程、配色和备注，并换上备份里的背景图。")
                         .setNegativeButton("取消",null).setPositiveButton("恢复",(d,w)->{try{if(!TimetableBackup.restore(store,backup))throw new java.io.IOException();TimetableStore.background(this,backup.optString("background",""));recreate();}catch(Exception e){notice("恢复失败，未能保存备份。");}}).show();});}
             }catch(Exception failure){runOnUiThread(()->{if(isDestroyed())return;importing=false;render();notice(request==80?"图片无法读取，请选择20 MB以内的图片。":request==81?"备份写入失败，请重新选择保存位置。":"备份无法读取或格式无效，原课表未修改。");});}
@@ -497,7 +500,7 @@ public final class TimetableActivity extends Activity {
             LinearLayout row = new LinearLayout(this);
             row.setGravity(android.view.Gravity.CENTER_VERTICAL);
             row.setPadding(dp(14), dp(8), dp(8), dp(8));
-            AppUi.press(row, 0xffffffff, 10);
+            AppUi.press(row, AppUi.SURFACE, 10);
             TextView name = text(table.name, 16);
             name.setTextColor(active ? AppUi.ACCENT : AppUi.INK);
             if (active) name.setTypeface(null, android.graphics.Typeface.BOLD);
@@ -554,7 +557,7 @@ public final class TimetableActivity extends Activity {
         list.addView(add, new LinearLayout.LayoutParams(-1, dp(50)));
         ScrollView scroll = new ScrollView(this);
         scroll.addView(list);
-        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("选择课表").setView(scroll)
+        AlertDialog dialog = Theme.dialog(this).setTitle("选择课表").setView(scroll)
             .setNegativeButton("关闭", null).create();
         holder[0] = dialog;
         dialog.show();
@@ -581,12 +584,12 @@ public final class TimetableActivity extends Activity {
         final EditText input = new EditText(this);
         input.setSingleLine(true);
         input.setHint("例如 2026 秋、辅修课表");
-        new AlertDialog.Builder(this).setTitle("新建课表").setView(input)
+        Theme.dialog(this).setTitle("新建课表").setView(input)
             .setNegativeButton("取消", null)
             .setPositiveButton("创建", (d, w) -> {
                 TimetableStore.create(this, input.getText().toString());
                 bind();
-                new AlertDialog.Builder(this).setTitle("已新建空课表")
+                Theme.dialog(this).setTitle("已新建空课表")
                     .setMessage("「" + TimetableStore.currentName(this) + "」里还没有课程。"
                         + "可以在「管理」里从教务系统导入，或手动添加课程。")
                     .setPositiveButton("知道了", null).show();
@@ -598,7 +601,7 @@ public final class TimetableActivity extends Activity {
         input.setSingleLine(true);
         input.setText(table.name);
         input.setSelection(table.name.length());
-        new AlertDialog.Builder(this).setTitle("重命名课表").setView(input)
+        Theme.dialog(this).setTitle("重命名课表").setView(input)
             .setNegativeButton("取消", null)
             .setPositiveButton("保存", (d, w) -> {
                 TimetableStore.rename(this, table.id, input.getText().toString());
@@ -619,7 +622,7 @@ public final class TimetableActivity extends Activity {
                 if (!other.id.equals(table.id)) { message = "删除后会切到「" + other.name + "」。" + message; break; }
             }
         }
-        new AlertDialog.Builder(this).setTitle("删除「" + table.name + "」？")
+        Theme.dialog(this).setTitle("删除「" + table.name + "」？")
             .setMessage(message)
             .setNegativeButton("取消", null)
             .setPositiveButton("删除", (d, w) -> {
@@ -631,7 +634,7 @@ public final class TimetableActivity extends Activity {
 
     private void manage() {
         if(unreadable || importing)return;
-        new AlertDialog.Builder(this).setTitle(TimetableStore.currentName(this)).setItems(new String[]{"从教务系统导入课表", "开学日期", "添加课程", "全部课程（"+courses.size()+"）", "自定义背景图片", "添加桌面课表组件", "导出备份", "恢复备份"}, (d,index)-> {
+        Theme.dialog(this).setTitle(TimetableStore.currentName(this)).setItems(new String[]{"从教务系统导入课表", "开学日期", "添加课程", "全部课程（"+courses.size()+"）", "自定义背景图片", "添加桌面课表组件", "导出备份", "恢复备份"}, (d,index)-> {
             if(index==0)startActivityForResult(new Intent(this,EduTimetableImportActivity.class),42);
             else if(index==1)semester();else if(index==2)edit(null);else if(index==3)allCourses();
             else if(index==4)backgroundMenu();else if(index==5)addScheduleWidget();else if(index==6)document(Intent.ACTION_CREATE_DOCUMENT,"application/json",81);else if(index==7)document(Intent.ACTION_OPEN_DOCUMENT,"*/*",82);
@@ -666,11 +669,11 @@ public final class TimetableActivity extends Activity {
     private void showCourses(List<JSONObject> group) {
         if(group.size()>1) {
             String[] names=new String[group.size()];for(int i=0;i<names.length;i++)names[i]=group.get(i).optString("name");
-            new AlertDialog.Builder(this).setTitle("此时段有重叠课程").setItems(names,(d,n)->showCourses(java.util.Collections.singletonList(group.get(n)))).setNegativeButton("关闭",null).show();return;
+            Theme.dialog(this).setTitle("此时段有重叠课程").setItems(names,(d,n)->showCourses(java.util.Collections.singletonList(group.get(n)))).setNegativeButton("关闭",null).show();return;
         }
         JSONObject c=group.get(0);
         String detail=DAYS[c.optInt("day")]+"  ·  第 "+c.optInt("first")+"—"+c.optInt("last")+" 节\n\n"+c.optString("room")+"\n"+c.optString("teacher")+"\n\n"+CourseWeeks.label(c);
-        new AlertDialog.Builder(this).setTitle(c.optString("name")).setMessage(detail).setPositiveButton("编辑课程",(d,w)->edit(c)).setNegativeButton("关闭",null).show();
+        Theme.dialog(this).setTitle(c.optString("name")).setMessage(detail).setPositiveButton("编辑课程",(d,w)->edit(c)).setNegativeButton("关闭",null).show();
     }
     private android.graphics.drawable.GradientDrawable rounded(int color,int radius) {
         android.graphics.drawable.GradientDrawable shape=new android.graphics.drawable.GradientDrawable();
@@ -684,7 +687,7 @@ public final class TimetableActivity extends Activity {
         LinearLayout line=new LinearLayout(this);line.setGravity(android.view.Gravity.CENTER_VERTICAL);
         line.setPadding(dp(16),dp(14),dp(14),dp(14));
         line.setOnClickListener(v->action.run());line.setFocusable(true);
-        android.widget.ImageView mark=new android.widget.ImageView(this);mark.setImageDrawable(AppUi.icon(this,icon,AppUi.ACCENT,24));mark.setBackground(AppUi.shape(this,AppUi.SOFT,12));mark.setPadding(dp(8),dp(8),dp(8),dp(8));mark.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);line.addView(mark,new LinearLayout.LayoutParams(dp(40),dp(40)));AppUi.press(line,0xffffffff,8);
+        android.widget.ImageView mark=new android.widget.ImageView(this);mark.setImageDrawable(AppUi.icon(this,icon,AppUi.ACCENT,24));mark.setBackground(AppUi.shape(this,AppUi.SOFT,12));mark.setPadding(dp(8),dp(8),dp(8),dp(8));mark.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);line.addView(mark,new LinearLayout.LayoutParams(dp(40),dp(40)));AppUi.press(line,AppUi.SURFACE,8);
         LinearLayout labels=column();labels.setPadding(dp(14),0,0,0);
         labels.addView(bold(title,16));
         TextView caption=text(subtitle,12);caption.setTextColor(AppUi.MUTED);caption.setPadding(0,dp(2),0,0);labels.addView(caption);
@@ -756,11 +759,17 @@ public final class TimetableActivity extends Activity {
         else if(tab==2&&campusView==1){TextView back=text("‹ 返回",14);back.setTextColor(AppUi.ACCENT);back.setPadding(dp(10),dp(10),0,dp(10));back.setOnClickListener(v->{campusView=0;render();});header.addView(back);}
         root.addView(header);
         if(tab==0)todayContent();else if(tab==1)timetableContent();else campusContent();
-        LinearLayout holder=column();holder.setPadding(dp(8),dp(2),dp(8),dp(8));
+        // 悬浮底栏样式: the bar detaches from the edge, keeps its own corners, and gets a shadow —
+        // that is the whole difference. The bar itself is the same three tabs in both modes.
+        boolean floating=Theme.floatingBar();
+        LinearLayout holder=column();holder.setPadding(floating?dp(12):dp(8),dp(2),floating?dp(12):dp(8),floating?dp(12):dp(8));
         // No elevation: the cast shadow is offset downward, so a rounded white bar shows a dark smudge
         // under the two bottom corners while the top corners stay clean. The hairline border alone
         // separates the bar from the page, evenly on all four corners.
-        LinearLayout bar=new LinearLayout(this);bar.setBackground(AppUi.outlined(this,0xffffffff,24,AppUi.LINE));bar.setPadding(dp(5),dp(5),dp(5),dp(5));
+        LinearLayout bar=new LinearLayout(this);
+        bar.setBackground(AppUi.outlined(this,AppUi.SURFACE,floating?26:24,AppUi.LINE));
+        bar.setPadding(dp(5),dp(5),dp(5),dp(5));
+        if(floating)bar.setElevation(dp(10));
         bar.addView(tabItem("今日",tab==0,()->{if(tab!=0){tab=0;campusView=0;render();}}),new LinearLayout.LayoutParams(0,-2,1));
         bar.addView(tabItem("课表",tab==1,()->{if(tab!=1){tab=1;campusView=0;render();}}),new LinearLayout.LayoutParams(0,-2,1));
         bar.addView(tabItem("账号",tab==2,()->{if(tab!=2){tab=2;render();}}),new LinearLayout.LayoutParams(0,-2,1));
@@ -769,7 +778,7 @@ public final class TimetableActivity extends Activity {
     }
 
     private TextView cardTitle(String value){return bold(value,16);}
-    private LinearLayout whiteCard(){LinearLayout card=column();card.setBackground(AppUi.outlined(this,0xffffffff,18,AppUi.LINE));card.setPadding(dp(18),dp(16),dp(18),dp(16));return card;}
+    private LinearLayout whiteCard(){LinearLayout card=column();card.setBackground(AppUi.outlined(this,AppUi.SURFACE,18,AppUi.LINE));card.setPadding(dp(18),dp(16),dp(18),dp(16));return card;}
     private TextView cardAction(String label,Runnable action) {
         TextView view=text(label,13);view.setTextColor(AppUi.ACCENT);view.setPadding(dp(10),dp(6),0,dp(6));
         view.setMinHeight(dp(48));view.setGravity(android.view.Gravity.CENTER_VERTICAL);AppUi.press(view,0x00ffffff,8);view.setOnClickListener(v->action.run());return view;
@@ -824,12 +833,14 @@ public final class TimetableActivity extends Activity {
 
     /** One class on the 今日 tab: name plus section range, room and teacher, tinted with its own colour. */
     private View courseRow(JSONObject course,Map<String,Integer> auto) {
-        int index=WeekBoard.colorIndexOf(course,auto),ink=io.qzxy.lite.core.TimetablePalette.ink(index+1);
-        LinearLayout row=new LinearLayout(this);row.setGravity(android.view.Gravity.TOP);row.setPadding(dp(14),dp(12),dp(14),dp(12));row.setBackground(AppUi.shape(this,WeekBoard.FILLS[index],14));
+        int index=WeekBoard.colorIndexOf(course,auto),ink=WeekBoard.inkAt(index);
+        LinearLayout row=new LinearLayout(this);row.setGravity(android.view.Gravity.TOP);row.setPadding(dp(14),dp(12),dp(14),dp(12));row.setBackground(AppUi.shape(this,WeekBoard.fillAt(index),14));
         String status=ScheduleInfo.status(course,ScheduleInfo.minutes());boolean ended=status.equals("已结束");
         String time=ClassTimes.range(course.optInt("first"),course.optInt("last"));String[] span=time.split("[–—-]");
-        LinearLayout times=column();TextView first=bold(span.length>0?span[0]:"",14);times.addView(first);
-        if(span.length>1){TextView last=text(span[1],12);last.setTextColor(AppUi.MUTED);times.addView(last);}
+        // The row is a coloured chip, so its text follows the chip's ink in both themes — the page ink
+        // is light in the dark theme, and light text on a pastel chip is exactly nothing at all.
+        LinearLayout times=column();TextView first=bold(span.length>0?span[0]:"",14);first.setTextColor(ink);times.addView(first);
+        if(span.length>1){TextView last=text(span[1],12);last.setTextColor(ink);last.setAlpha(.72f);times.addView(last);}
         row.addView(times,new LinearLayout.LayoutParams(AppUi.compact(this)?dp(48):dp(56),-2));
         View marker=new View(this);marker.setBackground(AppUi.shape(this,ink,2));LinearLayout.LayoutParams ml=new LinearLayout.LayoutParams(dp(3),dp(40));ml.setMargins(0,dp(2),dp(12),0);row.addView(marker,ml);
         LinearLayout labels=column();TextView name=bold(course.optString("name"),16);name.setTextColor(ink);name.setMaxLines(2);name.setEllipsize(android.text.TextUtils.TruncateAt.END);if(ended)name.setPaintFlags(name.getPaintFlags()|android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);labels.addView(name);
@@ -886,7 +897,7 @@ public final class TimetableActivity extends Activity {
         // Four of these share the width of the card. On a narrow phone they lose a little icon and
         // a point of type rather than letting the labels wrap into uneven columns.
         boolean compact=AppUi.compact(this);int size=compact?dp(40):dp(44);
-        LinearLayout tile=column();tile.setGravity(android.view.Gravity.CENTER);tile.setPadding(dp(3),dp(10),dp(3),dp(10));tile.setMinimumHeight(dp(96));AppUi.press(tile,0xffffffff,10);tile.setOnClickListener(v->action.run());
+        LinearLayout tile=column();tile.setGravity(android.view.Gravity.CENTER);tile.setPadding(dp(3),dp(10),dp(3),dp(10));tile.setMinimumHeight(dp(96));AppUi.press(tile,AppUi.SURFACE,10);tile.setOnClickListener(v->action.run());
         android.widget.ImageView mark=new android.widget.ImageView(this);mark.setImageDrawable(AppUi.icon(this,icon,AppUi.ACCENT,24));mark.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);mark.setBackground(AppUi.shape(this,AppUi.SOFT,22));mark.setPadding(dp(9),dp(9),dp(9),dp(9));tile.addView(mark,new LinearLayout.LayoutParams(size,size));
         TextView name=bold(title,compact?12:13);name.setGravity(android.view.Gravity.CENTER);name.setPadding(0,dp(8),0,0);name.setMaxLines(2);name.setEllipsize(android.text.TextUtils.TruncateAt.END);tile.addView(name);
         TextView hint=text(subtitle,compact?11:12);hint.setTextColor(AppUi.MUTED);hint.setGravity(android.view.Gravity.CENTER);hint.setMaxLines(2);hint.setEllipsize(android.text.TextUtils.TruncateAt.END);tile.addView(hint);tile.setContentDescription(title+"，"+subtitle);return tile;
@@ -961,6 +972,8 @@ public final class TimetableActivity extends Activity {
         campusEntry(card,"mail",AppUi.ACCENT,"意见反馈","邮箱与 QQ 群",()->startActivity(new Intent(this,FeedbackActivity.class)),true);
         // The start-up check is silent by design, so the manual one sits in the list next to the
         // other things that answer a question about the app itself, rather than on a footer line.
+        // 外观与主题 和 意见反馈、检查更新 同类：它讲的是这个应用该长什么样，不是一项校园服务。
+        campusEntry(card,"theme",AppUi.ACCENT,"外观与主题","深色模式、主题色与课表配色",()->startActivity(new Intent(this,AppearanceActivity.class)),true);
         campusEntry(card,"refresh",AppUi.ACCENT,"检查更新","当前 "+AppUi.version(this)+"，点按查询新版本",()->UpdateCheck.checkManually(this),true);
         campusEntry(card,"more",AppUi.ACCENT,"更多","数据与隐私、源码与许可证",()->startActivity(new Intent(this,MoreActivity.class)),false);
         gap(card,10);card.addView(body("科信小助手 "+AppUi.version(this)+" · 第三方校园客户端"));content.addView(card);
@@ -968,13 +981,19 @@ public final class TimetableActivity extends Activity {
 
     private void records(LinearLayout parent) {
         if(pendingNote!=null&&!pendingNote.isEmpty()) {
-            LinearLayout panel=column();panel.setPadding(dp(16),dp(14),dp(16),dp(14));panel.setBackground(rounded(0xfffff7ed,14));
-            panel.addView(bold("待核实的用水记录",16));gap(panel,8);
+            // A warning keeps its warm tint in both themes, but the tint itself has to be the dark
+            // theme's idea of warm — the light one is a cream box that glows on a dark page.
+            boolean dark=Theme.dark();
+            LinearLayout panel=column();panel.setPadding(dp(16),dp(14),dp(16),dp(14));
+            panel.setBackground(rounded(dark?0xff2a2318:0xfffff7ed,14));
+            TextView headline=bold("待核实的用水记录",16);
+            if(dark)headline.setTextColor(0xffe8c793);
+            panel.addView(headline);gap(panel,8);
             TextView detail=text("这条记录来自上一次没有查清的订单。它描述的是过去，不是现在，必须重新联网查询订单状态才能判断。",12);
-            detail.setTextColor(0xff7c4a12);panel.addView(detail);
+            detail.setTextColor(dark?0xffcfae7c:0xff7c4a12);panel.addView(detail);
             parent.addView(panel,new LinearLayout.LayoutParams(-1,-2));gap(parent,14);
         }
-        LinearLayout panel=column();panel.setPadding(dp(16),dp(14),dp(16),dp(14));panel.setBackground(rounded(0xffffffff,14));
+        LinearLayout panel=column();panel.setPadding(dp(16),dp(14),dp(16),dp(14));panel.setBackground(rounded(AppUi.SURFACE,14));
         panel.addView(bold("消费记录尚未接入",16));gap(panel,8);
         TextView body=text("读取趣智校园账单需要先确认账单接口的真实返回结构。接入后这里会按时间列出每次用水的时长与扣费。",12);
         body.setTextColor(AppUi.MUTED);panel.addView(body);gap(panel,10);
@@ -1060,7 +1079,7 @@ public final class TimetableActivity extends Activity {
         int[] color = colorPicker(form, old.optInt("color", 0));
         TextView error = text("", 14); error.setTextColor(0xffb3261e); form.addView(error);
         ScrollView scroll = new ScrollView(this); scroll.addView(form);
-        AlertDialog dialog = new AlertDialog.Builder(this).setTitle(original == null ? "添加课程" : "编辑课程")
+        AlertDialog dialog = Theme.dialog(this).setTitle(original == null ? "添加课程" : "编辑课程")
             .setView(scroll).setPositiveButton("保存", null).setNegativeButton("取消", null)
             .setNeutralButton(original == null ? null : "删除课程", (d, w) -> delete(original)).create();
         dialog.setOnShowListener(d -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
@@ -1085,11 +1104,11 @@ public final class TimetableActivity extends Activity {
         courses.clear(); courses.addAll(replacement); monday = start; return true;
     }
     private void delete(JSONObject course) {
-        new AlertDialog.Builder(this).setTitle("删除这条课程？").setMessage(course.optString("name"))
+        Theme.dialog(this).setTitle("删除这条课程？").setMessage(course.optString("name"))
             .setNegativeButton("取消", null).setPositiveButton("删除", (d, w) -> {
                 List<JSONObject> replacement = new ArrayList<>(courses); replacement.remove(course);
                 if (save(replacement, monday)) render();
-                else new AlertDialog.Builder(this).setMessage("删除未能保存，请重试。").setPositiveButton("知道了", null).show();
+                else Theme.dialog(this).setMessage("删除未能保存，请重试。").setPositiveButton("知道了", null).show();
             }).show();
     }
     private void allCourses() {
@@ -1099,7 +1118,7 @@ public final class TimetableActivity extends Activity {
         ordered.sort((a,b)->{int day=Integer.compare(a.optInt("day"),b.optInt("day"));return day!=0?day:Integer.compare(a.optInt("first"),b.optInt("first"));});
         LinearLayout list=column();list.setPadding(dp(16),dp(8),dp(16),dp(16));
         ScrollView scroll=new ScrollView(this);scroll.addView(list);
-        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("全部课程 · "+courses.size()+" 条").setView(scroll).setNegativeButton("关闭",null).create();
+        AlertDialog dialog=Theme.dialog(this).setTitle("全部课程 · "+courses.size()+" 条").setView(scroll).setNegativeButton("关闭",null).create();
         int previous=-1;
         for(JSONObject c:ordered){
             int day=c.optInt("day");if(day!=previous){TextView heading=text(DAYS[day],14);heading.setTextColor(AppUi.MUTED);list.addView(heading);previous=day;}
@@ -1119,7 +1138,7 @@ public final class TimetableActivity extends Activity {
         LinearLayout form = column(); form.setPadding(dp(20), dp(8), dp(20), dp(8));
         EditText date = input(form, "第一周的周一（例如 2026-08-31）", monday, false);
         TextView error = text("", 14); form.addView(error);
-        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("学期设置").setView(form)
+        AlertDialog dialog = Theme.dialog(this).setTitle("学期设置").setView(form)
             .setPositiveButton("保存", null).setNegativeButton("取消", null).create();
         dialog.setOnShowListener(d -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             try {

@@ -64,7 +64,7 @@ public final class EduResultActivity extends Activity {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(18), dp(14), dp(18), dp(14));
-        card.setBackground(AppUi.outlined(this, 0xffffffff, 16, AppUi.LINE));
+        card.setBackground(AppUi.outlined(this, AppUi.SURFACE, 16, AppUi.LINE));
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
         params.bottomMargin = dp(12);
         parent.addView(card, params);

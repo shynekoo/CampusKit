@@ -59,7 +59,7 @@ public final class PrivacyActivity extends Activity {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(18), dp(16), dp(18), dp(16));
-        card.setBackground(AppUi.outlined(this, 0xffffffff, 18, AppUi.LINE));
+        card.setBackground(AppUi.outlined(this, AppUi.SURFACE, 18, AppUi.LINE));
         return card;
     }
 
@@ -96,7 +96,7 @@ public final class PrivacyActivity extends Activity {
         button.setTextColor(danger ? DANGER : AppUi.ACCENT);
         button.setMinHeight(dp(50));
         button.setBackground(danger
-            ? AppUi.outlined(this, 0xffffffff, 14, 0xfff0c2b8)
+            ? AppUi.outlined(this, AppUi.SURFACE, 14, 0xfff0c2b8)
             : AppUi.outlined(this, AppUi.SOFT, 14, AppUi.LINE));
         button.setOnClickListener(v -> task.run());
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
@@ -209,7 +209,7 @@ public final class PrivacyActivity extends Activity {
     }
 
     private void confirm(final boolean everything) {
-        new AlertDialog.Builder(this)
+        Theme.dialog(this)
             .setTitle(everything ? "清除全部本机数据？" : "清除登录状态？")
             .setMessage(everything
                 ? "登录状态、课表、开学日期、自定义背景、桌面组件与公告偏好都会删除，无法恢复。"

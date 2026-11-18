@@ -28,7 +28,7 @@ CONTROL_ROUTES = (
     "/api/v1/dev/start",
     "/api/v1/dev/end",
 )
-FIELD_VERSION_NAME = "2.5.6.b"
+FIELD_VERSION_NAME = "2.5.6.11"
 FIELD_LABEL = "科信小助手"
 
 # Classes that only exist in the field-test source root. The check uses their dex type descriptors,
@@ -75,7 +75,7 @@ def write_build_flags(field_water, device_tests, diagnostics):
         "    /** Compile-time switch: javac removes every branch guarded by a false constant. */\n"
         "    static final boolean WATER_CONTROL = " + ("true" if field_water else "false") + ";\n"
         "    static final boolean DEVICE_TESTS = " + ("true" if device_tests else "false") + ";\n"
-        "    /** 运行记录页与登录流程记录：测试版打开，发布版不留这条分支。 */\n"
+        "    /** 日志页与登录流程记录：测试版打开，发布版不留这条分支。 */\n"
         "    static final boolean DIAGNOSTICS = " + ("true" if diagnostics else "false") + ";\n"
         "    private BuildFlags() { }\n"
         "}\n", encoding="utf-8")
@@ -95,7 +95,7 @@ def option(name):
 def main():
     device_tests = "--device-tests" in sys.argv
     field_water = "--field-water" in sys.argv
-    # 运行记录随测试版走；发布版要让位给体积与「不记录东西」这条承诺，除非显式要求。
+    # 日志随测试版走；发布版要让位给体积与「不记录东西」这条承诺，除非显式要求。
     diagnostics = "--diagnostics" in sys.argv or (field_water and "--no-diagnostics" not in sys.argv)
     if "--skip-tests" not in sys.argv:
         run([sys.executable, ROOT / "scripts/test_core.py"])

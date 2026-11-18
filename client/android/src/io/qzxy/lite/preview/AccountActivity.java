@@ -87,7 +87,7 @@ public final class AccountActivity extends Activity {
     }
     private Button button(String label, Runnable action) {
         Button button = new Button(this); button.setText(label); button.setAllCaps(false);
-        button.setTextSize(16); button.setTextColor(Color.WHITE); button.setMinHeight(dp(54));
+        button.setTextSize(16); button.setTextColor(AppUi.ON_ACCENT); button.setMinHeight(dp(54));
         GradientDrawable background = new GradientDrawable(); background.setColor(BLUE); background.setCornerRadius(dp(16));
         button.setBackground(background); button.setOnClickListener(v -> action.run()); return button;
     }

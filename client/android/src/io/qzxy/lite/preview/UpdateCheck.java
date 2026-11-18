@@ -183,7 +183,7 @@ final class UpdateCheck {
         }
         scroll.addView(body);
 
-        AlertDialog dialog = new AlertDialog.Builder(activity)
+        AlertDialog dialog = Theme.dialog(activity)
             .setTitle("新版本 " + manifest.version)
             .setView(scroll)
             .setPositiveButton("更新", null)
@@ -224,7 +224,7 @@ final class UpdateCheck {
         barParams.topMargin = AppUi.dp(activity, 12);
         body.addView(bar, barParams);
 
-        final AlertDialog dialog = new AlertDialog.Builder(activity)
+        final AlertDialog dialog = Theme.dialog(activity)
             .setTitle("正在下载 " + manifest.version)
             .setView(body)
             .setNegativeButton("取消", null)
@@ -320,7 +320,7 @@ final class UpdateCheck {
     private static void installWithPermission(Activity activity, File apk) {
         if (!canInstall(activity)) {
             pending = apk;
-            AlertDialog dialog = new AlertDialog.Builder(activity)
+            AlertDialog dialog = Theme.dialog(activity)
                 .setTitle("还需要一步")
                 .setMessage("安装新版本要允许本应用「安装未知应用」。系统会让你单独确认一次，同意后回到应用就会接着安装。")
                 .setPositiveButton("去设置", null)
@@ -417,7 +417,7 @@ final class UpdateCheck {
         activity.runOnUiThread(new Runnable() {
             @Override public void run() {
                 if (activity.isFinishing()) return;
-                new AlertDialog.Builder(activity).setTitle(title).setMessage(message)
+                Theme.dialog(activity).setTitle(title).setMessage(message)
                     .setPositiveButton("好", null).show();
             }
         });

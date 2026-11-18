@@ -249,7 +249,7 @@ public final class EduPortalActivity extends Activity {
     }
 
     private void signOut() {
-        new AlertDialog.Builder(this).setTitle("退出教务登录")
+        Theme.dialog(this).setTitle("退出教务登录")
             .setMessage("会同时结束学校那边的会话，并清除本页的网页登录状态。已保存的账号不会被删除。")
             .setNegativeButton("取消", null)
             .setPositiveButton("退出", (d, w) -> {

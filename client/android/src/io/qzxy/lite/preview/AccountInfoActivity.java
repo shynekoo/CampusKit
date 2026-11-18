@@ -16,6 +16,7 @@ public final class AccountInfoActivity extends Activity {
     private TextView identity,state;private Button login,refresh,logout;
     private int dp(int n){return Math.round(n*getResources().getDisplayMetrics().density);}
     @Override public void onCreate(Bundle saved){super.onCreate(saved);life=getIntent().getBooleanExtra("life798",false);
+        Diag.install(this);
         DeviceScreen screen=new DeviceScreen(this,life?"慧生活798":"趣智校园");
         refresh=screen.icon("↻","刷新账户",()->load());
         identity=screen.text(screen.card,"正在读取账号…",18);state=screen.text(screen.card,"",14);state.setTextColor(AppUi.MUTED);

@@ -88,7 +88,7 @@ public final class EduTimetableImportActivity extends Activity {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setPadding(dp(12), dp(10), dp(12), dp(10));
-        box.setBackground(AppUi.outlined(this, 0xffffffff, 12, AppUi.LINE));
+        box.setBackground(AppUi.outlined(this, AppUi.SURFACE, 12, AppUi.LINE));
         TextView caption = new TextView(this);
         caption.setText(label);
         caption.setTextSize(12);
@@ -99,7 +99,7 @@ public final class EduTimetableImportActivity extends Activity {
         value.setTypeface(null, Typeface.BOLD);
         value.setTextColor(AppUi.INK);
         box.addView(value);
-        AppUi.press(box, 0xffffffff, 12);
+        AppUi.press(box, AppUi.SURFACE, 12);
         box.setOnClickListener(v -> { if (!busy) action.run(); });
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, -2, 1);
         params.setMargins(dp(4), 0, dp(4), 0);

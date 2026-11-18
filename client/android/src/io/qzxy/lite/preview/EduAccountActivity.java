@@ -91,7 +91,7 @@ public final class EduAccountActivity extends Activity {
         input.setTextColor(AppUi.INK);
         input.setHintTextColor(0xff9aa4b2);
         input.setHint(secret ? "教务系统密码" : "学号或用户名");
-        input.setBackground(AppUi.outlined(this, 0xfffbfcfd, 10, AppUi.LINE));
+        input.setBackground(AppUi.outlined(this, AppUi.SURFACE, 10, AppUi.LINE));
         input.setPadding(dp(14), dp(12), dp(14), dp(12));
         int type = secret ? InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD
             : InputType.TYPE_CLASS_TEXT;

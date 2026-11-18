@@ -41,7 +41,7 @@ public final class FeedbackActivity extends Activity {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(18), dp(16), dp(18), dp(16));
-        card.setBackground(AppUi.outlined(this, 0xffffffff, 18, AppUi.LINE));
+        card.setBackground(AppUi.outlined(this, AppUi.SURFACE, 18, AppUi.LINE));
         return card;
     }
 

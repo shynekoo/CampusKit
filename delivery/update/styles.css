@@ -1,0 +1,115 @@
+:root {
+  color-scheme: light;
+  --bg: #f9f9ff;
+  --surface: #ffffff;
+  --text: #202735;
+  --muted: #596575;
+  --action: #275dad;
+  --action-hover: #1d4a8c;
+  --border: #e3e7ed;
+  --radius: 12px;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.7 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; }
+img { display: block; max-width: 100%; }
+.shell { width: min(1080px, calc(100% - 40px)); margin-inline: auto; }
+.skip-link { position: absolute; left: -9999px; }
+.skip-link:focus { left: 16px; top: 8px; z-index: 20; background: var(--surface); padding: 8px 12px; border-radius: 8px; }
+
+.masthead { padding-top: 24px; }
+.floating-nav {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  min-height: 62px; padding: 8px 14px 8px 20px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 999px;
+}
+.brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; }
+.brand img { border-radius: 8px; }
+.nav-actions { display: flex; align-items: center; gap: 18px; }
+.nav-link { color: var(--muted); font-size: 14px; }
+.nav-link:hover { color: var(--action); }
+
+.button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 46px; padding: 0 20px; border: 1px solid transparent; border-radius: 10px;
+  font: inherit; font-size: 14px; font-weight: 500; cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.button.compact { min-height: 38px; padding: 0 16px; border-radius: 999px; }
+.button.primary { background: var(--action); color: #fff; }
+.button.primary:hover { background: var(--action-hover); }
+.button.text { padding-inline: 8px; color: var(--muted); }
+.button.text:hover { color: var(--action); }
+.button:focus-visible, a:focus-visible, .icon-button:focus-visible { outline: 2px solid var(--action); outline-offset: 3px; }
+.icon { width: 17px; height: 17px; flex: 0 0 auto; }
+
+.landing {
+  flex: 1;
+  display: flex; align-items: center; justify-content: center;
+  padding: 88px 0 104px;
+}
+.product-copy { width: min(620px, 100%); }
+.product-title { display: flex; align-items: center; gap: 18px; margin-bottom: 22px; }
+.product-title img { border-radius: 22px; }
+.product-title h1 { margin: 0; font-size: 30px; line-height: 1.25; letter-spacing: -.5px; }
+.lead { margin: 0 0 26px; font-size: 18px; line-height: 1.8; }
+.lead-role { display: block; font-weight: 500; }
+.lead-detail { display: block; margin-top: 6px; color: var(--muted); font-size: 15px; }
+.actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.micro { margin: 20px 0 0; color: var(--muted); font-size: 12px; }
+
+.landing-footer {
+  display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+  padding: 22px 0 30px; border-top: 1px solid var(--border);
+  color: var(--muted); font-size: 12px;
+}
+.landing-footer a:hover { color: var(--action); }
+.footer-copyright { margin-left: auto; }
+
+.download-dialog {
+  width: min(460px, calc(100% - 32px)); padding: 0;
+  border: 1px solid var(--border); border-radius: 18px;
+  background: var(--surface); color: var(--text); box-shadow: 0 16px 48px rgba(20,30,50,.16);
+}
+.download-dialog::backdrop { background: rgba(20,27,37,.4); }
+.download-content { padding: 24px; }
+.download-heading { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin-bottom: 20px; }
+.download-heading h2 { margin: 0; font-size: 19px; }
+.download-meta { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.icon-button { width: 32px; height: 32px; display: grid; place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
+.icon-button:hover { background: var(--bg); }
+.download-options { display: grid; gap: 10px; }
+.download-option { width: 100%; justify-content: flex-start; text-align: left; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); color: var(--text); }
+.download-option:hover { border-color: var(--action); }
+.download-option.primary-option { background: var(--action); border-color: var(--action); color: #fff; }
+.download-platform { width: 34px; height: 34px; border-radius: 10px; background: var(--surface); flex: 0 0 auto; }
+.download-platform-android { background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23275dad' stroke-width='1.7' stroke-linecap='round'%3E%3Cpath d='M6 10h12v8a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-8Zm2-2a4 4 0 0 1 8 0M5 14h2m10 0h2M9 20v2m6-2v2'/%3E%3C/svg%3E") center/20px no-repeat; }
+.download-platform-github { background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23275dad' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 19c-4.3 1.3-4.3-2.2-6-2.6M15 22v-3.3c.1-.9-.4-1.5-.9-2 3.1-.4 6.4-1.6 6.4-7.1A5.4 5.4 0 0 0 19.1 6a5 5 0 0 0-.1-3s-1.3-.4-4.2 1.6a14.3 14.3 0 0 0-7.6 0C4.3 2.6 3 3 3 3a5 5 0 0 0-.1 3 5.4 5.4 0 0 0-1.4 3.9c0 5.4 3.3 6.7 6.4 7.1-.5.5-1 1.1-.9 2V22'/%3E%3C/svg%3E") center/20px no-repeat; }
+.download-label { display: grid; gap: 1px; flex: 1; }
+.download-label > span:first-child { font-size: 14px; }
+.download-label .download-meta { font-size: 12px; }
+.download-note { margin: 16px 0 0; padding-top: 14px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; line-height: 1.65; }
+
+@media (max-width: 560px) {
+  .landing { padding: 56px 0 72px; }
+  .shell { width: calc(100% - 32px); }
+  .nav-link { display: none; }
+  .product-title h1 { font-size: 26px; }
+  .lead { font-size: 16px; }
+  .footer-copyright { margin-left: 0; width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  * { transition: none !important; }
+}

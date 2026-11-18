@@ -100,7 +100,7 @@ public final class AcademicActivity extends Activity {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(16), dp(6), dp(16), dp(6));
-        card.setBackground(AppUi.shape(this, 0xffffffff, 12));
+        card.setBackground(AppUi.shape(this, AppUi.SURFACE, 12));
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
         params.bottomMargin = dp(12);
         screen.root.addView(card, params);
@@ -301,13 +301,13 @@ public final class AcademicActivity extends Activity {
         cell.setPadding(dp(10), dp(8), dp(8), dp(8));
         cell.setMinimumHeight(dp(70));
         cell.setBackground(new android.graphics.drawable.RippleDrawable(
-            android.content.res.ColorStateList.valueOf(0x1f275dad),
-            AppUi.outlined(this, AppUi.SOFT, 12, 0xffd3e0f2), null));
+            android.content.res.ColorStateList.valueOf((0x1f << 24) | (AppUi.ACCENT & 0xffffff)),
+            AppUi.outlined(this, AppUi.SOFT, 12, AppUi.LINE), null));
         cell.setFocusable(true);
         TextView name = new TextView(this);
         name.setText(label);
         name.setTextSize(11);
-        name.setTextColor(0xff456a95);
+        name.setTextColor(AppUi.MUTED);
         cell.addView(name);
         LinearLayout line = new LinearLayout(this);
         line.setOrientation(LinearLayout.HORIZONTAL);
@@ -420,7 +420,7 @@ public final class AcademicActivity extends Activity {
     }
 
     private void ask(String title, String[] labels, String[] values, String key) {
-        new AlertDialog.Builder(this)
+        Theme.dialog(this)
             .setTitle(title)
             .setItems(labels, (dialog, which) -> {
                 String previous = pick.get(key);
@@ -466,7 +466,7 @@ public final class AcademicActivity extends Activity {
             String time = times(pair[0], pair[pair.length - 1]);
             labels[i] = "第 " + io.qzxy.lite.core.EduSite.pairText(pair) + " 节" + (time.isEmpty() ? "" : "  " + time);
         }
-        new AlertDialog.Builder(this)
+        Theme.dialog(this)
             .setTitle("节次（可多选）")
             .setMultiChoiceItems(labels, checked, (dialog, which, isChecked) -> checked[which] = isChecked)
             .setPositiveButton("确定", (dialog, which) -> {

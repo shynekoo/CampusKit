@@ -25,6 +25,21 @@
         <item name="android:windowBackground">@drawable/dialog_background</item>
         <item name="android:colorAccent">#275DAD</item>
     </style>
+    <!-- 深色模式下的对话框：白纸上写白字是看不清的，所以对话框自己也有一份深色。
+         由 Theme.dialog() 在运行时挑，因为活动主题在 onCreate 返回之前就已经定下了。 -->
+    <style name="AppDialogDark" parent="android:style/Theme.Material.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/dialog_background_dark</item>
+        <item name="android:colorBackground">#1A1F27</item>
+        <item name="android:colorAccent">#8FB0E4</item>
+        <item name="android:textColorPrimary">#E9EEF6</item>
+        <item name="android:textColorSecondary">#98A4B5</item>
+        <item name="android:textColorHint">#7C8798</item>
+    </style>
+    <!-- 返回手势动画：页面从右侧滑入、向右滑出，和系统的返回手势接上同一个方向。 -->
+    <style name="SlidePage">
+        <item name="android:windowEnterAnimation">@anim/page_enter</item>
+        <item name="android:windowExitAnimation">@anim/page_exit</item>
+    </style>
     <style name="CampusButton" parent="android:style/Widget.Material.Button">
         <item name="android:background">@drawable/button_surface</item>
         <item name="android:textColor">@color/button_text</item>
