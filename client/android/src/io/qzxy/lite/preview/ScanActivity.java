@@ -40,7 +40,7 @@ public final class ScanActivity extends Page implements SurfaceHolder.Callback {
     private SurfaceView preview;
     private FrameLayout viewport;
     private TextView status, hint;
-    private Button query, order, retry;
+    private Button retry, useCode;
     private ImageView torch;
     private LinearLayout zoomRow;
     private boolean torchOn;
@@ -167,22 +167,17 @@ public final class ScanActivity extends Page implements SurfaceHolder.Callback {
         panel.addView(status);
         root.addView(panel, new LinearLayout.LayoutParams(-1, -2));
 
-        // Device lookup only exists in the read-only build; the water build goes straight to 支付宝.
-        boolean deviceActions = !life798 && !BuildFlags.WATER_CONTROL;
+        // Two equal halves: scan again, or open the keypad code when the sticker is out of reach.
         LinearLayout actionRow = new LinearLayout(this);
         retry = button("重新扫描", this::rescan);
         retry.setTextSize(15);
         actionRow.addView(retry, new LinearLayout.LayoutParams(0, -2, 1));
-        query = button("查询设备资料", this::lookup); query.setEnabled(false);
-        query.setVisibility(deviceActions ? View.VISIBLE : View.GONE);
-        order = button("查询订单状态（只读）", this::orderLookup); order.setEnabled(false); order.setTextSize(14);
-        order.setVisibility(deviceActions ? View.VISIBLE : View.GONE);
-        if (deviceActions) {
-            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, -2, 1);
-            params.leftMargin = dp(8); actionRow.addView(query, params);
-        }
+        useCode = button("使用码", () -> startActivity(new Intent(this, UseCodeActivity.class)));
+        useCode.setTextSize(15);
+        useCode.setVisibility(life798 ? View.GONE : View.VISIBLE);
+        LinearLayout.LayoutParams codeParams = new LinearLayout.LayoutParams(0, -2, 1);
+        codeParams.leftMargin = dp(8); actionRow.addView(useCode, codeParams);
         root.addView(actionRow);
-        if (deviceActions) root.addView(order);
 
         setContentView(root); root.requestApplyInsets();
         if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED)
@@ -304,7 +299,7 @@ public final class ScanActivity extends Page implements SurfaceHolder.Callback {
     }
     private void rescan() {
         if (busy) return;
-        recognized = null; recognizedRaw = null; lookup = null; query.setEnabled(false); order.setEnabled(false); scanning = true;
+        recognized = null; recognizedRaw = null; lookup = null; scanning = true;
         status.setText(idleStatus);
         hint.setVisibility(View.VISIBLE);
         if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED)
@@ -330,12 +325,12 @@ public final class ScanActivity extends Page implements SurfaceHolder.Callback {
             return;
         }
         scanning = false; stopCamera(); recognized = null; recognizedRaw = null; lookup = null;
-        query.setEnabled(false); order.setEnabled(false);
         hint.setVisibility(View.GONE);
         try {
-            recognized = DeviceQr.parse(raw); recognizedRaw = raw; query.setEnabled(true); scanFeedback();
+            recognized = DeviceQr.parse(raw); recognizedRaw = raw; scanFeedback();
             if(BuildFlags.WATER_CONTROL){returningFromDevice=true;startActivity(new Intent(this,QzxyAlipayActivity.class).putExtra("qr",raw));}
-            status.setText("设备二维码已识别。点击“查询设备资料”核对校园、计费方式与可用状态。\n识别二维码不会开启用水。");
+            status.setText("设备二维码已识别，正在核对设备与订单状态…\n识别二维码不会开启用水。");
+            verify();
         }
         catch (IllegalArgumentException invalid) { status.setText(invalid.getMessage() + "。可点击重新扫描。"); }
     }
@@ -376,30 +371,47 @@ public final class ScanActivity extends Page implements SurfaceHolder.Callback {
         startActivity(target);
     }
     private void setBusy(boolean value) {
-        busy = value; retry.setEnabled(!value);
-        query.setEnabled(!value && recognized != null);
-        order.setEnabled(!value && lookup != null && lookup.ready);
+        busy = value; retry.setEnabled(!value); useCode.setEnabled(!value);
     }
-    private void lookup() {
+    /**
+     * Runs both lookups the moment a code is recognized, because the two buttons that used to start
+     * them are gone: the page now answers by itself instead of waiting to be asked.
+     */
+    private void verify() {
         if (busy || recognized == null) return;
-        final DeviceQr qr = recognized; setBusy(true); status.setText("正在查询设备资料…");
+        final DeviceQr qr = recognized; setBusy(true);
         worker.execute(() -> {
-            String message; DeviceLookup found = null;
+            String message; DeviceLookup found = null; boolean needLogin = false;
             try {
                 AccountSession session = new AccountVault(getApplicationContext()).load();
-                if (session == null) { message = "已打开登录页，完成后再查询设备。"; main.post(ScanActivity.this::askLogin); }
-                else {
-                    found = SmsAccountApi.device(session, qr);
-                    String note = pendingNote(found);
-                    message = note.isEmpty() ? found.text : found.text + "\n\n" + note;
-                }
-            } catch (java.net.SocketTimeoutException timeout) { message = "查询超时，请检查网络后重试。"; }
+                if (session == null) { message = "设备已识别。登录后才能核对设备与订单状态。"; needLogin = true; }
+                else { found = SmsAccountApi.device(session, qr); message = describe(session, found); }
+            } catch (java.net.SocketTimeoutException timeout) { message = "核对超时，请检查网络后重试。"; }
             catch (org.json.JSONException invalid) { message = "设备资料格式与预期不符，暂不能确认设备。"; }
-            catch (HttpForm.SessionExpired expired) { message = "登录已失效，已打开登录页，完成后再查询设备。"; main.post(ScanActivity.this::askLogin); }
-            catch (Exception failure) { message = "设备查询未完成，请检查网络与登录状态后重试。"; }
-            final String result = message; final DeviceLookup device = found;
-            main.post(() -> { if (!destroyed) { lookup = device; setBusy(false); status.setText(result); } });
+            catch (HttpForm.SessionExpired expired) { message = "登录已失效，请重新登录后再扫码。"; needLogin = true; }
+            catch (Exception failure) { message = "核对未完成，请检查网络与登录状态后重试。"; }
+            final String result = message; final DeviceLookup device = found; final boolean login = needLogin;
+            main.post(() -> {
+                if (destroyed) return;
+                lookup = device; setBusy(false); status.setText(result);
+                if (login) askLogin();
+            });
         });
+    }
+    /** Device profile plus, when the profile is trustworthy, the live order state for that device. */
+    private String describe(AccountSession session, DeviceLookup device) {
+        StringBuilder text = new StringBuilder(device.text);
+        String note = pendingNote(device);
+        if (!note.isEmpty()) text.append("\n\n").append(note);
+        if (!device.ready) return text.toString();
+        try {
+            io.qzxy.lite.core.WaterOrder order = WaterApi.orderStatus(session, device);
+            return text.append("\n\n").append(order.describe()).append(remember(device, order)).toString();
+        } catch (java.net.SocketTimeoutException timeout) { return text.append("\n\n订单状态查询超时，请检查网络后重试；重试前请先确认现场水流状态。").toString(); }
+        catch (IllegalArgumentException unknown) { return text.append("\n\n").append(unknown.getMessage()).append("。请稍后重试，不要直接开水。").toString(); }
+        catch (org.json.JSONException invalid) { return text.append("\n\n订单响应格式与预期不符，暂不能确认用水状态。").toString(); }
+        catch (HttpForm.SessionExpired expired) { return text.append("\n\n登录已失效，请重新登录后再查订单。").toString(); }
+        catch (Exception failure) { return text.append("\n\n订单状态查询未完成，请检查网络后重试。").toString(); }
     }
     /**
      * Surfaces a stored record for this device. An unreadable record is reported as such rather than
@@ -413,30 +425,8 @@ public final class ScanActivity extends Page implements SurfaceHolder.Callback {
                 return "本机另有一条未核实记录（设备 " + record.deviceId() + "），与当前设备不同。";
             return record.describe();
         } catch (Exception unreadable) {
-            return "本机存在一条无法读取的用水记录，请重新查询订单状态确认后再做判断。";
+            return "本机存在一条无法读取的用水记录，请重新扫码确认后再做判断。";
         }
-    }
-    /** Read-only: reports the current order state and never sends a start or stop request. */
-    private void orderLookup() {
-        if (busy || lookup == null || !lookup.ready) return;
-        final DeviceLookup device = lookup; setBusy(true); status.setText("正在查询该设备是否已有进行中的订单…");
-        worker.execute(() -> {
-            String message;
-            try {
-                AccountSession session = new AccountVault(getApplicationContext()).load();
-                if (session == null) { message = "已打开登录页，完成后再查询订单。"; main.post(ScanActivity.this::askLogin); }
-                else {
-                    io.qzxy.lite.core.WaterOrder order = WaterApi.orderStatus(session, device);
-                    message = order.describe() + remember(device, order);
-                }
-            } catch (java.net.SocketTimeoutException timeout) { message = "订单查询超时，请检查网络后重试；重试前请先确认现场水流状态。"; }
-            catch (IllegalArgumentException unknown) { message = unknown.getMessage() + "。请稍后重试，不要直接开水。"; }
-            catch (org.json.JSONException invalid) { message = "订单响应格式与预期不符，暂不能确认用水状态。"; }
-            catch (HttpForm.SessionExpired expired) { message = "登录已失效，已打开登录页，完成后再查询订单。"; main.post(ScanActivity.this::askLogin); }
-            catch (Exception failure) { message = "订单查询未完成，请检查网络与登录状态后重试。"; }
-            final String result = message;
-            main.post(() -> { if (!destroyed) { setBusy(false); status.setText(result); } });
-        });
     }
     /**
      * Keeps the minimum needed to re-verify a device that did not come back idle, and clears it the

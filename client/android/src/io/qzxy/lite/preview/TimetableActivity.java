@@ -125,7 +125,7 @@ public final class TimetableActivity extends Page implements App.Themed {
                 PendingUse record = new PendingUseVault(getApplicationContext()).load();
                 if (record != null) note = record.describe();
             } catch (Exception unreadableRecord) {
-                note = "本机存在一条无法读取的用水记录。请在扫码后重新查询订单状态，不要直接开水。";
+                note = "本机存在一条无法读取的用水记录。请重新扫码核对设备与订单，不要直接开水。";
             }
             final boolean loadedSignedIn = signed; final String loadedNote = note;
             runOnUiThread(() -> {
@@ -992,7 +992,7 @@ public final class TimetableActivity extends Page implements App.Themed {
             TextView headline=bold("待核实的用水记录",16);
             if(dark)headline.setTextColor(0xffe8c793);
             panel.addView(headline);gap(panel,8);
-            TextView detail=text("这条记录来自上一次没有查清的订单。它描述的是过去，不是现在，必须重新联网查询订单状态才能判断。",12);
+            TextView detail=text("这条记录来自上一次没有查清的订单。它描述的是过去，不是现在，必须重新扫码联网核对才能判断。",12);
             detail.setTextColor(dark?0xffcfae7c:0xff7c4a12);panel.addView(detail);
             parent.addView(panel,new LinearLayout.LayoutParams(-1,-2));gap(parent,14);
         }
