@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="io.qzxy.lite.preview" android:versionCode="197" android:versionName="2.5.7">
+    package="io.qzxy.lite.preview" android:versionCode="198" android:versionName="2.5.8">
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="36" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -39,6 +39,7 @@
         <activity android:name=".TimetableWebActivity" android:exported="false" android:configChanges="orientation|screenSize" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".QzxyAlipayActivity" android:exported="false" />
         <activity android:name=".AccountInfoActivity" android:exported="false" />
+        <activity android:name=".UseCodeActivity" android:exported="false" />
         <activity android:name=".AcademicActivity" android:exported="false" android:configChanges="orientation|screenSize" />
         <activity android:name=".EduAccountActivity" android:exported="false" android:configChanges="orientation|screenSize" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".EduLoginActivity" android:exported="false" android:configChanges="orientation|screenSize" android:windowSoftInputMode="adjustResize" />

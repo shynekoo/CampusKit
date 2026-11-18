@@ -1204,6 +1204,36 @@ public final class CoreTests {
         rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,\"notes\":[\"x\",1],\"url\":\"https://e.cn/a.apk\"}"));
         System.out.println("PASS: an update manifest is accepted only when every field it will use is sound");
 
+        // 使用码：8 位 = 前 5 位使用码 + 后 3 位安全码，设备键盘上连着输完才开门。
+        UseCode useCode = UseCode.parse(fields("useCode", "12345678", "useCodeStatus", "1",
+            "useCodeExpiringTime", "3 分钟后失效", "useCodeAutoCloseConfig", "2",
+            "useCodeAutoCloseConfigDescription", "2 小时后关闭", "isConfigByProject", "false",
+            "resetAvailability", "1", "accountId", "7", "projectId", "9"));
+        equal(true, useCode.enabled());
+        equal("12345", useCode.usePart());
+        equal("678", useCode.securityPart());
+        equal("在设备上输入 12345（使用码）+ 678（安全码）即可开启。", useCode.instructions());
+        equal(false, useCode.configByProject());
+        equal(2, useCode.autoCloseConfig());
+        equal(7, useCode.accountId());
+        equal(true, useCode.canRegenerate());
+        // 别名：详情接口两种键名都出现过。
+        UseCode alias = UseCode.parse(fields("randomCode", "12345", "useCodeStatus", "0"));
+        equal("12345", alias.code());
+        equal("", alias.securityPart());
+        equal(false, alias.enabled());
+        equal("已关闭，不可用", alias.describe());
+        // 空 data：不是错误，只是还没领过。
+        UseCode none = UseCode.parse(null);
+        equal(false, none.enabled());
+        equal(false, none.hasCode());
+        // 服务端没有位数保证，但 5–8 位纯数字之外的值不能当码显示。
+        rejects(() -> UseCode.parse(fields("useCode", "1234")));
+        rejects(() -> UseCode.parse(fields("useCode", "123456789")));
+        rejects(() -> UseCode.parse(fields("useCode", "1234abcd")));
+        rejects(() -> UseCode.parse(fields("useCodeStatus", "abc")));
+        System.out.println("PASS: a use code is read only from well-formed fields, split 5+3 for the keypad");
+
         System.out.println("All " + assertions + " assertions passed. Live API/Bluetooth compatibility is not tested here.");
     }
 

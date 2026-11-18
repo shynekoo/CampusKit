@@ -12,8 +12,8 @@ import org.json.JSONObject;
 /** Account overview; SMS fields are shown only in the separate login screen. */
 public final class AccountInfoActivity extends Page {
     private final java.util.concurrent.ExecutorService worker=java.util.concurrent.Executors.newSingleThreadExecutor();
-    private boolean life,busy,askedLogin; private int generation;
-    private TextView identity,state;private Button login,refresh,logout;
+    private boolean life,busy,askedLogin;     private int generation;
+    private TextView identity,state;private Button login,refresh,logout,useCode;
     private int dp(int n){return Math.round(n*getResources().getDisplayMetrics().density);}
     @Override public void onCreate(Bundle saved){super.onCreate(saved);life=getIntent().getBooleanExtra("life798",false);
         Diag.install(this);
@@ -24,13 +24,16 @@ public final class AccountInfoActivity extends Page {
         // Recharge was removed in 1.4.8: the SDK channel never opened Alipay's cashier for this app,
         // and a recharge that cannot finish is worse than no recharge button at all.
         logout=button(screen.root,"退出登录",()->signOut());AppUi.press(logout,AppUi.SURFACE,10);
+        // 使用码是账号维度的一条独立链路：不扫码、不碰设备订单，因此在账户页给一个入口就够。
+        useCode=button(screen.card,"使用码（在设备键盘上输入开启）",()->startActivity(new Intent(this,UseCodeActivity.class)));
+        useCode.setVisibility(View.GONE);
         screen.note("登录信息加密保存在此设备。");login.setVisibility(View.GONE);logout.setVisibility(View.GONE);
     }
     private TextView label(LinearLayout root,String text,int size){TextView v=new TextView(this);v.setText(text);v.setTextSize(size);v.setTextColor(AppUi.INK);v.setPadding(0,dp(10),0,dp(10));root.addView(v);return v;}
     private Button button(LinearLayout root,String text,Runnable action){Button b=new Button(this);b.setText(text);b.setAllCaps(false);b.setTextColor(AppUi.ACCENT);b.setOnClickListener(v->action.run());LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(54));lp.topMargin=dp(12);root.addView(b,lp);return b;}
     @Override protected void onResume(){super.onResume();load();}
     private void busy(boolean value){busy=value;login.setEnabled(!value);refresh.setEnabled(!value);logout.setEnabled(!value);}
-    private void present(boolean signed,String info,String message){login.setVisibility(signed?View.GONE:View.VISIBLE);logout.setVisibility(signed?View.VISIBLE:View.GONE);refresh.setVisibility(signed?View.VISIBLE:View.GONE);identity.setText(info);state.setText(message);}
+    private void present(boolean signed,String info,String message){login.setVisibility(signed?View.GONE:View.VISIBLE);logout.setVisibility(signed?View.VISIBLE:View.GONE);refresh.setVisibility(signed?View.VISIBLE:View.GONE);identity.setText(info);state.setText(message);useCode.setVisibility(signed&&!life?View.VISIBLE:View.GONE);}
     private void post(int ticket,Runnable task){runOnUiThread(()->{if(!isDestroyed()&&!isFinishing()&&ticket==generation)task.run();});}
     private void openLogin(){startActivity(new Intent(this,life?LifeLoginActivity.class:AccountActivity.class).putExtra("returnToAccountInfo",true));}
     /** Not signed in is the state this screen exists to explain, so open the right login once. */
