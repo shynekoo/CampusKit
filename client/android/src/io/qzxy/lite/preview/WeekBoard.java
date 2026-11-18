@@ -48,6 +48,8 @@ final class WeekBoard extends android.view.ViewGroup {
     private android.graphics.Bitmap photo;
     void setPhoto(android.graphics.Bitmap bitmap){photo=bitmap;invalidate();}
     private final Paint paint = new Paint(3);
+    /** Measures the font the device actually draws with, so a theme font cannot break the fit. */
+    private final android.text.TextPaint measurer = new android.text.TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG);
     private final List<Block> blocks = new ArrayList<>();
     private final String[] dates;
     private final int today, sections;
@@ -58,6 +60,13 @@ final class WeekBoard extends android.view.ViewGroup {
     private float axis, head, row, column;
     /** The width the cell type was last sized for, so a rotation or split-screen resize re-fits it. */
     private int fittedWidth;
+    /**
+     * The height one week's page really has, handed down by {@link Pager} before this board is
+     * measured. Zero until then; the board fills it instead of guessing a row height, and only asks
+     * for a scroll when the rows would fall below {@link #minReadableRow}.
+     */
+    private int viewportHeight;
+    void setViewportHeight(int px) { viewportHeight = Math.max(0, px); }
     private static final class Block { int day,first,last; LinearLayout view; TextView title,room; String roomText=""; List<JSONObject> courses=new ArrayList<>(); }
     private int dp(float n){return Math.round(n*getResources().getDisplayMetrics().density);}
 
@@ -108,10 +117,17 @@ final class WeekBoard extends android.view.ViewGroup {
             LinearLayout view=new LinearLayout(context);view.setOrientation(LinearLayout.VERTICAL);block.view=view;
             TextView title=new TextView(context);block.title=title;title.setTextColor(inkAt(color));title.setGravity(Gravity.TOP|Gravity.LEFT);
             title.setTypeface(Typeface.DEFAULT,Typeface.BOLD);title.setIncludeFontPadding(false);title.setText(c.optString("name")+(block.courses.size()>1?" +"+(block.courses.size()-1):""));
-            title.setEllipsize(android.text.TextUtils.TruncateAt.END);view.addView(title,new LinearLayout.LayoutParams(-1,0,1));
+            // Greedy breaking: the default balanced strategy moves a whole character to the next
+            // line to even the block out, which on a narrow column costs a third of the width.
+            title.setBreakStrategy(android.text.Layout.BREAK_STRATEGY_SIMPLE);
+            title.setHyphenationFrequency(android.text.Layout.HYPHENATION_FREQUENCY_NONE);
+            title.setEllipsize(android.text.TextUtils.TruncateAt.END);view.addView(title,new LinearLayout.LayoutParams(-1,-2));
             TextView room=new TextView(context);block.room=room;room.setTextColor(inkAt(color));room.setGravity(Gravity.LEFT);room.setIncludeFontPadding(false);
             block.roomText=c.optString("room").replaceFirst("^([A-Za-z]+[0-9]+)[-－](.+)$","$1\n$2");
-            room.setText(block.roomText);room.setEllipsize(android.text.TextUtils.TruncateAt.END);view.addView(room,new LinearLayout.LayoutParams(-1,-2));
+            room.setText(block.roomText);room.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            // The room sits right under the name rather than pinned to the bottom of the block: a
+            // two-section block is tall, and a pinned room left a lake of colour between the two.
+            LinearLayout.LayoutParams roomParams=new LinearLayout.LayoutParams(-1,-2);roomParams.topMargin=dp(2);view.addView(room,roomParams);
             GradientDrawable bg=new GradientDrawable();bg.setColor(fillAt(color));bg.setCornerRadius(dp(Theme.radius()));view.setBackground(bg);
             String description="周"+new String[]{"一","二","三","四","五","六","日"}[block.day]+" 第"+block.first+"至"+block.last+"节";
             for(JSONObject course:block.courses)description+="，"+course.optString("name")+"，"+course.optString("room");
@@ -126,38 +142,102 @@ final class WeekBoard extends android.view.ViewGroup {
      * is set in px rather than sp on purpose: the board is a fixed seven-column matrix, and a reader
      * who raises the system font size should still see seven columns, not four cells of clipping.
      * Line counts are then taken from the measured line height, so nothing is cut off.</p>
+     *
+     * <p>The nominal size is only a starting point: it is trimmed again against the width of one
+     * character in the font the device really draws with. A phone theme can swap in a font whose
+     * glyphs are half again as wide as the system one, and without that measurement the same cell
+     * that holds three characters on one phone holds two on the next.</p>
      */
     private void fitCells(int width) {
         float density=Math.max(1f,getResources().getDisplayMetrics().density);
-        int widthDp=Math.round(width/density), columnDp=Math.round(column/density);
-        int pad=dp(BoardFit.cellPad(columnDp)), titleSp=BoardFit.titleSize(columnDp), roomSp=BoardFit.roomSize(titleSp);
+        int columnDp=Math.round(column/density);
+        int pad=dp(BoardFit.cellPad(columnDp)), size=BoardFit.titleSize(columnDp);
+        float textPx=Math.max(1,Math.round(column)-dp(BoardFit.gap())-2*pad);
+        int titlePx=BoardFit.shrinkToFit(textPx,charWidth(dp(size),true),dp(size),dp(BoardFit.MIN_TITLE-1));
+        int roomSize=BoardFit.roomSize(size), roomPx=dp(roomSize);
+        roomPx=BoardFit.shrinkToFit(textPx,charWidth(roomPx,false),roomPx,dp(roomSize-1));
+        roomPx=Math.min(roomPx,Math.max(dp(7),titlePx-dp(1)));
         fittedWidth=width;
         for(Block block:blocks) {
-            block.view.setPadding(pad,pad,pad,pad);
-            block.title.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,dp(titleSp));
-            block.room.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,dp(roomSp));
+            // A little more air above and below than at the sides: a rounded corner eats the first
+            // and last line otherwise, and the sides are what the name needs every pixel of.
+            block.view.setPadding(pad,pad+dp(1),pad,pad+dp(1));
+            block.title.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,titlePx);
+            block.room.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,roomPx);
         }
     }
+    /** Width of one Chinese character at this size, in the font this device draws. */
+    private float charWidth(int px,boolean bold) {
+        measurer.setTypeface(bold?Typeface.DEFAULT_BOLD:Typeface.DEFAULT);
+        measurer.setTextSize(px);
+        return measurer.measureText("课");
+    }
+    /** Whether this view can draw that text on one line inside the given width. */
+    private boolean fits(TextView view,String text,int widthPx) {
+        measurer.setTypeface(view.getTypeface());
+        measurer.setTextSize(view.getTextSize());
+        return measurer.measureText(text)<=widthPx;
+    }
+
+    /**
+     * The shortest row that still draws everything a row carries: the section number and the two
+     * times in the gutter, and one line of a course name inside a block.
+     *
+     * <p>Compressing rows is how the board avoids a scrollbar on a normal phone, but it has to stop
+     * somewhere. Below this the gutter's three labels collide and a name loses its own line, so the
+     * board keeps this height and the page scrolls instead of squeezing further.</p>
+     */
+    private float minReadableRow(int columnDp) {
+        measurer.setTypeface(Typeface.DEFAULT_BOLD); measurer.setTextSize(dp(12));
+        Paint.FontMetrics number = measurer.getFontMetrics();
+        measurer.setTypeface(Typeface.DEFAULT); measurer.setTextSize(dp(9));
+        Paint.FontMetrics time = measurer.getFontMetrics();
+        // Mirrors the baselines in onDraw(): the number 10dp above the row's centre, the two times
+        // 5dp and 18dp below it. Ascent is negative, hence the signs.
+        float half = Math.max(dp(10) - number.ascent, dp(18) + time.descent);
+        float gutter = 2 * half + dp(2);
+        float name = 2 * dp(BoardFit.cellPad(columnDp)) + dp(BoardFit.titleSize(columnDp)) + dp(10);
+        return Math.max(gutter, name);
+    }
+
+    /**
+     * Height comes from the page, not from a constant: whatever {@link Pager} was given is what the
+     * board fills, so ten sections on a normal phone stretch or compress to the space between the
+     * header and the bottom bar instead of always asking for 56dp a row and scrolling the excess.
+     * A page too short for {@link #minReadableRow} tall rows keeps that height and scrolls.
+     */
     @Override protected void onMeasure(int widthSpec,int heightSpec) {
-        int width=MeasureSpec.getSize(widthSpec),height=Math.max(getMinimumHeight(),dp(56*sections+48));
-        if(MeasureSpec.getMode(heightSpec)!=MeasureSpec.UNSPECIFIED)height=Math.max(height,MeasureSpec.getSize(heightSpec));
-        setMeasuredDimension(width,height);
+        int width=MeasureSpec.getSize(widthSpec);
         float density=Math.max(1f,getResources().getDisplayMetrics().density);
-        axis=dp(BoardFit.axis(Math.round(width/density)));head=dp(48);row=(height-head)/sections;column=(width-axis)/7;
+        axis=dp(BoardFit.axis(Math.round(width/density)));head=dp(48);column=(width-axis)/7f;
         int columnDp=Math.round(column/density);
+        int minimum=Math.round(head+sections*minReadableRow(columnDp));
+        int height=Math.max(minimum,viewportHeight);
+        int mode=MeasureSpec.getMode(heightSpec);
+        if(mode==MeasureSpec.EXACTLY)height=Math.max(minimum,MeasureSpec.getSize(heightSpec));
+        else if(mode==MeasureSpec.AT_MOST)height=Math.max(minimum,Math.min(height,MeasureSpec.getSize(heightSpec)));
+        setMeasuredDimension(width,height);
+        row=(float)(height-head)/sections;
         if(width!=fittedWidth)fitCells(width);
         for(Block b:blocks) {
             int h=Math.max(1,Math.round(row*(b.last-b.first+1))-dp(4));
-            int rooms=BoardFit.roomLines(Math.round(h/density),columnDp);
+            int space=Math.max(0,h-b.view.getPaddingTop()-b.view.getPaddingBottom());
+            int nameLine=Math.max(1,b.title.getLineHeight()),roomLine=Math.max(1,b.room.getLineHeight());
+            // The room is optional and the name is not: room lines are shown only while a line of the
+            // name still fits beside them. The heights are the measured line heights, not the nominal
+            // type size — a phone font is usually 1.2–1.4 times taller than its point size.
+            int rooms=BoardFit.roomLines(space/density,nameLine/density,roomLine/density);
+            String oneLine=b.roomText.replace('\n',' ');
+            // A single room line only earns its place if the whole room fits on it: "A11 3…" is
+            // worse than no room at all, because the name then gets that line back.
+            if(rooms==1&&!fits(b.room,oneLine,Math.round(column)-dp(BoardFit.gap())-2*b.view.getPaddingLeft()))rooms=0;
             b.room.setVisibility(rooms==0?View.GONE:View.VISIBLE);
-            if(rooms==1)b.room.setText(b.roomText.replace('\n',' '));
-            else b.room.setText(b.roomText);
             b.room.setMaxLines(Math.max(1,rooms));
-            int reserved=rooms==0?0:b.room.getLineHeight()*rooms;
-            int lineHeight=Math.max(1,b.title.getLineHeight());
-            int lines=(h-b.view.getPaddingTop()-b.view.getPaddingBottom()-reserved)/lineHeight;
-            b.title.setMaxLines(Math.max(1,Math.min(BoardFit.titleCap(columnDp),lines)));
-            b.view.measure(MeasureSpec.makeMeasureSpec(Math.max(1,Math.round(column)-dp(4)),MeasureSpec.EXACTLY),MeasureSpec.makeMeasureSpec(h,MeasureSpec.EXACTLY));
+            b.room.setText(rooms==1?oneLine:b.roomText);
+            int reserved=rooms==0?0:roomLine*rooms+dp(2);
+            int lines=Math.min(BoardFit.titleCap(columnDp),(space-reserved)/nameLine);
+            b.title.setMaxLines(Math.max(1,lines));
+            b.view.measure(MeasureSpec.makeMeasureSpec(Math.max(1,Math.round(column)-dp(BoardFit.gap())),MeasureSpec.EXACTLY),MeasureSpec.makeMeasureSpec(h,MeasureSpec.EXACTLY));
         }
     }
     @Override protected void onLayout(boolean changed,int l,int t,int r,int b) {
@@ -246,11 +326,21 @@ final class WeekBoard extends android.view.ViewGroup {
             setClipChildren(true); setClipToPadding(true);
             for(int i=0;i<3;i++) {
                 if(i!=1 && !listener.canShift(i-1))continue;
-                ScrollView page=new ScrollView(context);page.setFillViewport(true);page.setVerticalScrollBarEnabled(false);
-                WeekBoard board=factory.create(i-1); page.addView(board,new ScrollView.LayoutParams(-1,-2));
+                final WeekBoard board=factory.create(i-1);
+                // The page knows its own height before the board is measured, so it hands it down:
+                // the board then fills exactly that height instead of inventing one, and the page
+                // only scrolls when the rows would drop below their readable minimum.
+                ScrollView page=new ScrollView(context){
+                    @Override protected void onMeasure(int widthSpec,int heightSpec) {
+                        boolean bounded=MeasureSpec.getMode(heightSpec)!=MeasureSpec.UNSPECIFIED;
+                        board.setViewportHeight(bounded?Math.max(0,MeasureSpec.getSize(heightSpec)-getPaddingTop()-getPaddingBottom()):0);
+                        super.onMeasure(widthSpec,heightSpec);
+                    }
+                };
+                page.setFillViewport(true);page.setVerticalScrollBarEnabled(false);
+                page.addView(board,new ScrollView.LayoutParams(-1,-2));
                 pages[i]=page;addView(page,new FrameLayout.LayoutParams(-1,-1));
                 if(i!=1)page.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
-                page.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->board.setMinimumHeight(b-t));
             }
         }
         private void position(float value) {

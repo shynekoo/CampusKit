@@ -25,7 +25,7 @@ import android.widget.Toast;
  * repository is a link, because a copy of GitHub inside this app would be a second browser nobody
  * asked for; the page hands the address to whatever app already handles web pages.</p>
  */
-public final class MoreActivity extends Activity {
+public final class MoreActivity extends Page {
     private static final String REPO = "https://github.com/shynekoo/CampusKit";
 
     private static final String MIT =

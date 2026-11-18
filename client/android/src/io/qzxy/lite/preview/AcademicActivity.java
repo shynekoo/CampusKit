@@ -29,7 +29,7 @@ import java.util.concurrent.Executors;
  * again, so walking back and forth between the timetable and the grades costs one sign-in rather
  * than one per visit — and the account is still not left open in the background.</p>
  */
-public final class AcademicActivity extends Activity {
+public final class AcademicActivity extends Page {
     private static final String[] WEEKDAYS = {"星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"};
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor();

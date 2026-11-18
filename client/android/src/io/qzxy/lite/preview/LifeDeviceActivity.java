@@ -4,7 +4,7 @@ import android.content.Intent;
 import android.os.*;
 import android.view.*;
 import android.widget.*;
-public final class LifeDeviceActivity extends Activity {
+public final class LifeDeviceActivity extends Page {
     private final java.util.concurrent.ExecutorService worker=java.util.concurrent.Executors.newSingleThreadExecutor();
     private TextView info,status;private Button query,water;private String code;private boolean direct;private LifeDeviceProfile profile;private boolean busy,askedLogin,awaitingLogin;
     private int dp(int n){return Math.round(n*getResources().getDisplayMetrics().density);}

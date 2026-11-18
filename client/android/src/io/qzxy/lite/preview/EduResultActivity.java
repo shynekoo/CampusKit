@@ -18,7 +18,7 @@ import java.util.List;
  * every other table is shown row by row so 空教室 results keep their original columns. When the
  * page could not be identified the screen says so instead of showing an empty list.</p>
  */
-public final class EduResultActivity extends Activity {
+public final class EduResultActivity extends Page {
     private int dp(int n) { return Math.round(n * getResources().getDisplayMetrics().density); }
 
     @Override public void onCreate(Bundle saved) {

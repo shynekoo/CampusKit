@@ -22,7 +22,7 @@ import android.widget.Toast;
  * Printing an address nobody can select with one thumb is close to printing nothing, so each row is
  * a copy button: the address goes to the clipboard, and the reader pastes it wherever they write.</p>
  */
-public final class FeedbackActivity extends Activity {
+public final class FeedbackActivity extends Page {
     private static final String EMAIL = "shynekoo@outlook.com";
     private static final String GROUP = "1136506694";
 

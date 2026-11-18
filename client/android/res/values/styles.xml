@@ -35,11 +35,6 @@
         <item name="android:textColorSecondary">#98A4B5</item>
         <item name="android:textColorHint">#7C8798</item>
     </style>
-    <!-- 返回手势动画：页面从右侧滑入、向右滑出，和系统的返回手势接上同一个方向。 -->
-    <style name="SlidePage">
-        <item name="android:windowEnterAnimation">@anim/page_enter</item>
-        <item name="android:windowExitAnimation">@anim/page_exit</item>
-    </style>
     <style name="CampusButton" parent="android:style/Widget.Material.Button">
         <item name="android:background">@drawable/button_surface</item>
         <item name="android:textColor">@color/button_text</item>

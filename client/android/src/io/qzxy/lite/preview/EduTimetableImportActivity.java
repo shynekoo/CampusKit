@@ -22,7 +22,7 @@ import java.util.concurrent.Executors;
  * produces, so validation is identical. A failed automatic attempt leaves the existing timetable
  * untouched and offers the old web flow as a fallback.</p>
  */
-public final class EduTimetableImportActivity extends Activity {
+public final class EduTimetableImportActivity extends Page {
     private static final int WEB_REQUEST = 71;
     private static final int ACCOUNT_REQUEST = 72;
 

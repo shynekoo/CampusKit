@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 关闭一个页面（点「返回」按钮、或系统接管返回）：缩小并淡出，下面的页面始终看得见，
+     和手势返回里那张缩小的卡片是同一个方向。 -->
 <set xmlns:android="http://schemas.android.com/apk/res/android"
     android:interpolator="@android:anim/accelerate_interpolator">
-    <translate android:fromXDelta="0" android:toXDelta="100%p" android:duration="200" />
-    <alpha android:fromAlpha="1.0" android:toAlpha="0.8" android:duration="200" />
+    <scale android:fromXScale="1" android:toXScale="0.92"
+        android:fromYScale="1" android:toYScale="0.92"
+        android:pivotX="50%" android:pivotY="50%" android:duration="200" />
+    <alpha android:fromAlpha="1.0" android:toAlpha="0.5" android:duration="200" />
 </set>

@@ -10,7 +10,7 @@ import io.qzxy.lite.core.AccountSession;
 import org.json.JSONObject;
 
 /** Account overview; SMS fields are shown only in the separate login screen. */
-public final class AccountInfoActivity extends Activity {
+public final class AccountInfoActivity extends Page {
     private final java.util.concurrent.ExecutorService worker=java.util.concurrent.Executors.newSingleThreadExecutor();
     private boolean life,busy,askedLogin; private int generation;
     private TextView identity,state;private Button login,refresh,logout;

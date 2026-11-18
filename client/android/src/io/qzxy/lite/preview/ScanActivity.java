@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Camera frames are decoded locally; identifying a device does not start it. */
 @SuppressWarnings("deprecation")
-public final class ScanActivity extends Activity implements SurfaceHolder.Callback {
+public final class ScanActivity extends Page implements SurfaceHolder.Callback {
     private static final int CAMERA_PERMISSION = 10;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService worker = Executors.newSingleThreadExecutor();

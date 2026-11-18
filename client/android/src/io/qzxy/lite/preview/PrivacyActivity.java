@@ -25,7 +25,7 @@ import android.widget.TextView;
  * document. Anything that touches the keystore is deleted on a worker thread, matching
  * {@link AccountVault}'s requirement that its key operations never run on the main thread.</p>
  */
-public final class PrivacyActivity extends Activity {
+public final class PrivacyActivity extends Page {
     private static final int DANGER = 0xffb42318;
     /**
      * Everything the app writes as settings; cleared only by the "all" action.

@@ -22,7 +22,7 @@ import java.util.concurrent.Executors;
  * person is still looking at the field rather than later behind a spinner. The password is sealed by
  * {@link EduVault}; this screen never writes it anywhere else and never logs it.</p>
  */
-public final class EduAccountActivity extends Activity {
+public final class EduAccountActivity extends Page {
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private DeviceScreen screen;
     private EditText user, password;

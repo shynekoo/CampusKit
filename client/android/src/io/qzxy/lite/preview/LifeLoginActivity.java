@@ -17,7 +17,7 @@ import org.json.*;
  * <p>失败时把服务端原话显示出来，而不是一律「请求未完成」：读者需要知道是没装支付宝、
  * 授权被拒绝，还是网络不通——这三种情况的下一步完全不同。</p>
  */
-public final class LifeLoginActivity extends Activity {
+public final class LifeLoginActivity extends Page {
     private final java.util.concurrent.ExecutorService worker=java.util.concurrent.Executors.newSingleThreadExecutor();
     private TextView status;private Button alipay,clear,verify;
     private boolean busy;

@@ -25,7 +25,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /** User-triggered SMS account integration; never triggers device or payment operations. */
-public final class AccountActivity extends Activity {
+public final class AccountActivity extends Page {
     /** Set by the 余额 entry so the balance query starts on its own once the session is loaded. */
     static final String EXTRA_ACTION = "io.qzxy.lite.preview.action";
     static final String ACTION_BALANCE = "balance";

@@ -6,7 +6,7 @@ import android.widget.*;
 import io.qzxy.lite.core.*;
 
 /** Explicit handoff. Returning to the foreground rechecks the saved account. */
-public final class QzxyAlipayActivity extends Activity {
+public final class QzxyAlipayActivity extends Page {
  private final java.util.concurrent.ExecutorService worker=java.util.concurrent.Executors.newSingleThreadExecutor();
  private DeviceQr qr;private DeviceLookup device;private DeviceScreen screen;private TextView info,status;
  private Button open,refresh,details;private boolean busy,visible,closed,needsLogin,askedLogin;

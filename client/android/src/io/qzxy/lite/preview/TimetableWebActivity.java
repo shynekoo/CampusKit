@@ -9,7 +9,7 @@ import android.widget.*;
 import java.io.*;
 
 /** User-operated university login. No native JS bridge and no credential extraction. */
-public final class TimetableWebActivity extends Activity {
+public final class TimetableWebActivity extends Page {
     private static final String HOST="jwglxxfwpt.hebeu.edu.cn";
     private static final String LOGIN="https://"+HOST+"/xtgl/login_slogin.html";
     private static final String COURSES="https://"+HOST+"/kbcx/xskbcx_cxXskbcxIndex.html?gnmkdm=N2151&layout=default";
@@ -50,7 +50,7 @@ public final class TimetableWebActivity extends Activity {
                 status.setText("该跳转不属于学校 HTTPS 网站，未在此页打开。");return true;
             }
             @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon) { navigation++; read.setEnabled(false);status.setText("正在加载："+Uri.parse(url).getHost()); }
-            @Override public void onPageFinished(WebView view,String url) { read.setEnabled(HOST.equals(Uri.parse(url).getHost()));status.setText("当前网站："+Uri.parse(url).getHost()); }
+            @Override public void onPageFinished(WebView view,String url) { refreshBackMode(); read.setEnabled(HOST.equals(Uri.parse(url).getHost()));status.setText("当前网站："+Uri.parse(url).getHost()); }
             @Override public void onReceivedSslError(WebView view,SslErrorHandler handler,android.net.http.SslError error) { handler.cancel();status.setText("网站证书校验失败，已停止加载。"); }
             @Override public void onReceivedError(WebView view,WebResourceRequest request,WebResourceError error) { if(request.isForMainFrame()) { read.setEnabled(false);status.setText("网页加载失败，请检查网络后重新进入。"); } }
         });
@@ -78,6 +78,9 @@ public final class TimetableWebActivity extends Activity {
             });
         } catch(Exception failure) { status.setText("读取失败，请重新打开页面。");read.setEnabled(true); }
     }
+    /** 网页还有上一页时返回只是后退，窗口不会关——这种时候不能让系统先缩卡片。 */
+    @Override protected boolean backMayStay() { return web != null && web.canGoBack(); }
+
     @Override public void onBackPressed() { if(web.canGoBack())web.goBack();else super.onBackPressed(); }
     @Override protected void onDestroy() { if(web!=null){web.stopLoading();web.destroy();}super.onDestroy(); }
 }

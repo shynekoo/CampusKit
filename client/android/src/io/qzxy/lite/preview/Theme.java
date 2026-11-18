@@ -45,7 +45,7 @@ final class Theme {
 
     private static int mode = AUTO, accent = 0, palette = BUILT_IN, ink = 0,
         radius = DEFAULT_RADIUS, opacity = DEFAULT_OPACITY;
-    private static boolean floatingBar, slide = true, grid = true, dark;
+    private static boolean slide = true, grid = false, dark;
     private static int[] fills = new int[SLOTS];
     /** Bumped on every save: a page that rendered under an older look knows to draw again. */
     private static int revision;
@@ -57,13 +57,14 @@ final class Theme {
         SharedPreferences prefs = context.getSharedPreferences(STORE, Context.MODE_PRIVATE);
         mode = prefs.getInt("mode", AUTO);
         accent = prefs.getInt("accent", 0);
-        floatingBar = prefs.getBoolean("floatingBar", false);
         slide = prefs.getBoolean("slide", true);
         palette = prefs.getInt("palette", BUILT_IN);
         ink = prefs.getInt("ink", 0);
         radius = clamp(prefs.getInt("radius", DEFAULT_RADIUS), MIN_RADIUS, MAX_RADIUS);
         opacity = clamp(prefs.getInt("opacity", DEFAULT_OPACITY), 0, 100);
-        grid = prefs.getBoolean("grid", true);
+        // 网格线 defaults off: the blocks already separate the days, and the bare board reads
+        // cleaner on a phone. Anyone who wants a ruled table turns it on once in 外观与主题.
+        grid = prefs.getBoolean("grid", false);
         parseFills(prefs.getString(KEY_FILLS, ""));
         dark = mode == DARK || (mode == AUTO && night(context));
         publish();
@@ -94,7 +95,8 @@ final class Theme {
         AppUi.ON_ACCENT = readableOn(AppUi.ACCENT);
     }
 
-    private static int mix(int from, int to, float amount) {
+    /** Mixes two colours; shared with the settings page, which previews a theme colour as tints. */
+    static int mix(int from, int to, float amount) {
         int r = Math.round(((from >> 16) & 255) + (((to >> 16) & 255) - ((from >> 16) & 255)) * amount);
         int g = Math.round(((from >> 8) & 255) + (((to >> 8) & 255) - ((from >> 8) & 255)) * amount);
         int b = Math.round((from & 255) + ((to & 255) - (from & 255)) * amount);
@@ -125,7 +127,6 @@ final class Theme {
     static int mode() { return mode; }
     /** The chosen accent, or 0 when the reader left it at 默认. */
     static int accentChoice() { return accent; }
-    static boolean floatingBar() { return floatingBar; }
     static boolean slide() { return slide; }
     static int palette() { return palette; }
     static int inkChoice() { return ink; }
@@ -177,7 +178,6 @@ final class Theme {
 
     static void setMode(Context context, int value) { save(context, p -> p.putInt("mode", value)); }
     static void setAccent(Context context, int color) { save(context, p -> p.putInt("accent", color)); }
-    static void setFloatingBar(Context context, boolean value) { save(context, p -> p.putBoolean("floatingBar", value)); }
     static void setSlide(Context context, boolean value) { save(context, p -> p.putBoolean("slide", value)); }
     static void setPalette(Context context, int value) { save(context, p -> p.putInt("palette", value)); }
     static void setInk(Context context, int color) { save(context, p -> p.putInt("ink", color)); }
@@ -221,10 +221,6 @@ final class Theme {
         // The window background is what shows for the frame before the content is laid out; left at
         // the light value it is a white flash on every page of a dark theme.
         window.setBackgroundDrawable(new ColorDrawable(AppUi.BG));
-        // 返回手势动画: a page that slides in from the right and slides back out reads as one movement
-        // with the system's back gesture. It is a preference because on a slow phone the extra frame
-        // is worse than no animation at all.
-        window.setWindowAnimations(slide ? R.style.SlidePage : 0);
     }
 
     private static void systemBarIcons(Activity activity) {

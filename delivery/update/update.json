@@ -1,14 +1,12 @@
 {
-  "version": "2.5.6.11",
-  "versionCode": 189,
+  "version": "2.5.7",
+  "versionCode": 197,
   "notes": [
-    "账号页新增「外观与主题」，分应用主题与课表外观两页",
-    "应用主题：明暗模式（自动/浅色/深色）、主题色彩（默认/自定义）、悬浮底栏样式、返回手势动画",
-    "课表外观：课程配色（默认/自定义）、课程文字颜色、格子圆角、格子不透明度、显示网格线，改完当场预览",
-    "深色是单独调的一套灰阶：正文、卡片、弹窗、状态栏一起变，不是把浅色反相",
-    "升级不影响登录状态与课表，覆盖安装即可"
+    "新增深色主题与返回手势动画",
+    "应用与课表主题色支持自定义",
+    "修复了课表显示异常的问题：字号与行高按屏幕自动适配，窄屏不再挤成两字一行"
   ],
-  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.5.6.11.apk?sharecode=BZD63HRP4B",
-  "bytes": 5367674,
-  "sha256": "be809bb0d88c7214de914e37a8f6b4f8dcab8a120a6623eddda1ad2079ca23a1"
+  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.5.7.apk?sharecode=BZD63HRP4B",
+  "bytes": 5359482,
+  "sha256": "33851ee1190e98b1655489bd1c7989119fc6f16cfc4fd7883dc3beae6b5728bc"
 }

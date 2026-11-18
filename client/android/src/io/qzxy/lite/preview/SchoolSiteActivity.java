@@ -33,7 +33,7 @@ import android.widget.TextView;
  * HTTP is allowed for these hosts because the school's own pages and their images still use it;
  * mixed content is loaded in compatibility mode for the same reason.</p>
  */
-public final class SchoolSiteActivity extends Activity {
+public final class SchoolSiteActivity extends Page {
     public static final String EXTRA_URL = "url";
     public static final String EXTRA_TITLE = "title";
 
@@ -162,10 +162,12 @@ public final class SchoolSiteActivity extends Activity {
                 if (url != null) status.setText("正在加载 " + Uri.parse(url).getHost() + "…");
             }
             @Override public void onPageFinished(WebView view, String url) {
+                refreshBackMode();  // 历史变了，返回该不该缩卡片也跟着变
                 if (url != null) status.setText(Uri.parse(url).getHost());
                 WebBack.caption(backButton, view);
             }
             @Override public void doUpdateVisitedHistory(WebView view, String url, boolean reload) {
+                refreshBackMode();
                 WebBack.caption(backButton, view);
             }
             @Override public void onReceivedSslError(WebView view, SslErrorHandler handler, android.net.http.SslError error) {
@@ -186,6 +188,9 @@ public final class SchoolSiteActivity extends Activity {
         setContentView(root);
         web.loadUrl(home);
     }
+
+    /** 网页还有上一页时返回只是后退，窗口不会关——这种时候不能让系统先缩卡片。 */
+    @Override protected boolean backMayStay() { return web != null && web.canGoBack(); }
 
     @Override public void onBackPressed() {
         WebBack.go(this, web);

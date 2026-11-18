@@ -22,7 +22,7 @@ import android.widget.TextView;
  * the password never passes through its code. As soon as the page leaves the login screen the cookies
  * are flushed and this screen closes, so the caller can read the data with the same session.</p>
  */
-public final class EduLoginActivity extends Activity {
+public final class EduLoginActivity extends Page {
     private static final String HOST = "jwglxxfwpt.hebeu.edu.cn";
     private static final String LOGIN = "https://" + HOST + "/xtgl/login_slogin.html";
 

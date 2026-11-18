@@ -32,7 +32,7 @@ import java.util.regex.Pattern;
  * 事件。每条默认折三行，点一下展开——崩溃堆栈会有几十行，全铺开会把上一行挤到看不见。每条右侧
  * 各自带「复制」，需要发出去往往只有卡住前那几行，不必整份照发。</p>
  */
-public final class DiagActivity extends Activity {
+public final class DiagActivity extends Page {
     private static final Pattern TICK = Pattern.compile("^\\d{2}:\\d{2}:\\d{2}\\.\\d{3} \\[");
     /** 一屏最多渲染这么多条：记录再长，翻到最底也只关心最后几步。 */
     private static final int MAX_ROWS = 120;

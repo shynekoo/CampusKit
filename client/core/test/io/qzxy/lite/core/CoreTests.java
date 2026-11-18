@@ -1099,8 +1099,9 @@ public final class CoreTests {
             equal(true, column >= 30);
             int title = BoardFit.titleSize(column), pad = BoardFit.cellPad(column);
             equal(true, title >= BoardFit.MIN_TITLE && title <= BoardFit.MAX_TITLE);
-            // At least two characters still fit on one line in the narrowest case.
-            equal(true, (column - 2 * pad) / title >= 2);
+            // The point of the whole scale: three characters still fit on one line, so a name is a
+            // word rather than a vertical strip of syllables.
+            equal(true, BoardFit.textWidth(column) / title >= BoardFit.MIN_CHARS);
             // A wider column never gets smaller type than a narrower one.
             equal(true, title >= BoardFit.titleSize(Math.max(1, column - 1)));
             equal(true, BoardFit.roomSize(title) < title);
@@ -1111,17 +1112,26 @@ public final class CoreTests {
         equal(46, BoardFit.axis(400));
         equal(46, BoardFit.axis(900));
         equal(36, BoardFit.column(288));
-        equal(12, BoardFit.titleSize(43));
-        equal(10, BoardFit.titleSize(36));
+        equal(10, BoardFit.titleSize(43));
+        equal(9, BoardFit.titleSize(36));
         equal(13, BoardFit.titleSize(60));
         equal(4, BoardFit.titleCap(43));
         equal(3, BoardFit.titleCap(36));
         equal(4, BoardFit.titleCap(60));
-        // A one-section block on a short screen drops the room line rather than squeezing the name.
-        equal(0, BoardFit.roomLines(30, 36));
-        equal(1, BoardFit.roomLines(53, 43));
-        equal(2, BoardFit.roomLines(110, 43));
-        equal(0, BoardFit.roomLines(10, 43));
+        // A room line is optional and the name is not: on a compressed row the room goes first, and
+        // it only stays while one line of the name still fits beside it.
+        equal(2, BoardFit.roomLines(82f, 14f, 11f));
+        equal(1, BoardFit.roomLines(37f, 14f, 11f));
+        equal(0, BoardFit.roomLines(20f, 14f, 11f));
+        equal(0, BoardFit.roomLines(0f, 14f, 11f));
+        equal(0, BoardFit.roomLines(80f, 0f, 11f));
+        // A theme font wider than the system one is trimmed back until three characters still fit;
+        // the floor stops the trim before the name becomes a smudge.
+        equal(30, BoardFit.shrinkToFit(90f, 30f, 30, 24));
+        equal(26, BoardFit.shrinkToFit(90f, 35f, 30, 24));
+        equal(24, BoardFit.shrinkToFit(90f, 60f, 30, 24));
+        equal(30, BoardFit.shrinkToFit(0f, 10f, 30, 24));
+        equal(30, BoardFit.shrinkToFit(90f, 0f, 30, 24));
         // Degenerate input never produces a zero or negative size.
         equal(BoardFit.MIN_AXIS, BoardFit.axis(0));
         equal(1, BoardFit.column(0));

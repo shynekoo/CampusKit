@@ -3,9 +3,9 @@
 
   // 与 update.json 保持一致；仅在网络读取失败时用于展示。
   var FALLBACK = {
-    version: '2.5.6.11',
-    bytes: 5367674,
-    url: 'https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.5.6.11.apk?sharecode=BZD63HRP4B'
+    version: '2.5.7',
+    bytes: 5359482,
+    url: 'https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.5.7.apk?sharecode=BZD63HRP4B'
   };
 
   var release = Object.assign({}, FALLBACK);

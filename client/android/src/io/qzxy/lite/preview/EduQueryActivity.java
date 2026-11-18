@@ -27,7 +27,7 @@ import java.io.InputStream;
  * site's own menu entries found on the page, so a route change at the school cannot silently break
  * the feature. Reading is limited to rendered table text.</p>
  */
-public final class EduQueryActivity extends Activity {
+public final class EduQueryActivity extends Page {
     private static final String HOST = "jwglxxfwpt.hebeu.edu.cn";
     private static final String LOGIN = "https://" + HOST + "/xtgl/login_slogin.html";
     private static final String MENU = "https://" + HOST + "/xtgl/index_initMenu.html";
@@ -132,6 +132,7 @@ public final class EduQueryActivity extends Activity {
                 status.setText("正在加载：" + Uri.parse(url).getHost());
             }
             @Override public void onPageFinished(WebView view, String url) {
+                refreshBackMode();  // 历史变了，返回该不该缩卡片也跟着变
                 WebBack.caption(backButton, view);
                 read.setEnabled(HOST.equals(Uri.parse(url).getHost()));
                 if (pendingSearch != null) {
@@ -269,6 +270,9 @@ public final class EduQueryActivity extends Activity {
             return "";
         }
     }
+
+    /** 网页还有上一页时返回只是后退，窗口不会关——这种时候不能让系统先缩卡片。 */
+    @Override protected boolean backMayStay() { return web != null && web.canGoBack(); }
 
     @Override public void onBackPressed() {
         WebBack.go(this, web);

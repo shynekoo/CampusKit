@@ -35,7 +35,7 @@ import java.util.concurrent.Executors;
  * <p>Navigation is pinned to the school's HTTPS hosts, no form data is saved and third-party cookies
  * are refused. Leaving the screen keeps the session the other academic screens share.</p>
  */
-public final class EduPortalActivity extends Activity {
+public final class EduPortalActivity extends Page {
     private static final String HOME = EduClient.ORIGIN + "/xtgl/index_initMenu.html";
     private static final String LOGIN = EduClient.ORIGIN + "/xtgl/login_slogin.html";
     private static final int ACCOUNT_REQUEST = 74;
@@ -143,6 +143,7 @@ public final class EduPortalActivity extends Activity {
                 return true;
             }
             @Override public void onPageFinished(WebView view, String url) {
+                refreshBackMode();  // 历史变了，返回该不该缩卡片也跟着变
                 if (url == null) return;
                 if (url.contains("login_slogin")) {
                     // A saved account means the page should never have to ask: the session was either
@@ -268,6 +269,9 @@ public final class EduPortalActivity extends Activity {
                 }
             }).show();
     }
+
+    /** 网页还有上一页时返回只是后退，窗口不会关——这种时候不能让系统先缩卡片。 */
+    @Override protected boolean backMayStay() { return web != null && web.canGoBack(); }
 
     @Override public void onBackPressed() {
         WebBack.go(this, web);

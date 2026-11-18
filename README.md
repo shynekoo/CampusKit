@@ -43,13 +43,13 @@
 
 | 项目 | 情况 |
 | :-- | :-- |
-| 最新版本 | **v2.5.6.11**（2026-11-18） |
-| 安装包 | 5,367,674 字节 · SHA-256 `be809bb0d88c7214de914e37a8f6b4f8dcab8a120a6623eddda1ad2079ca23a1` |
+| 最新版本 | **v2.5.7**（2026-11-18） |
+| 安装包 | 5,359,482 字节 · SHA-256 `33851ee1190e98b1655489bd1c7989119fc6f16cfc4fd7883dc3beae6b5728bc` |
 | 系统要求 | Android 7.0（API 24）及以上，targetSdk 36 |
 | 技术栈 | Java + 原生 View；无 Gradle、无第三方 UI 框架 |
 | 第三方库 | ZXing 3.5.3、PDFBox-Android 2.0.27.0、Bouncy Castle 1.72、支付宝 SDK 15.8.42 |
 | 代码量 | 约 1.5 万行 Java（110 个受版本管理的文件）+ 约 1000 行 Python 构建脚本 |
-| 测试 | 出包流程内跑 1067 项核心断言，全过才生成 APK |
+| 测试 | 出包流程内跑 1073 项核心断言，全过才生成 APK |
 
 ## 界面
 
@@ -71,7 +71,7 @@
 | **取件身份码** | 一键跳到淘宝 → 菜鸟驿站身份码 | 只做唤起与跳转，应用本身不访问取件数据 |
 | **应用内更新** | 启动时检查版本清单，下载后校验字节数与 SHA-256 才安装 | 最后一步必须你点「安装」，应用不会静默装东西 |
 | **意见反馈 / 更多** | 邮箱与 QQ 群（点一下复制）、仓库地址、内嵌 MIT 许可证全文 | 许可证弹窗离线可读 |
-| **外观与主题** | 深色模式（自动 / 浅色 / 深色）、主题色、悬浮底栏、返回手势动画；课表配色、课程文字颜色、圆角、格子不透明度、网格线开关 | 颜色从一处静态调色板下发，换主题不需要第二套布局；偏好存在本机 |
+| **外观与主题** | 深色模式（自动 / 浅色 / 深色）、主题色、悬浮底栏、返回手势动画；课表配色、课程文字颜色、圆角、格子不透明度、网格线开关（默认关闭） | 颜色从一处静态调色板下发，换主题不需要第二套布局；偏好存在本机 |
 
 ## 工作原理
 
@@ -145,13 +145,13 @@ sequenceDiagram
 
 ## 下载
 
-1. 从 [Releases 最新版](https://github.com/shynekoo/CampusKit/releases/latest) 下载 `kexin-xiaozhushou-2.5.6.11.apk`（国内也可以用直链：<https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.5.6.11.apk?sharecode=BZD63HRP4B>）
+1. 从 [Releases 最新版](https://github.com/shynekoo/CampusKit/releases/latest) 下载 `kexin-xiaozhushou-2.5.7.apk`（国内也可以用直链：<https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.5.7.apk?sharecode=BZD63HRP4B>）
 2. 允许浏览器「安装未知应用」，装完打开即可，不需要 Root、不需要任何框架
 3. 想核对包有没有被改过：
 
 ```bash
-sha256sum kexin-xiaozhushou-2.5.6.11.apk
-# be809bb0d88c7214de914e37a8f6b4f8dcab8a120a6623eddda1ad2079ca23a1
+sha256sum kexin-xiaozhushou-2.5.7.apk
+# 33851ee1190e98b1655489bd1c7989119fc6f16cfc4fd7883dc3beae6b5728bc
 ```
 
 > ⚠️ **升级请覆盖安装。** 换成别的签名只能卸载重装，而卸载会清掉课表与凭据——先在「课表 → 管理 → 导出备份」存一份，重装后再恢复。
@@ -261,6 +261,12 @@ docs/           README 用到的截图
 - **代码贡献**：先开 Issue 说清楚要改什么，再提 PR；改动需通过 `python scripts/test_core.py`，涉及界面的请附截图
 
 ## 更新日志
+
+**v2.5.7**（2026-11-18）
+
+- 新增深色主题与返回手势动画
+- 应用与课表主题色支持自定义
+- 修复了课表显示异常：课名字号与行高按屏幕自动适配，窄屏不再挤成两字一行，整块高度跟着页面剩余空间走
 
 **v2.5.6.11**（2026-11-18）
 

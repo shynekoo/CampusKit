@@ -30,7 +30,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 /** Local timetable, independent of the water account and network. Times are section numbers. */
-public final class TimetableActivity extends Activity implements App.Themed {
+public final class TimetableActivity extends Page implements App.Themed {
     private static final String[] DAYS = {"周一", "周二", "周三", "周四", "周五", "周六", "周日"};
     private final List<JSONObject> courses = new ArrayList<>();
     private SharedPreferences store;
@@ -97,6 +97,12 @@ public final class TimetableActivity extends Activity implements App.Themed {
             final boolean invalid=expired;runOnUiThread(()->{sessionChecking=false;if(isDestroyed()||isFinishing())return;if(invalid){signedIn=false;expiredNotice=true;showExpiredNotice();}});
         });
     }
+
+    /**
+     * 返回先收内部状态：校区页 → 校区列表 → 今日，之后才是关页面。按当前状态作答，回到今日
+     * 首页时返回就真的关页面，那一页才用得上系统的跟手缩小。
+     */
+    @Override protected boolean backMayStay() { return tab != 0 || campusView == 1; }
 
     @Override public void onBackPressed() {
         if (tab == 2 && campusView == 1) { campusView = 0; render(); return; }
@@ -712,6 +718,9 @@ public final class TimetableActivity extends Activity implements App.Themed {
         return item;
     }
     private void render() {
+        // tab / campusView 刚变过，返回该不该缩卡片也跟着变；refreshBackMode 内部有记忆，
+        // 方式没变时什么也不做。
+        refreshBackMode();
         pager=null;
         // Margins come from the screen, not a constant: a 320dp phone gets 4dp back for its seven
         // columns, and a tablet gets a centred column instead of body text running the full width.
@@ -759,17 +768,11 @@ public final class TimetableActivity extends Activity implements App.Themed {
         else if(tab==2&&campusView==1){TextView back=text("‹ 返回",14);back.setTextColor(AppUi.ACCENT);back.setPadding(dp(10),dp(10),0,dp(10));back.setOnClickListener(v->{campusView=0;render();});header.addView(back);}
         root.addView(header);
         if(tab==0)todayContent();else if(tab==1)timetableContent();else campusContent();
-        // 悬浮底栏样式: the bar detaches from the edge, keeps its own corners, and gets a shadow —
-        // that is the whole difference. The bar itself is the same three tabs in both modes.
-        boolean floating=Theme.floatingBar();
-        LinearLayout holder=column();holder.setPadding(floating?dp(12):dp(8),dp(2),floating?dp(12):dp(8),floating?dp(12):dp(8));
+        LinearLayout holder=column();holder.setPadding(dp(8),dp(2),dp(8),dp(8));
         // No elevation: the cast shadow is offset downward, so a rounded white bar shows a dark smudge
         // under the two bottom corners while the top corners stay clean. The hairline border alone
         // separates the bar from the page, evenly on all four corners.
-        LinearLayout bar=new LinearLayout(this);
-        bar.setBackground(AppUi.outlined(this,AppUi.SURFACE,floating?26:24,AppUi.LINE));
-        bar.setPadding(dp(5),dp(5),dp(5),dp(5));
-        if(floating)bar.setElevation(dp(10));
+        LinearLayout bar=new LinearLayout(this);bar.setBackground(AppUi.outlined(this,AppUi.SURFACE,24,AppUi.LINE));bar.setPadding(dp(5),dp(5),dp(5),dp(5));
         bar.addView(tabItem("今日",tab==0,()->{if(tab!=0){tab=0;campusView=0;render();}}),new LinearLayout.LayoutParams(0,-2,1));
         bar.addView(tabItem("课表",tab==1,()->{if(tab!=1){tab=1;campusView=0;render();}}),new LinearLayout.LayoutParams(0,-2,1));
         bar.addView(tabItem("账号",tab==2,()->{if(tab!=2){tab=2;render();}}),new LinearLayout.LayoutParams(0,-2,1));
