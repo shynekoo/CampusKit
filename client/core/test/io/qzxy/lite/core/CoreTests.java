@@ -1390,6 +1390,27 @@ public final class CoreTests {
         equal(true, redraw.tick("2026-11-20", 0));    // today tab always live
         System.out.println("PASS: clock tick rebuilds only on a new day or on the live today tab");
 
+        // A3 deepening: a tick must distinguish "nothing", "refresh today's dynamic labels in
+        // place", and "rebuild the tree". The old boolean collapsed the latter two into a full
+        // render, which rebuilt the whole View tree every 30s just to update a class marker.
+        TodayDynamic todayDyn = new TodayDynamic("正在上课 · 高数 · 教三201",
+            java.util.Arrays.asList(new TodayDynamic.Row("高数", true, true),
+                                    new TodayDynamic.Row("英语", false, false)));
+        equal("正在上课 · 高数 · 教三201", todayDyn.summary);
+        equal(2, todayDyn.rows.size());
+        equal(true, todayDyn.rows.get(0).ended); equal(true, todayDyn.rows.get(0).live);
+        equal(false, todayDyn.rows.get(1).ended); equal(false, todayDyn.rows.get(1).live);
+        equal(false, new TodayDynamic("今天没有课", java.util.Collections.<TodayDynamic.Row>emptyList()).rows.size() > 0);
+
+        RefreshDecision decision = new RefreshDecision("2026-11-20");
+        equal(RefreshDecision.Level.NONE, decision.forTick("2026-11-20", 1));  // schedule tab, same day
+        equal(RefreshDecision.Level.NONE, decision.forTick("2026-11-20", 2));  // account tab, same day
+        equal(RefreshDecision.Level.TODAY_DYNAMIC, decision.forTick("2026-11-20", 0)); // today: in-place
+        equal(RefreshDecision.Level.FULL, decision.forTick("2026-11-21", 0));  // new day: rebuild
+        equal(RefreshDecision.Level.FULL, decision.forTick("2026-11-22", 2));  // new day any tab: rebuild
+        equal(RefreshDecision.Level.NONE, decision.forTick("2026-11-22", 2));  // settled
+        System.out.println("PASS: refresh decision splits in-place today update from full rebuild");
+
         // A4: the session check runs on every onResume. It must de-duplicate concurrent requests,
         // cache a known-good result briefly so fast tab switches do not hit the network, and never
         // mistake a network failure for a logged-out session. shouldStart() atomically claims the

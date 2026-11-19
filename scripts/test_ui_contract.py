@@ -29,6 +29,7 @@ def require(source: str, needle: str, where: str, why: str):
 
 
 def main():
+    global checks
     activity = ACTIVITY.read_text(encoding="utf-8")
     page = PAGE.read_text(encoding="utf-8")
     card = CARD.read_text(encoding="utf-8")
@@ -72,6 +73,23 @@ def main():
     # courseRow is where per-row live state is painted; it must remain present.
     require(activity, "private View courseRow(", "TimetableActivity",
             "today's live class rows")
+
+    # --- A3: in-place today update, not a full rebuild on every tick -----------------------
+    require(activity, "RefreshDecision.Level", "TimetableActivity",
+            "clock tick must use the three-level refresh decision")
+    require(activity, "updateTodayDynamic()", "TimetableActivity",
+            "today tab must refresh dynamic labels in place")
+    require(activity, "TODAY_DYNAMIC", "TimetableActivity",
+            "in-place refresh branch must exist")
+    require(activity, "setVisibility(live?View.VISIBLE:View.GONE)", "TimetableActivity",
+            "live chip toggles by visibility, never by re-adding views")
+    # The clock tick must NOT unconditionally call render() for the today tab any more.
+    tick_block = activity[activity.find("private void refreshClock()"):activity.find("private void updateTodayDynamic()")]
+    require(tick_block, "updateTodayDynamic()", "refreshClock",
+            "same-day today tick must take the in-place path")
+    if "clockRedraw.tick" in activity:
+        failures.append("TimetableActivity: old unconditional clockRedraw.tick rebuild is still present")
+    checks += 1
 
     if failures:
         print("UI CONTRACT FAILED (%d/%d checks):" % (len(failures), checks))

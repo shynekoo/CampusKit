@@ -39,19 +39,63 @@ public final class TimetableActivity extends Page implements App.Themed {
     private String lastDay="";
     private android.graphics.Bitmap backgroundImage;
     private final android.os.Handler clockHandler=new android.os.Handler(android.os.Looper.getMainLooper());
-    private io.qzxy.lite.core.ClockRedraw clockRedraw=new io.qzxy.lite.core.ClockRedraw();
+    private io.qzxy.lite.core.RefreshDecision refreshDecision=new io.qzxy.lite.core.RefreshDecision();
+    /** Live references onto 今日's dynamic views, so a clock tick updates text in place instead of
+     *  rebuilding the whole tree. Only populated while the 今日 content is on screen. */
+    private TextView todaySummary;
+    private final java.util.List<TodayRow> todayRows=new java.util.ArrayList<TodayRow>();
+    /** One 今日 class row's mutable bits: the strike-through name, the row alpha and the live chip. */
+    private static final class TodayRow {
+        final JSONObject course; final TextView name; final View row; final TextView live; final String label;
+        TodayRow(JSONObject course,TextView name,View row,TextView live,String label){this.course=course;this.name=name;this.row=row;this.live=live;this.label=label;}
+    }
     private final Runnable clockTick=new Runnable(){public void run(){if(hasWindowFocus())refreshClock();clockHandler.postDelayed(this,30000);}};
     private final SharedPreferences.OnSharedPreferenceChangeListener timetableChanged=(prefs,key)->ScheduleWidget.updateAll(this);
     private void refreshClock(){
         String today=todayIso();
         boolean dayChanged=!today.equals(lastDay);lastDay=today;
         if(dayChanged)week=Math.max(1,Math.min(CoursePickers.LAST_WEEK,currentWeek()));
-        // Rebuild only when the date changed or the live 今日 tab needs its current-class marker.
-        // The decision is unit-tested in core; scroll position is preserved across the rebuild.
-        if(root!=null&&clockRedraw.tick(today,nav.tab())){
+        if(root==null)return;
+        io.qzxy.lite.core.RefreshDecision.Level level=refreshDecision.forTick(today,nav.tab());
+        if(level==io.qzxy.lite.core.RefreshDecision.Level.TODAY_DYNAMIC){
+            // Normally an in-place label update suffices. If the course set changed underneath us
+            // without a render (e.g. a widget edit), the cached row handles no longer match — fall
+            // back to a full rebuild so no stale/mismatched rows are left on screen.
+            if(!updateTodayDynamic())level=io.qzxy.lite.core.RefreshDecision.Level.FULL;
+        }
+        if(level==io.qzxy.lite.core.RefreshDecision.Level.FULL){
             int scroll=0;for(int i=0;i<root.getChildCount();i++)if(root.getChildAt(i) instanceof ScrollView)scroll=root.getChildAt(i).getScrollY();
             render();final int y=scroll;for(int i=0;i<root.getChildCount();i++)if(root.getChildAt(i) instanceof ScrollView){View v=root.getChildAt(i);v.post(()->v.scrollTo(0,y));}
         }
+        // NONE: nothing on screen depends on the clock.
+    }
+    /** Recompute 今日's summary and per-row live state from the existing course data and write them
+     *  onto the views kept by todayContent(). No view creation, no setContentView, no scroll reset. */
+    private boolean updateTodayDynamic(){
+        if(todaySummary==null)return true;            // 今日 content not built (e.g. empty state): nothing to update
+        int now=ScheduleInfo.minutes();
+        int todayWeek=currentWeek();
+        java.util.List<JSONObject> todayList=new java.util.ArrayList<JSONObject>();
+        for(JSONObject course:courses)if(course.optInt("day")==todayIndex()&&appears(course,todayWeek))todayList.add(course);
+        todayList.sort((a,b)->Integer.compare(a.optInt("first"),b.optInt("first")));
+        // If the underlying data no longer matches the handles we kept, a label-only update would
+        // show the wrong rows; signal the caller to rebuild instead.
+        if(todayList.size()!=todayRows.size())return false;
+        for(int i=0;i<todayList.size();i++)
+            if(!todayList.get(i).optString("name").equals(todayRows.get(i).course.optString("name"))
+               || todayList.get(i).optInt("first")!=todayRows.get(i).course.optInt("first"))return false;
+        todaySummary.setText(ScheduleInfo.summary(todayList,now));
+        for(TodayRow handle:todayRows){
+            String status=ScheduleInfo.status(handle.course,now);
+            boolean ended=status.equals("已结束");
+            boolean live=status.equals("正在上课");
+            int flags=handle.name.getPaintFlags();
+            handle.name.setPaintFlags(ended?(flags|android.graphics.Paint.STRIKE_THRU_TEXT_FLAG):(flags&~android.graphics.Paint.STRIKE_THRU_TEXT_FLAG));
+            handle.row.setAlpha(ended?.55f:1f);
+            handle.live.setVisibility(live?View.VISIBLE:View.GONE);
+            handle.row.setContentDescription(handle.label+(ended?"，已结束":""));
+        }
+        return true;
     }
     @Override protected void onPause(){accountVisible=false;clockHandler.removeCallbacks(clockTick);super.onPause();}
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);if(intent.getBooleanExtra("showToday",false)){nav.selectTab(0);render();}}
@@ -371,7 +415,7 @@ public final class TimetableActivity extends Page implements App.Themed {
         // 0.7.7 and earlier stored a hand-typed pickup code here; the feature is gone, so drop it.
         getSharedPreferences("campus-v1", MODE_PRIVATE).edit().remove("pickup_code").apply();
         lastDay=saved==null?todayIso():saved.getString("lastDay",todayIso());
-        clockRedraw=new io.qzxy.lite.core.ClockRedraw(lastDay);
+        refreshDecision=new io.qzxy.lite.core.RefreshDecision(lastDay);
         store.registerOnSharedPreferenceChangeListener(timetableChanged);
         reload();
         int current = currentWeek();
@@ -737,6 +781,8 @@ public final class TimetableActivity extends Page implements App.Themed {
         // 方式没变时什么也不做。
         refreshBackMode();
         pager=null;
+        // The whole tree is rebuilt below, so any live references into the old 今日 view are stale.
+        todaySummary=null;todayRows.clear();
         // Margins come from the screen, not a constant: a 320dp phone gets 4dp back for its seven
         // columns, and a tablet gets a centred column instead of body text running the full width.
         final int side = AppUi.side(this, 8);
@@ -838,6 +884,7 @@ public final class TimetableActivity extends Page implements App.Themed {
                 card.addView(body("今天没有课程"));
             } else {
                 TextView next=bold(ScheduleInfo.summary(todayList,ScheduleInfo.minutes()),14);next.setTextColor(AppUi.ACCENT);card.addView(next);gap(card,12);
+                todaySummary=next;   // kept so a clock tick can update the text in place
                 Map<String,Integer> auto=WeekBoard.autoColorsFor(courses);
                 for(int i=0;i<todayList.size();i++) {
                     JSONObject course=todayList.get(i);
@@ -863,8 +910,16 @@ public final class TimetableActivity extends Page implements App.Themed {
         View marker=new View(this);marker.setBackground(AppUi.shape(this,ink,2));LinearLayout.LayoutParams ml=new LinearLayout.LayoutParams(dp(3),dp(40));ml.setMargins(0,dp(2),dp(12),0);row.addView(marker,ml);
         LinearLayout labels=column();TextView name=bold(course.optString("name"),16);name.setTextColor(ink);name.setMaxLines(2);name.setEllipsize(android.text.TextUtils.TruncateAt.END);if(ended)name.setPaintFlags(name.getPaintFlags()|android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);labels.addView(name);
         String detail=course.optString("room")+" · 第 "+course.optInt("first")+"–"+course.optInt("last")+" 节";TextView room=text(detail,12);room.setTextColor(ink);room.setAlpha(.8f);room.setSingleLine(true);room.setEllipsize(android.text.TextUtils.TruncateAt.END);room.setPadding(0,dp(2),0,0);labels.addView(room);
-        if(!ended&&status.equals("正在上课")){TextView current=bold("● 正在上课",12);current.setTextColor(ink);current.setPadding(0,dp(4),0,0);labels.addView(current);}
-        row.addView(labels,new LinearLayout.LayoutParams(0,-2,1));if(ended)row.setAlpha(.55f);row.setContentDescription(course.optString("name")+"，"+time+"，"+detail+(ended?"，已结束":""));return row;
+        // The live chip is always attached and toggled with visibility instead of being added/
+        // removed on the fly. GONE takes no space, so the visual output is identical to the old
+        // conditional addView, but a clock tick can now flip it without touching the view tree.
+        TextView current=bold("● 正在上课",12);current.setTextColor(ink);current.setPadding(0,dp(4),0,0);
+        current.setVisibility((!ended&&status.equals("正在上课"))?View.VISIBLE:View.GONE);labels.addView(current);
+        row.addView(labels,new LinearLayout.LayoutParams(0,-2,1));if(ended)row.setAlpha(.55f);
+        String label=course.optString("name")+"，"+time+"，"+detail;
+        row.setContentDescription(label+(ended?"，已结束":""));
+        todayRows.add(new TodayRow(course,name,row,current,label));   // handle for in-place clock updates
+        return row;
     }
 
     private TextView body(String value) {
