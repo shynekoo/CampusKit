@@ -8,9 +8,9 @@
 | :-- | :-- |
 | 技术栈 | Java + 原生 Android View + Python 构建；无 Kotlin / Compose / Gradle |
 | 线上正式版 | 2.5.7 / versionCode 197（`delivery/update/update.json`） |
-| 已提交 HEAD | `6b619ab`（`ui: rewrite 数据与隐私 and 使用公告, drop unused Wi-Fi permission`），**本地领先 origin/main 一个提交** |
+| 已提交 HEAD | `9a9ccad`（`feat: in-app changelog page`），**本地领先 origin/main 两个提交** |
 | 最新 tag / Release | `v2.5.7`；2.5.8.x 未建 tag / Release |
-| 工作区 | **有未提交改动**：应用内更新日志（`AppChangelog`/`ChangelogActivity` + 更多页入口 + 测试/文档），未 commit / push |
+| 工作区 | 干净；未 push、未建 tag / Release、未发版 |
 | 核心断言 | 实测 **1262 项全过**；UI 契约守卫 **207 锚点全过** |
 | 发布状态 | 2.5.8.x 代码已推送，**未建 tag / Release、未发版、未同步下载站** |
 
@@ -38,7 +38,7 @@
 | UI-2 常驻 shell + 动画底栏 | 已完成（`7a8083d`，外观修正 `20c2ffa`） | `MainShell` / `AnimatedNavBar` |
 | UI-3 页面切换动画 | 已完成（`ffaf933` 转场 + 竞态修复；`fce95bc`+`jumpWeek` 滚动恢复/残留清理/回本周整屏滑页） | `TimetableActivity.renderContent` |
 | 数据与隐私 / 使用公告 | 已完成并提交（`6b619ab`：共享文案 `LegalText` + 排版 `LegalView` + 公告页 `NoticeActivity`；邮箱 `shynekoo@outlook.com`、生效日期 `2026年11月19日`；顺带移除未使用的 `ACCESS_WIFI_STATE`） | `PrivacyActivity` / `NoticeActivity` |
-| 应用内更新日志（第一阶段） | **工作区未提交**：`AppChangelog`（内置 5 个已发布版本）+ `ChangelogActivity`（展开式卡片）；第二阶段「升级后弹本次更新」未做 | `MoreActivity` → `ChangelogActivity` |
+| 应用内更新日志（第一阶段） | 已完成并提交 `9a9ccad`：`AppChangelog`（内置 5 个已发布版本）+ `ChangelogActivity`（展开式卡片）；第二阶段「升级后弹本次更新」未做 | `MoreActivity` → `ChangelogActivity` |
 | UI-4 视觉圆角与卡片 | 未开始 | — |
 | UI-5 | 未开始 | — |
 

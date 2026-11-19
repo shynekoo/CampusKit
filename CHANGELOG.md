@@ -9,14 +9,14 @@
 - 已提交、尚未发版：`2.5.8.2`–`2.5.8.6`（最新 versionCode `204`），含学业情况查询与 UI-1/UI-2 第一轮。
 - 已提交并 push 的 HEAD：`f86ed11`（UI-1 / UI-2 / UI-3 转场竞态 + 滚动恢复 + 回本周整屏滑页）。
 - 已提交（未 push）：`6b619ab`（数据与隐私 / 使用公告改版 + 移除未使用的 Wi-Fi 权限）。
-- 工作区（未提交）：应用内更新日志（versionCode 仍为 `204`），**未 push、未发版**。
+- 已提交（未 push）：`9a9ccad`（应用内更新日志，versionCode 仍为 `204`）。
 - 核心断言：当前工作区实跑 `python scripts/test_core.py` → **1262 项全过**（2026-11-19）；UI 守卫 **207 锚点全过**。
 
 更早版本的发布说明见 [`delivery/release-*.md`](delivery/)。
 
 ---
 
-## [未发布 · 应用内更新日志] — 工作区未提交（versionCode 仍为 204）
+## [未发布 · 应用内更新日志] — 已提交 `9a9ccad`，未发版（versionCode 仍为 204）
 
 > 新增「更多 → 更新日志」整页，数据随包内置、离线可读。参考岱宗盒子的版本列表组织方式（`update/AppChangelog.kt` 只放数据，真正渲染在 `update/UpdateDialogs.kt` 的堆叠式 What's New 弹窗与 settings 宿主的 `ChangelogEntry` 列表里），**没有复制其代码、素材或主题**；版式、配色、动效按 UI-1/UI-2/UI-3 的 token 重做。核心 1262 断言、UI 守卫 207 锚点全绿，普通版 APK 已构建并验签。
 
