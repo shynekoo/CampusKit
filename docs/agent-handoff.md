@@ -8,9 +8,9 @@
 | :-- | :-- |
 | 技术栈 | Java + 原生 Android View + Python 构建；无 Kotlin / Compose / Gradle |
 | 线上正式版 | 2.5.7 / versionCode 197（`delivery/update/update.json`） |
-| 已提交 HEAD | `fce95bc`（`ui: fix tab scroll restore and animate 回本周`），**本地领先 origin/main 一个提交** |
+| 已提交 HEAD | `b53b2c5`（`ui: commit 回本周 before the transition, not after it`），**本地领先 origin/main 两个提交** |
 | 最新 tag / Release | `v2.5.7`；2.5.8.x 未建 tag / Release |
-| 工作区 | 干净；UI-3 收尾（滚动恢复 + 回本周动画）已提交 `fce95bc` |
+| 工作区 | 干净；UI-3 收尾（滚动恢复 + 回本周转场）已提交 `fce95bc` / `b53b2c5` |
 | 核心断言 | 实测 **1262 项全过**；UI 契约守卫 **152 锚点全过** |
 | 发布状态 | 2.5.8.x 代码已推送，**未建 tag / Release、未发版、未同步下载站** |
 
