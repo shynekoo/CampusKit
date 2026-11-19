@@ -7,7 +7,8 @@
 - 线上正式版与下载站：`2.5.7`（versionCode `197`，2026-11-18，`delivery/update/update.json`）。
 - 已提交并 push、尚未发版：`2.5.8.1`（versionCode `199`，Git HEAD `6406500`）。
 - 已提交、尚未发版：`2.5.8.2`–`2.5.8.6`（最新 versionCode `204`），含学业情况查询与 UI-1/UI-2 第一轮。
-- 核心断言：当前工作区实跑 `python scripts/test_core.py` → **1262 项全过**（2026-11-19）。
+- 已提交 HEAD：`ffaf933`（UI-1 / UI-2 / UI-3 转场竞态修复）；UI-3 收尾（滚动恢复）在工作区，**未提交**。
+- 核心断言：当前工作区实跑 `python scripts/test_core.py` → **1262 项全过**（2026-11-19）；UI 守卫 **150 锚点全过**。
 
 更早版本的发布说明见 [`delivery/release-*.md`](delivery/)。
 
@@ -68,6 +69,29 @@
 ### 验证
 - `test_core` 1262 / `test_build_config` 5 / `test_webview_policy` 5 / `test_ui_contract` 141 全绿；APK v2/v3 验签通过，普通版无诊断、无水控、控制路由 occurrence 全 0。
 - **待真机验收**：快速连点无残影/错位、页面切换后滚动位置、课表周次滑动与自适应高度、返回手势完成与取消、系统关动画、今日页 60s 无闪烁。
+
+---
+
+## [未发布 · UI-3 收尾：滚动恢复与转场残留] — 工作区未提交，未发版
+
+> 在 `ffaf933`（转场竞态修复）之上继续 UI-3，只查页面切换动画、快速连点竞态、动画取消清理、滚动位置恢复、与课表横滑/返回手势的关系。**不改转场参数、不改视觉样式、不动 MainNavigator / Page / CardLayer**。核心 1262 断言、UI 守卫 150 锚点（原 141 + 本轮 9）全绿，普通版 APK 已构建并 v2/v3 验签。
+
+### 修复
+- **快速连点把上一页的滚动量写到新页**：`restoreScroll` 原来只读字段 `root`，而 `root` 会被后一次切换改指向新页——今日→课表→账号连点时，课表挂起的恢复会落到账号页并把它滚到课表的位置。现在恢复携带转场代号，并在执行时同时校验 `generation`、目标页仍是 `root`、tab 未变，任一不匹配即放弃。
+- **滚动恢复排在了布局之前**：原实现用 `root.post(...)`，只保证「下一条消息」，不保证在首次 measure/layout 之后；未测量的 ScrollView 会把 `scrollTo` 抹掉，首次切回该 Tab 可能回到顶部。改为一次性 `OnPreDrawListener`（布局后、首帧前）恢复并自摘除监听。
+- **普通重建把滚动位置重置**：`render()` 的非动画路径原来直接按 `tabScroll[nav.tab()]` 恢复，而该值只在 `selectTab` 时更新——旋转、分屏（`onConfigurationChanged` → `render()`）、换主题、数据刷新都会跳回上次切 Tab 的位置或顶部。现在 `render()` 在重建**同一屏**（`contentTab`/`contentCampus` 与当前一致）时先 `captureScroll()` 再恢复；换 Tab、校园记录↔入口列表这类真正换页的情况不搬运位移。
+- **被打断的入场页带着 8dp 位移离场**：快速连点时上一页的 enter 被 `cancel()` 只停在当前数值，`exit` 只动 alpha，位移会留到淡出全程。现在被保留为离场页的残留先归位到「alpha 1 / translationX 0」。
+- **转场期间两页同时可读**：离场页在交叉淡化期间标 `IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS`，读屏不会把正在消失的旧内容当成仍在页面上朗读。
+- **「回本周」没有动画**：`goCurrentWeek()` 原来直接 `applyWeek(delta)`，跨几周就闪一下换页，与 ‹ › / 左右滑动不一致。现在和箭头按钮走同一条路径：`pager.animateOutThen(delta, …)` 先滑出一屏，再由 `applyWeek` 落到目标周；`Pager.animateOutThen` 的位移固定为 ±1 屏（原先按 `-delta*width`，一次跨 5 周会把板面甩出 5 屏）。选周次弹窗（`selectWeek`）仍保持即时跳转。
+
+### 检查结论（未改动）
+- **与课表左右滑动**：转场只改 contentHost 内 `next` 的 `translationX`，`WeekBoard.Pager` 改的是自己三个子页的 `translationX`，两者作用在不同 View 上、互不拦截触摸；`Pager.onInterceptTouchEvent` 在自身 `settle` 期间返回 true，不参与内容转场。切走时 `onDetachedFromWindow` 会 `cancel` 掉周次动画，不会在已分离的页上回调 `applyWeek`。
+- **与返回手势**：转场与 `Page` 的返回动画不同时发生——返回走 `nav.consumeBack()` → `render()`（非动画），会先取消内容转场；`refreshBackMode()` 在 `selectTab` 中已按新 tab 重算，系统预测式/本地缩放的选择不受转场影响。
+- 转场参数、`MotionSpec`/`UiTokens` 数值、`MainNavigator`、`Page`、`CardLayer` 均未改；`WeekBoard` 只动了 `Pager.animateOutThen` 的滑出位移（±1 屏），手势判定、页高测量、周次提交逻辑未改；系统关动画时仍走 `!motion` 直接到终态。
+
+### 验证
+- `test_core` 1262 / `test_build_config` 5 / `test_webview_policy` 5 / `test_ui_contract` **150** 全绿；普通版 APK（`delivery/科信小助手-2.5.8.6.apk`，5 392 250 B，SHA-256 `34d01d7db3ee1864b1d81a1b2babbd0027902e3ca7e25d25b23f050771e31112`）构建通过、v2/v3 验签 true，构建脚本的三开关/控制路由断言全过。
+- **待真机验收**：快速连点（三 Tab 连续点）无残影错位、切走再切回每页滚动位置、旋转与分屏后滚动位置、换主题后不跳顶、课表横滑与自适应高度、**回本周滑出一屏后落到本周**、返回手势完成与取消、系统关动画、今日 60s、320dp 窄屏 —— 均未实测。
 
 ---
 

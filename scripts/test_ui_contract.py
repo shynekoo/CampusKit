@@ -52,6 +52,15 @@ def main():
     require(activity, "verticalPosition()", "TimetableActivity",
             "week switch must preserve per-week scroll position")
     require(activity, "shiftWeek", "TimetableActivity", "week switch gesture/arrow")
+    # 回本周 jumps several weeks at once: it must slide out like ‹ › instead of snapping, and the
+    # slide itself stays one page wide no matter how many weeks were skipped.
+    gcw_start = activity.find("private void goCurrentWeek()")
+    gcw_block = activity[gcw_start:activity.find("\n    private ", gcw_start + 1)] if gcw_start >= 0 else ""
+    require(gcw_block, "animateOutThen", "goCurrentWeek",
+            "回本周 must animate like the arrow buttons, not snap")
+    require(gcw_block, "applyWeek(delta)", "goCurrentWeek", "回本周 still lands through applyWeek")
+    require(board, "-(delta>0?getWidth():-getWidth())", "WeekBoard.Pager",
+            "a multi-week jump must slide exactly one page, not |delta| pages")
 
     # --- scroll position preserved across a rebuild ---------------------------------------
     require(activity, "getScrollY()", "TimetableActivity", "capture scroll before rebuild")
@@ -342,6 +351,22 @@ def main():
     if guards < 4:
         failures.append("renderContent: need generation guards on both update listeners and both end "
                         "callbacks (found %d)" % guards)
+    # UI-3 scroll restore: a rebuild of the *same* screen keeps the reader's place, and the restore
+    # itself must (a) carry the transition generation, (b) refuse a page a later switch replaced,
+    # and (c) run after layout - post() is not ordered after the first measure/layout.
+    require(rc_block, "restoreScroll(nav.tab(), tabScroll[nav.tab()], generation)", "renderContent",
+            "scroll restore must carry the transition generation")
+    render_start = activity.find("private void render()")
+    render_block = activity[render_start:activity.find("\n    private ", render_start + 1)] if render_start >= 0 else ""
+    require(render_block, "contentTab == nav.tab() && contentCampus == nav.campusView()", "render",
+            "a same-screen rebuild captures its own scroll instead of reusing a stale one")
+    require(render_block, "renderContent(false, 0)", "render", "render() still never animates tabs")
+    require(activity, "addOnPreDrawListener", "TimetableActivity",
+            "scroll restore waits for layout (pre-draw), not a bare post()")
+    require(activity, "tab != nav.tab()", "restoreScroll",
+            "a stale restore must not scroll a different tab's page")
+    require(rc_block, "IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS", "renderContent",
+            "the leaving page leaves the accessibility tree during the crossfade")
     require(page, "protected boolean backMayStay()", "Page", "Page back contract untouched")
     require(card, "static void clearPending()", "CardLayer", "CardLayer snapshot policy untouched")
     require(board, "protected void onMeasure", "WeekBoard", "WeekBoard adaptive measure untouched")

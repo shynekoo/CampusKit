@@ -21,6 +21,9 @@
 - **`MainShell`** 竖向三段：headerHost、contentHost（0+weight=1）、navHolder。整个 Activity 只构建一次、`setContentView(shell)` 只调一次；系统栏/挖孔 Insets 只在此落实，底部不重复。课表 Pager 在 contentHost 内取到完整高度，不受 FrameLayout 测量退化影响。
 - **`AnimatedNavBar`** 三项底栏只在构造时 new 一次，切 Tab 不再重建。单个胶囊背景只用 `translationX` 移动（260ms，PathInterpolator(0.2,0,0,1)），选中/未选中色由 `ArgbEvaluator` 插值，图标 Drawable 缓存后改色重绘。系统关动画时立即到终态。
 - **Tab 切换**统一走 `selectTab(target)`：保存离开页滚动 → 更新 nav → 换 Header → 转场内容 → 胶囊动画 → 恢复目标页滚动。数据/主题/返回等普通刷新走 `renderContent(false,0)`，无 Tab 入场动画；转场有 `transitionGeneration` 防止旧回调删新页。
+- **UI-3 内容转场**：新页 alpha 0.7→1、translationX ±8dp→0、220ms；旧页 alpha 1→0、180ms，只作用于 contentHost 内的页面，Header / 底栏 / Activity 不参与。转场只在用户点底栏时播放，`render()`、数据/主题刷新、A3 每 30s 就地更新都不触发。
+- **转场竞态与清理**（UI-3 收尾）：`exit`(180ms) 先结束，只把自己从活跃列表移除并删旧页，由更长的 `enter`(220ms) 负责最终归位；取消时按快照遍历 `cancel()`，四个回调（两条 update + 两条 end）都带 `generation` 守卫。被取消的入场页会先归位到「不透明 + 零位移」再作为本次离场页，离场页在交叉淡化期间标 `IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS`，读屏不会同时朗读两页。
+- **滚动位置恢复**：`restoreScroll(tab, y, generation)` 用一次性 `OnPreDrawListener` 在**布局之后**恢复（`post()` 不保证排在首次 measure/layout 之后），并校验「转场代号 + 目标页仍是 `root` + tab 未变」，快速连点（今日→课表→账号）时上一页的延迟恢复不会落到新页上。`render()` 只在重建**同一屏**（`contentTab`/`contentCampus` 与当前一致：旋转、分屏、换主题、数据刷新）时先 `captureScroll()` 再恢复，换 tab / 换校园层级不搬运上一屏的位移。
 - `UiTokens` / `MotionSpec` 是尺寸与动效的单一来源；页面左右边距仍由 `AppUi.side()` 决定。视觉圆角本轮不变（卡片 18dp、底栏 24dp），UI-4 才调整。
 
 ## 返回栈规则（`MainNavigator`）
@@ -49,6 +52,7 @@
 
 - 今日 tab 同日 30s 时钟 tick 走 `updateTodayDynamic()`：就地更新摘要与每行删除线/透明度/「正在上课」标记，不再全量 `render()`。
 - `RefreshDecision` 决定 NONE / TODAY_DYNAMIC / FULL；跨天、切 tab 才 FULL，保留滚动位置；数据不一致自动回退 FULL。
+- **周次切换动画**：‹ ›（`shiftWeek`）、左右滑动、**回本周**（`goCurrentWeek`）都先滑出一屏再落地——`Pager.animateOutThen` 的位移固定为 ±1 屏，回本周跨的周数由 `applyWeek` 落地，不会按 |delta| 甩出好几页。选周次弹窗（`selectWeek`）仍是即时跳转。
 - 所有改变今日课程集合的操作（增删改 / 导入 / 周次 / 主题）走 `render()` 全量重建并刷新引用。
 - `WeekBoard` 按屏幕计算 gutter / padding / 字号（`BoardFit`），窄屏不挤成两字一行。
 
@@ -62,4 +66,4 @@
 
 ## 自动化守卫的边界
 
-`scripts/test_ui_contract.py` 当前有 **141 个静态锚点**：底部导航三项、WeekBoard onMeasure、滚动保存恢复、CardLayer 手势与快照、S4 策略、A3 就地更新分支、三个 Screen 存在、学业情况入口与卡片单一挂载点、教务卡 tile 顺序，以及 UI-1 的 token 常量、UI-2 的 shell/底栏不重建与转场防旧回调守卫、底栏外观修正的房屋图标/固定尺寸图标图标槽/胶囊只包图标的 64×32dp 守卫、UI-3 的转场参数（alpha 0.7→1 / ±8dp / 220ms 进 180ms 出）与快速连点竞态守卫（快照 cancel、各动画自带 end 清理、4 处 generation 守卫）。**它是静态守卫，不验证视觉/手势/真机效果**；UI 2.0 的真机清单（快速切换、320dp、主题、滚动恢复、返回手势、关动画、今日 60s）本轮未实测，D/E 组真机清单未完成前不得发布。
+`scripts/test_ui_contract.py` 当前有 **150 个静态锚点**：底部导航三项、WeekBoard onMeasure、滚动保存恢复、CardLayer 手势与快照、S4 策略、A3 就地更新分支、三个 Screen 存在、学业情况入口与卡片单一挂载点、教务卡 tile 顺序，以及 UI-1 的 token 常量、UI-2 的 shell/底栏不重建与转场防旧回调守卫、底栏外观修正的房屋图标/固定尺寸图标图标槽/胶囊只包图标的 64×32dp 守卫、UI-3 的转场参数（alpha 0.7→1 / ±8dp / 220ms 进 180ms 出）、快速连点竞态守卫（快照 cancel、各动画自带 end 清理、4 处 generation 守卫），以及 UI-3 收尾的滚动恢复守卫（恢复带 generation、同屏重建才搬运滚动、`OnPreDrawListener` 布局后恢复、stale 恢复不得落到别的 tab、离场页移出无障碍树）与周次切换守卫（回本周走 animateOutThen、位移只取一屏）。**它是静态守卫，不验证视觉/手势/真机效果**；UI 2.0 的真机清单（快速切换、320dp、主题、滚动恢复、返回手势、关动画、今日 60s）本轮未实测，D/E 组真机清单未完成前不得发布。

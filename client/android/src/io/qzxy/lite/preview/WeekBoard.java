@@ -417,7 +417,9 @@ final class WeekBoard extends android.view.ViewGroup {
         void animateOutThen(int delta,Runnable action) {
             if(animating||!listener.canShift(delta))return;
             int scroll=pages[1].getScrollY();for(ScrollView page:pages)if(page!=null)page.scrollTo(0,scroll);
-            settle(-delta*getWidth(),action);
+            // 位移只取一屏：回本周这类一次跨多周的跳转若按 |delta| 屏滑出，会像被甩出好几页；
+            // 跨了几周由随后的 applyWeek 落地，动画本身只负责「同一方向滑出一屏」。
+            settle(-(delta>0?getWidth():-getWidth()),action);
         }
         @Override protected void onDetachedFromWindow(){if(motion!=null)motion.cancel();if(velocity!=null){velocity.recycle();velocity=null;}super.onDetachedFromWindow();}
     }

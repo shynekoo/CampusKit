@@ -116,7 +116,11 @@ public final class TimetableActivity extends Page implements App.Themed {
     /** Bumped on every content transition so a late callback from an old one cannot remove the new page. */
     private int transitionGeneration;
     private final java.util.List<android.animation.Animator> contentAnimators = new ArrayList<>();
-    /** Which side the next board should animate in from: +1 from the right, -1 from the left, 0 none. */
+    /** Which screen the page currently in contentHost was built for. render() only carries the
+     *  reader's scroll over when it rebuilds this same screen (rotation / theme / data reload);
+     *  when the tab or the campus scope already changed, that page's position belongs to another
+     *  screen and must not be applied to the new one. */
+    private int contentTab = -1, contentCampus = -1;
     private WeekBoard.Pager pager;
     /** Navigation state lives in core so the back order is unit-tested; views read it via nav. */
     private MainNavigator nav = new MainNavigator();
@@ -748,7 +752,10 @@ public final class TimetableActivity extends Page implements App.Themed {
         if(currentWeek()<1 || currentWeek()>CoursePickers.LAST_WEEK){semester();return;}
         int delta=currentWeek()-week;
         if(delta==0){android.widget.Toast.makeText(this,"已经是本周",android.widget.Toast.LENGTH_SHORT).show();return;}
-        applyWeek(delta);
+        // 回本周一次跨好几周，但观感必须和 ‹ › 一致：先滑出一屏，再由 applyWeek 落到目标周，
+        // 不能直接闪一下换页。pager 不在（无课表/未建出板面）时才直接落地。
+        if(pager==null){applyWeek(delta);return;}
+        pager.animateOutThen(delta,()->applyWeek(delta));
     }
     private void showCourses(List<JSONObject> group) {
         if(group.size()>1) {
@@ -782,6 +789,7 @@ public final class TimetableActivity extends Page implements App.Themed {
      *  view that no longer exists after a full rebuild. */
     private LinearLayout buildScreen(LinearLayout target) {
         root = target;
+        contentTab = nav.tab(); contentCampus = nav.campusView();
         pager = null;
         todaySummary = null;
         todayRows.clear();
@@ -844,16 +852,36 @@ public final class TimetableActivity extends Page implements App.Themed {
         return 0;
     }
 
-    /** Restore a remembered scroll once the new screen has been laid out. */
-    private void restoreScroll(int tab, int y) {
-        if (y <= 0) return;
-        final int value = y;
-        root.post(() -> {
-            if (tab == 1 && pager != null) { pager.restoreVerticalPosition(value); return; }
-            if (root == null) return;
-            for (int i=0;i<root.getChildCount();i++) {
-                View child = root.getChildAt(i);
-                if (child instanceof ScrollView) { child.scrollTo(0, value); break; }
+    /**
+     * Restore a remembered scroll after the new screen has been laid out.
+     *
+     * <p>Two things have to be right, and neither is optional:</p>
+     * <ul>
+     *   <li><b>Wait for layout.</b> {@code post()} runs on the next message, which is not guaranteed
+     *       to be after this page's first measure/layout — scrolling a ScrollView that has not been
+     *       measured yet is clamped away by the layout that follows. A one-shot pre-draw listener
+     *       fires after layout and before the first frame is drawn, so the reader never sees the
+     *       top of the page flash by.</li>
+     *   <li><b>Refuse to act on a stale screen.</b> The target page is read from {@link #root}, which
+     *       a later switch may already have replaced: tapping 今日 → 课表 → 账号 quickly leaves 课表's
+     *       pending restore pointing at 账号's page, and it would scroll 账号 to the timetable's
+     *       position. The transition generation plus the tab identity both have to still match.</li>
+     * </ul>
+     */
+    private void restoreScroll(final int tab, final int y, final int generation) {
+        if (y <= 0 || root == null) return;
+        final LinearLayout target = root;
+        target.getViewTreeObserver().addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
+            @Override public boolean onPreDraw() {
+                android.view.ViewTreeObserver observer = target.getViewTreeObserver();
+                if (observer.isAlive()) observer.removeOnPreDrawListener(this);
+                if (generation != transitionGeneration || target != root || tab != nav.tab()) return true;
+                if (tab == 1 && pager != null) { pager.restoreVerticalPosition(y); return true; }
+                for (int i = 0; i < target.getChildCount(); i++) {
+                    View child = target.getChildAt(i);
+                    if (child instanceof ScrollView) { child.scrollTo(0, y); break; }
+                }
+                return true;
             }
         });
     }
@@ -871,6 +899,10 @@ public final class TimetableActivity extends Page implements App.Themed {
         // 那一页作为本次 outgoing，其余过渡残留全部移除，保证 contentHost 不会叠出三页。
         while (shell.contentHost.getChildCount() > 1) shell.contentHost.removeViewAt(0);
         View outgoing = shell.contentHost.getChildCount() > 0 ? shell.contentHost.getChildAt(0) : null;
+        // 被保留下来当 outgoing 的那一页可能是一次被打断的入场：取消动画只停住数值，不会归位，
+        // 于是它会带着 8dp 位移、半透明状态进入这次的淡出（exit 只动 alpha，位移会一直留着）。
+        // 先回到终态，让它和正常离场页一样从「不透明、零位移」开始。
+        if (outgoing != null) { outgoing.setAlpha(1f); outgoing.setTranslationX(0f); }
 
         LinearLayout next = column();
         next.setBackgroundColor(AppUi.BG);
@@ -883,11 +915,14 @@ public final class TimetableActivity extends Page implements App.Themed {
         if (!motion) {
             if (outgoing != null) shell.contentHost.removeView(outgoing);
             next.setAlpha(1f); next.setTranslationX(0f);
-            restoreScroll(nav.tab(), tabScroll[nav.tab()]);
+            restoreScroll(nav.tab(), tabScroll[nav.tab()], generation);
             return;
         }
 
         final View old = outgoing;
+        // 交叉淡化期间两页同时在树里：把正在离开的那页从无障碍树摘掉，否则读屏会把旧内容当成
+        // 仍在页面上一起朗读。它马上就会被移除，不需要恢复。
+        old.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
         final float offset = dp(MotionSpec.TAB_OFFSET_DP) * direction;
         next.setAlpha(.7f);
         next.setTranslationX(offset);
@@ -925,7 +960,7 @@ public final class TimetableActivity extends Page implements App.Themed {
         });
         contentAnimators.add(enter); contentAnimators.add(exit);
         enter.start(); exit.start();
-        restoreScroll(nav.tab(), tabScroll[nav.tab()]);
+        restoreScroll(nav.tab(), tabScroll[nav.tab()], generation);
     }
 
     /** Ordinary full rebuild (data / theme / course change / back). Never animates a tab entrance. */
@@ -934,6 +969,11 @@ public final class TimetableActivity extends Page implements App.Themed {
         // 方式没变时什么也不做。
         refreshBackMode();
         ensureShell();
+        // 重建的是「同一页」时（旋转、分屏、换主题、数据刷新、返回手势后回来），读者还停在原来
+        // 的位置：先按当前页记下来，renderContent 会照这个值恢复，不会跳回上次切 Tab 的位置
+        // （那个值可能是很久以前的，或者干脆是 0）。换 Tab / 换校园层级时 identity 不匹配，不记，
+        // 免得把另一页的滚动量套到新页上。
+        if (contentTab == nav.tab() && contentCampus == nav.campusView()) tabScroll[nav.tab()] = captureScroll();
         renderHeader();
         renderContent(false, 0);
         navBar.refreshPalette();           // 主题换色后胶囊底色/文字取新的 AppUi 调色板

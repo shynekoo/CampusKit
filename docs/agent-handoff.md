@@ -8,10 +8,10 @@
 | :-- | :-- |
 | 技术栈 | Java + 原生 Android View + Python 构建；无 Kotlin / Compose / Gradle |
 | 线上正式版 | 2.5.7 / versionCode 197（`delivery/update/update.json`） |
-| 已提交 HEAD | `f0e4232`（2.5.8.4 / 202 及文档制度提交），与 `origin/main` 同步 |
+| 已提交 HEAD | `ffaf933`（`ui: add tab content transitions`），与 `origin/main` 同步 |
 | 最新 tag / Release | `v2.5.7`；2.5.8.x 未建 tag / Release |
-| 工作区 | 2.5.8.5 / 2.5.8.6 已随本次提交入库（学业页层级排版 + 课程明细点击展开）；普通版 APK 已构建验签 |
-| 核心断言 | 实测 **1262 项全过**；UI 契约守卫 **141 锚点全过** |
+| 工作区 | 2.5.8.5 / 2.5.8.6 已入库；**UI-3 收尾（滚动恢复）在工作区未提交** |
+| 核心断言 | 实测 **1262 项全过**；UI 契约守卫 **150 锚点全过** |
 | 发布状态 | 2.5.8.x 代码已推送，**未建 tag / Release、未发版、未同步下载站** |
 
 ## 二、已提交但未发布（2.5.8.1）
@@ -30,11 +30,23 @@
 - UI 基建：新增 `MainShell`、`AnimatedNavBar`、`MotionSpec`、`UiTokens`（tab 指示器动画 + reduce-motion 降级 + 尺寸 token）。
 - manifest 注册 `AcademicStatusActivity`，版本 2.5.8.1/199 → 2.5.8.6/204。
 
+## 三之二、UI 2.0 进度（UI-1 / UI-2 已入库，UI-3 部分入库）
+
+| 阶段 | 状态 | 位置 |
+| :-- | :-- | :-- |
+| UI-1 视觉/动效 token | 已完成（`7a8083d`） | `UiTokens` / `MotionSpec` |
+| UI-2 常驻 shell + 动画底栏 | 已完成（`7a8083d`，外观修正 `20c2ffa`） | `MainShell` / `AnimatedNavBar` |
+| UI-3 页面切换动画 | 已完成（`ffaf933` 转场 + 竞态修复；本轮滚动恢复/残留清理在工作区未提交） | `TimetableActivity.renderContent` |
+| UI-4 视觉圆角与卡片 | 未开始 | — |
+| UI-5 | 未开始 | — |
+
+UI-3 本轮修 5 处：滚动恢复带 generation 且改为布局后（pre-draw）执行；`render()` 仅在同屏重建时搬运当前滚动；被取消入场的残留页先归位再离场；离场页在交叉淡化期间移出无障碍树；「回本周」改走 `Pager.animateOutThen` 播放滑出（位移固定 ±1 屏）。**未改**转场参数、`MotionSpec`/`UiTokens`、`MainNavigator`、`Page`、`CardLayer`；`WeekBoard` 只动 `animateOutThen` 的位移，手势/测量/周次提交未改。
+
 ## 四、验证状态（如实）
 
-**已执行**：`test_core` 1262、`test_build_config` 5、`test_webview_policy` 5、`test_ui_contract` 141，全部通过；2.5.8.6 普通版 APK 已构建并通过 v2/v3 验签；真实账号端到端拉取学业数据成功（GPA 2.9875、37 节点 5 层、16 课组 94 门课）。
+**已执行**：`test_core` 1262、`test_build_config` 5、`test_webview_policy` 5、`test_ui_contract` 150，全部通过；2.5.8.6 普通版 APK 已构建并通过 v2/v3 验签；真实账号端到端拉取学业数据成功（GPA 2.9875、37 节点 5 层、16 课组 94 门课）。
 
-**未执行**：真机验收清单全部；2.5.8.6 真机覆盖安装与学业页回归（含点击展开、滚动、返回手势）；真实支付用水、MobSF、签名轮换、旧版升级兼容。详见 [`known-issues.md`](known-issues.md)。
+**未执行**：真机验收清单全部（含 UI 2.0 的快速连点、滚动恢复与旋转/分屏、返回手势、关动画、320dp）；2.5.8.6 真机覆盖安装与学业页回归；真实支付用水、MobSF、签名轮换、旧版升级兼容。详见 [`known-issues.md`](known-issues.md)。
 
 ## 五、接手第一步
 
