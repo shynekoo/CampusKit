@@ -37,16 +37,17 @@
 | UI-1 视觉/动效 token | 已完成（`7a8083d`） | `UiTokens` / `MotionSpec` |
 | UI-2 常驻 shell + 动画底栏 | 已完成（`7a8083d`，外观修正 `20c2ffa`） | `MainShell` / `AnimatedNavBar` |
 | UI-3 页面切换动画 | 已完成（`ffaf933` 转场 + 竞态修复；`fce95bc`+`jumpWeek` 滚动恢复/残留清理/回本周整屏滑页） | `TimetableActivity.renderContent` |
-| 数据与隐私 / 使用公告 | 已完成并提交（`6b619ab`：共享文案 `LegalText` + 排版 `LegalView` + 公告页 `NoticeActivity`；邮箱 `shynekoo@outlook.com`、生效日期 `2026年11月19日`；顺带移除未使用的 `ACCESS_WIFI_STATE`） | `PrivacyActivity` / `NoticeActivity` |
+| 数据与隐私 / 使用公告 | 已完成并提交（`6b619ab`：共享文案 `LegalText` + 排版 `LegalView` + 公告页 `NoticeActivity`；邮箱 `shynekoo@outlook.com`、生效日期 `2026年11月19日`；顺带移除未使用的 `ACCESS_WIFI_STATE`）。公告入口只留「数据与隐私」页末，「更多」里的重复条目已按发布者要求删除 | `PrivacyActivity` / `NoticeActivity` |
 | 应用内更新日志（第一阶段） | 已完成并提交 `9a9ccad`：`AppChangelog`（内置 5 个已发布版本）+ `ChangelogActivity`（展开式卡片）；第二阶段「升级后弹本次更新」未做 | `MoreActivity` → `ChangelogActivity` |
 | UI-4 视觉圆角与卡片 | 未开始 | — |
+| 课表圆角默认值 | 工作区未提交：`Theme.DEFAULT_RADIUS` 8 → 20dp（= `MAX_RADIUS` 满档）；`load()` 只对未保存过 `radius` 的设备生效，老用户不被重置 | `Theme` / `AppearanceActivity` |
 | UI-5 | 未开始 | — |
 
 UI-3 本轮修 5 处：滚动恢复带 generation 且改为布局后（pre-draw）执行；`render()` 仅在同屏重建时搬运当前滚动；被取消入场的残留页先归位再离场；离场页在交叉淡化期间移出无障碍树；跨多周（回本周 / 选周次）改走 `jumpWeek`：先落周次，再用 `renderContent(true, ±1, true)` 的 slide 分支整屏滑一屏，落地帧即为本周（不淡入）。**未改**转场参数、`UiTokens`、`MainNavigator`、`Page`、`CardLayer`；`MotionSpec` 新增 `WEEK_SLIDE_DURATION`(190ms) 供 Pager 与跨周共用，`WeekBoard` 只动 `animateOutThen` 的位移与 `settle` 取 token（数值不变），手势/测量/周次提交未改。
 
 ## 四、验证状态（如实）
 
-**已执行**：`test_core` 1278、`test_build_config` 5、`test_webview_policy` 5、`test_ui_contract` 212，全部通过；2.5.8.6 普通版 APK 已构建并通过 v2/v3 验签；真实账号端到端拉取学业数据成功（GPA 2.9875、37 节点 5 层、16 课组 94 门课）；计划外课组按学校 `jdkcsx` 分流端点后复验（人文科学 5 门、自然科学 6 门，与学校页"共 N 门"一致）。
+**已执行**：合并后实跑 `test_core` 1278、`test_build_config` 5、`test_webview_policy` 5、`test_ui_contract` 213，全部通过；2.5.8.6 / 2.5.8.7 普通版 APK 已构建并通过 v2/v3 验签；真实账号端到端拉取学业数据成功（GPA 2.9875、37 节点 5 层、16 课组 94 门课）；计划外课组按学校 `jdkcsx` 分流端点后复验（人文科学 5 门、自然科学 6 门，与学校页"共 N 门"一致）。
 
 **未执行**：真机验收清单全部（含 UI 2.0 的快速连点、滚动恢复与旋转/分屏、返回手势、关动画、320dp）；2.5.8.6 真机覆盖安装与学业页回归；真实支付用水、MobSF、签名轮换、旧版升级兼容。详见 [`known-issues.md`](known-issues.md)。
 

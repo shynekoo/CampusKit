@@ -173,9 +173,8 @@ public final class MoreActivity extends Page {
         // 数据与隐私 从校园页挪到这里：它回答的是「这个应用本身动了什么」，与源码、许可证同类，
         // 而不是像趣智校园/慧生活那样的一项校园服务。
         entry(card, "info", "数据与隐私", "本机存了什么、发到哪里、怎么清除", true, this::openPrivacy);
-        // 使用公告单列一条：它是一份独立文本，不该只在隐私页里当作附属品出现。
-        entry(card, "today", "使用公告", "独立开发的第三方工具，使用前请读", true,
-            () -> startActivity(new Intent(this, NoticeActivity.class)));
+        // 使用公告不在这里另开一条：它就是《数据与隐私》里那份文本的另一面，从那一页末尾
+        // 进去即可，同一份东西摆两个入口只会让人猜哪个才是正的。
         // 更新日志挨着「检查更新」的入口放：想知道这版改了什么的人，先找的通常是这里。
         entry(card, "refresh", "更新日志", "查看版本更新与历史记录", true,
             () -> startActivity(new Intent(this, ChangelogActivity.class)));

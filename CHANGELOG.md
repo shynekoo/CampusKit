@@ -7,18 +7,35 @@
 - 线上正式版与下载站：`2.5.7`（versionCode `197`，2026-11-18，`delivery/update/update.json`）。
 - 已提交并 push、尚未发版：`2.5.8.1`（versionCode `199`，Git HEAD `6406500`）。
 - 已提交、尚未发版：`2.5.8.2`–`2.5.8.6`（最新 versionCode `204`），含学业情况查询与 UI-1/UI-2 第一轮。
-- 已提交并 push 的 HEAD：`16cec29`（UI-1 / UI-2 / UI-3 转场竞态 + 滚动恢复 + 回本周整屏滑页；数据与隐私 / 使用公告改版 + 移除未使用的 Wi-Fi 权限；应用内更新日志，versionCode 仍为 `204`）。
-- 学业情况少课修复：并行分支 `agent2/parallel-dev` 已 rebase 到 `16cec29`，**待合并、未发版**。
-- 核心断言：合并后实跑 `python scripts/test_core.py` → **1278 项全过**（2026-11-19）；UI 守卫 **212 锚点全过**。
+- 已提交并 push 的主线：`16cec29`（UI-1 / UI-2 / UI-3 转场竞态 + 滚动恢复 + 回本周整屏滑页）。
+- 已提交到主线、尚未发版：数据与隐私 / 使用公告改版 + 移除未使用的 Wi-Fi 权限；应用内更新日志；使用公告入口去重 + 课表圆角默认 20dp（versionCode `205`）。
+- 已合并到主线、尚未发版：学业情况少课修复（计划内 / 计划外课组按学校 `jdkcsx` 分流取课端点）。
+- 核心断言：合并后实跑 `python scripts/test_core.py` → **1278 项全过**（2026-11-19）；UI 守卫 **213 锚点全过**。
 - **未建 tag / Release、未发版、未同步下载站。**
 
 更早版本的发布说明见 [`delivery/release-*.md`](delivery/)。
 
 ---
 
-## [未发布 · 学业情况少课修复] — 已提交于 agent2/parallel-dev（待合并，未发版）
+## [未发布 · 2.5.8.7] — 已提交，versionCode 205
 
-> 并行 worktree 内开发，未提交、未 push、未发版，未触碰主工作区。只改学业情况课程展示与取课端点选择，不动账号/支付/水控/升级。
+> 两处小改：课表圆角的默认值、以及「使用公告」的重复入口。都没有动绘制逻辑、存储格式或任何业务代码。版本号 2.5.8.6/204 → **2.5.8.7/205**，仅按「生成安装包」要求递增，未发版。
+
+### 变更
+- **课表圆角默认 8dp → 20dp**（`Theme.DEFAULT_RADIUS`）。滑杆上限 `MAX_RADIUS` 本来就是 20dp，所以新默认值等于满档；`Theme.load()` 只在偏好里**没有** `radius` 时才取默认值，改过圆角的读者升级后仍是自己保存的那个数，不会被重置。`AppearanceActivity` 的 `draftRadius` 初值取自 `Theme.DEFAULT_RADIUS`，滑杆、预览与课表三处同源，没有第二份硬编码。
+- **`MoreActivity` 删除「使用公告」条目**：公告已在「数据与隐私」页末挂着「阅读使用公告」，同一份文本不再开两个入口。「更多」现在只剩 数据与隐私 / 更新日志 /（诊断包才有）日志 / GitHub 仓库 / MIT 许可证。
+
+### 验证
+- 该轮构建时实测 `test_core` 1262 / `test_build_config` 5 / `test_webview_policy` 5 / `test_ui_contract` 208 全绿；`check_doc_sync` exit 0。与少课修复合并后复跑为 **1278 / 213**（见下条）。
+- `test_ui_contract` 新增反向锚点：`MoreActivity` 的代码行里不得出现 `NoticeActivity`（注释里提不算），防止入口再加回来。
+- 构建产物：`delivery/科信小助手-2.5.8.7.apk`，5 404 538 B，SHA-256 `01d4341b8110e4c1b773f78611fc10025a6ea59f7da7cd691a28abe84a519df1`；`aapt2 dump badging` 实测 `versionCode=205` / `versionName=2.5.8.7`，权限 4 项，apksigner 验签 v2 / v3 均为 true。
+- **未做**：真机未验圆角观感（0 / 20 两端、320dp 窄屏、深色主题下的格子边缘）。
+
+---
+
+## [未发布 · 学业情况少课修复] — 已合并到主线，未发版
+
+> 在并行 worktree 内开发，未触碰主工作区。只改学业情况课程展示与取课端点选择，不动账号/支付/水控/升级。
 
 ### 修复
 - **学业情况里"右边有学分、点开却显示这个课组还没有课程记录"**：学校把课组课程分成两个只读端点——计划内 `POST /xsxy/xsxyqk_cxJxzxjhxfyqKcxx.html`、计划外 `POST /xsxy/xsxyqk_cxJxzxjhxfyqFKcxx.html`，并按课组标签上的 `jdkcsx == '1'` 二选一（学校脚本原样如此）。此前 App 一律请求计划内端点，于是通识选修/公共艺术这类计划外课组（人文科学 5 门、自然科学 6 门）拿到 `[]`，界面显示"还没有课程记录"。现在 `EduAcademic.Node.planCourses` 携带该判定，`EduClient.academicCourses()` 按节点选端点，计划外请求只带学校自己发的字段（`fromXh_id`/`xfyqjd_id`/`xh_id`）。
@@ -27,12 +44,13 @@
 
 ### 验证
 - 真实账号端到端复验（按新规则逐叶子请求）：24 个叶子节点中，人文科学 **5 门**（学校页显示"共 (5) 门"）、自然科学 **6 门**（"共 (6) 门"）、公共艺术某课组 **2 门**，其余计划内课组条数与修复前一致；`parseCourses()` 读计划外返回无丢课。抓包数据与凭据用后即删，工作区无残留。
-- `test_core` **1278**（+16，含计划内/计划外分流、特殊节点 `qtkcxfyq`/`cxcyqkxfyq`、无标记页面回退）/ `test_build_config` 5 / `test_webview_policy` 5 / `test_ui_contract` **146**（+5，含两端点白名单与请求必须按节点选端点）全绿。
-- 只读版 APK 已构建（rebase 到 `4706903` 后重建，含最新主线 UI-3 收尾）：`delivery/科信小助手-2.5.8.6.apk`，5,392,250 B，SHA-256 `404872917325032a988205870212b746e3ae57663fda4c05bf7582add03ac7b1`（重发以同目录 `.build.json` 为准），v2/v3 验签通过；dex 中已确认含 `cxJxzxjhxfyqFKcxx`/`planCourses`/`opensCourses` 与主线 `WEEK_SLIDE_DURATION`/`jumpWeek`。**真机未验证**。
+- 合并到主线后实跑：`test_core` **1278**（含计划内/计划外分流、特殊节点 `qtkcxfyq`/`cxcyqkxfyq`、无标记页面回退）/ `test_build_config` 5 / `test_webview_policy` 5 / `test_ui_contract` **213**（本修复新增 5 个锚点：两端点都在只读白名单、请求必须按节点选端点）全绿。
+- 合并前已在 `delivery/科信小助手-2.5.8.6.apk`（5,392,250 B）上验证过 dex 含 `cxJxzxjhxfyqFKcxx`/`planCourses`/`opensCourses`；合并后的包以 2.5.8.8 重新构建为准。**真机未验证**。
+
 
 ## [未发布 · 应用内更新日志] — 已提交 `9a9ccad`，未发版（versionCode 仍为 204）
 
-> 新增「更多 → 更新日志」整页，数据随包内置、离线可读。参考岱宗盒子的版本列表组织方式（`update/AppChangelog.kt` 只放数据，真正渲染在 `update/UpdateDialogs.kt` 的堆叠式 What's New 弹窗与 settings 宿主的 `ChangelogEntry` 列表里），**没有复制其代码、素材或主题**；版式、配色、动效按 UI-1/UI-2/UI-3 的 token 重做。核心 1262 断言、UI 守卫 207 锚点全绿，普通版 APK 已构建并验签。
+> 新增「更多 → 更新日志」整页，数据随包内置、离线可读。参考岱宗盒子的版本列表组织方式（`update/AppChangelog.kt` 只放数据，真正渲染在 `update/UpdateDialogs.kt` 的堆叠式 What's New 弹窗与 settings 宿主的 `ChangelogEntry` 列表里），**没有复制其代码、素材或主题**；版式、配色、动效按 UI-1/UI-2/UI-3 的 token 重做。核心 1262 断言、UI 守卫 208 锚点全绿，普通版 APK 已构建并验签。
 
 ### 新增
 - **`AppChangelog.java`**：更新日志唯一数据源。`Entry(version, code, date, known[], items…)` + `Item(Kind, text)`，`Kind` 分 新增 / 优化 / 修复 / 其他；`released()` 过滤未发布版本，`current(versionName)` 决定谁挂「当前版本」。数据只收**已正式发布**的版本（2.5.7 / 2.5.6 / 2.5.5 / 2.5.0 / 2.3.10），取自 `delivery/release-*.md`、`delivery/update/update.json` 与 `CHANGELOG.md`，日期与版本代码照抄，没有推测。
@@ -49,31 +67,31 @@
 - 开发包（2.5.8.6）匹配不到条目：**不**给任何正式版打「当前版本」，改为顶部说明「此版本尚未正式发布」。
 - `Page` / `CardLayer` / 主屏与 Tab 转场 / 课表 / 教务 / 支付 / 水控 / `UpdateCheck` 均未改动。
 
-### 自动化校验（`scripts/test_ui_contract.py`，187 → 207 锚点）
-版本号唯一、版本代码严格递减、日期合法、**最新条目必须等于 `delivery/update/update.json` 的 version/versionCode**（发版忘写日志即红）、任何版本代码大于线上版本即红（开发记录不得混入）、每条版本必须有 `delivery/release-*.md` 或 `CHANGELOG.md` 记录、页面只取 `released()`、展开动画取 `MotionSpec`、关动画走终态、连点 `cancel` 与 `generation` 守卫、入口存在、`exported=false` 注册、两文件不含 WebView / 网络调用。
+### 自动化校验（`scripts/test_ui_contract.py`，187 → 208 锚点）
+版本号唯一、版本代码严格递减、日期合法、**最新条目必须等于 `delivery/update/update.json` 的 version/versionCode**（发版忘写日志即红）、任何版本代码大于线上版本即红（开发记录不得混入）、每条版本必须有 `delivery/release-*.md` 或 `CHANGELOG.md` 记录、页面只取 `released()`、展开动画取 `MotionSpec`、关动画走终态、连点 `cancel` 与 `generation` 守卫、入口存在、`exported=false` 注册、两文件不含 WebView / 网络调用。另有一条反向守卫：`MoreActivity` 的代码行里**不得再出现** `NoticeActivity`，公告入口只留在「数据与隐私」页末。
 
 ### 未做（第二阶段）
 - 升级后「本次更新」弹窗、`lastSeen` 记忆、`NoticeDialog`/`UpdateCheck` 的启动时序协调。数据结构已按 `code` 预留区间取用的可能，但**未实现任何自动弹出**，`UpdateCheck` 的下载/校验/安装流程一行未改。
 
 ### 验证
-- `test_core` 1262 / `test_build_config` 5 / `test_webview_policy` 5 / `test_ui_contract` **207** 全绿。
-- APK `delivery/科信小助手-2.5.8.6.apk`，5 404 538 B，SHA-256 `88fb77eb2ff566475996273a6a5996a3a815f45c0a4b07a5d6613a5d755c051d`，权限实测 4 项，v2/v3 验签通过；dex 内含 `更新日志`、`当前版本`、`ChangelogActivity` 与各版本说明。
+- `test_core` 1262 / `test_build_config` 5 / `test_webview_policy` 5 / `test_ui_contract` **208** 全绿。
+- APK 已构建并验签（`delivery/科信小助手-2.5.8.6.apk`，5 404 538 B，权限 4 项，v2/v3 通过）；该文件随后续小改重新构建过，**当前校验值以上方最新区块为准**。
 - **未做**：真机 L1–L8（展开手感、连点、320dp / 大字体、深色、飞行模式、开发包不误标当前版本）。
 
 ---
 
-## [未发布 · 数据与隐私 / 使用公告专项] — 工作区未提交（versionCode 仍为 204）
+## [未发布 · 数据与隐私 / 使用公告专项] — 已提交 `6b619ab`，未发版（versionCode 仍为 204）
 
 > 按发布者提供的新版文案重写这两份文本，并逐条对照代码核对。**只改文案与展示，不改安全机制与业务逻辑**；权限表仅按发布者确认移除一个从未使用的 `ACCESS_WIFI_STATE`。文案集中在 `LegalText`，排版集中在 `LegalView`，首次启动弹窗与新增的公告页读同一份文字。核心 1262 断言、UI 守卫 187 锚点全绿，普通版 APK 已构建并验签。
 
 ### 新增
 - **`LegalText.java`**：两份文本的唯一来源（隐私 8 节、公告 7 节）。隐私联系邮箱填 `shynekoo@outlook.com`（与「意见反馈」公开地址同一个，不另设邮箱），生效日期 `2026年11月19日`；守卫会拦住任何残留的 `【…】` 占位符，并校验两处邮箱一致。
 - **`LegalView.java`**：两页共用排版（返回、标题、说明、可滚动正文、每节一张卡片）。字号用 sp，跟随系统字体缩放；颜色只读 `AppUi`，深浅色与自定义主题随动。
-- **`NoticeActivity.java`**：使用公告整篇阅读页（离线静态文本）。入口为「更多 → 使用公告」与「数据与隐私」页末卡片；首次启动仍由 `NoticeDialog` 负责「以后不再提醒」的选择，两者共用 `LegalText.NOTICE`。
+- **`NoticeActivity.java`**：使用公告整篇阅读页（离线静态文本）。**唯一入口**是「数据与隐私」页末的「阅读使用公告」卡片（早期曾在「更多」里并排一条，发布者要求去重后已删除）；首次启动仍由 `NoticeDialog` 负责「以后不再提醒」的选择，两者共用 `LegalText.NOTICE`。
 
 ### 变更
 - **`PrivacyActivity`**：原先手写的「保存在这台手机上 / 不会离开这台手机 / 权限」三张卡片换成完整的隐私说明（8 节）；两个清除按钮及其行为、清除范围未变；末节入口改为「阅读使用公告」，进整篇页面（原先复用弹窗）。
-- **`MoreActivity`**：新增「使用公告」独立条目，两个入口相互独立。
+- **`MoreActivity`**：文案改版时曾新增「使用公告」独立条目；发布者指出公告已在「数据与隐私」页末，同一份文本摆两条入口只会让人猜哪个是正的，**该条目已删除**。现在「更多」只剩：数据与隐私 / 更新日志 /（诊断包的日志）/ GitHub 仓库 / MIT 许可证。
 - **`NoticeDialog`**：正文改读 `LegalText.NOTICE`；`VERSION` 2 → 3，勾过「不再提醒」的人在文案改版后会再看一次。
 - **`AndroidManifest.xml`**：注册 `.NoticeActivity`（`exported="false"`，`configChanges` 与其他子页一致）；**移除 `ACCESS_WIFI_STATE`**（见下）。未新增任何权限。
 
@@ -89,7 +107,7 @@
 - 两份文本均为打包进 APK 的静态文字，无 WebView、无网络请求，断网可读。
 
 ### 验证
-- `test_core` 1262 / `test_build_config` 5 / `test_webview_policy` 5 / `test_ui_contract` **187**（+28 锚点：文案存在性、邮箱为真实公开地址且与「意见反馈」一致、无残留占位符、教务密码与 AES 表述、不得声称充值、manifest 权限逐项披露、两处入口与弹窗同源、`VERSION = 3`、离线可读）全绿。
+- `test_core` 1262 / `test_build_config` 5 / `test_webview_policy` 5 / `test_ui_contract` **187**（+28 锚点：文案存在性、邮箱为真实公开地址且与「意见反馈」一致、无残留占位符、教务密码与 AES 表述、不得声称充值、manifest 权限逐项披露、隐私页入口与弹窗同源、`VERSION = 3`、离线可读）全绿。
 - APK `delivery/科信小助手-2.5.8.6.apk`，5 396 346 B，SHA-256 `be4903d575cf47a02a1da2dfc7eb49b8bcf7ebf0194dbe44b486b39aa249605e`，验签通过；dex 内确认文案已填充（`shynekoo@outlook.com` / `2026年11月19日`），无 `【…】` 残留，权限表实测 4 项。
 - **未做**：真机排版、系统大字体、320dp 换行、深浅色对比。发布信息（邮箱 / 生效日期）已填。
 

@@ -551,6 +551,10 @@ def main():
     require(changelog, "generation != card.generation", "ChangelogActivity",
             "过期的动画回调不得改状态")
     require(more_src, "ChangelogActivity.class", "MoreActivity", "更多页要有更新日志入口")
+    # 公告只留一个入口：它挂在《数据与隐私》页末。更多页再摆一条，读者就得猜哪个才是正的。
+    checks += 1
+    if "NoticeActivity" in code_lines(more_src):
+        failures.append("MoreActivity: 使用公告不再单独成条，入口只在 PrivacyActivity 页末")
     require(manifest, 'android:name=".ChangelogActivity" android:exported="false"', "AndroidManifest",
             "更新日志页必须注册且不导出")
     checks += 1

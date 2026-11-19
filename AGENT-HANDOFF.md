@@ -16,7 +16,7 @@
 | 线上正式版 / 下载站 | **2.5.7** | `delivery/update/update.json`，versionCode `197`，2026-11-18 |
 | 线上 APK | `campuskit-2.5.7.apk` | 5,359,482 字节，SHA-256 `33851ee1…5728bc`；带 `?sharecode=BZD63HRP4B` |
 | 已提交并 push | 2.5.8.1（versionCode 199） | HEAD `6406500`；`git status` 显示与 `origin/main` 同步（0/0） |
-| 工作区未提交 | **2.5.8.4**（versionCode 202，由 2.5.8.3 递增） | 见下方「开发进度」 |
+| 工作区未提交 | **2.5.8.7**（versionCode 205） | 产物 `delivery/科信小助手-2.5.8.7.apk`，见下方「开发进度」 |
 | 最新 Git tag | `v2.5.7` | 尚无 2.5.8.x 的 tag 与 Release |
 | GitHub Release | 最新为 v2.5.7 | 2.5.8.1 / 2.5.8.4 **未建 Release** |
 

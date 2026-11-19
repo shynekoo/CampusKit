@@ -36,7 +36,7 @@ final class NoticeDialog {
     private static final String SUBHEAD = "科信小助手是个人开发的第三方客户端";
 
     /**
-     * 正文来自 {@link LegalText#NOTICE}：弹窗与「更多 → 使用公告」页面读的是同一份文字，
+     * 正文来自 {@link LegalText#NOTICE}：弹窗与「数据与隐私 → 阅读使用公告」整篇页读的是同一份文字，
      * 改文案只改一处。标题为空的那一节只排正文（开场白），不显示标题。
      */
     private static final String[][] SECTIONS = LegalText.NOTICE;

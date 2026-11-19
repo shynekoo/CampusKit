@@ -61,7 +61,7 @@
 
 ## 主题
 
-`Theme` 一处下发颜色：明暗模式（自动/浅/深）、主题色、课表配色 18 槽、文字色、圆角、不透明度、网格线（默认关）、悬浮底栏。深色是独立灰阶，不是浅色反相。`AppearanceActivity` 改动即时预览。注意圆角预览绘制需按 `dp()` 换算，与 `WeekBoard` 实际格子一致。
+`Theme` 一处下发颜色：明暗模式（自动/浅/深）、主题色、课表配色 18 槽、文字色、圆角、不透明度、网格线（默认关）、悬浮底栏。深色是独立灰阶，不是浅色反相。`AppearanceActivity` 改动即时预览。课表圆角默认 `Theme.DEFAULT_RADIUS = 20dp`，与滑杆上限（`MAX_RADIUS`）同值；改过的读者仍按自己保存的值走，升级不会被覆盖。注意圆角预览绘制需按 `dp()` 换算，与 `WeekBoard` 实际格子一致。
 
 ## 桌面组件
 
@@ -69,7 +69,7 @@
 
 ## 更新日志页（`ChangelogActivity`）
 
-- 入口：校园 → 账号 → 更多 → 更新日志（`MoreActivity` 卡片里，位于「使用公告」之后）。**没有**底部 Tab，主屏结构不变。
+- 入口：校园 → 账号 → 更多 → 更新日志（`MoreActivity` 卡片里，位于「数据与隐私」之后）。**没有**底部 Tab，主屏结构不变。
 - 数据：`AppChangelog.ENTRIES` 随包内置，新到旧；页面只取 `released()`，`current(versionName)` 决定谁挂「当前版本」。开发包（如 `2.5.8.6`）匹配不到条目，因此**不会**给任何正式版误打标记，改为在顶部说明「此版本尚未正式发布」。
 - 版式：每版一张卡片（`UiTokens.CARD_RADIUS`），标题 `v版本号` 用 `CARD_TITLE` + 粗体，日期用 `BODY_SMALL` + `MUTED`，当前版本另挂一枚 `SOFT` 底的小胶囊；每条变化前是类别图标（新增 `plus` / 优化 `torch` / 修复 `check` / 其他 `info`），图标色只取 `AppUi.ACCENT` 或 `MUTED`；已知问题用 `AppUi.DANGER`。配色不写死任何色值。
 - 交互：只做展开/收起。最新一版与当前安装版默认展开，历史版本收起；展开时标题由 `MUTED` 转 `INK`、箭头旋转 180°，动画只改「内容高度 + 箭头角度」，时长取 `MotionSpec.LIST_TOGGLE_DURATION`(220ms) + `MotionSpec.settle()`，系统关动画时直接给终态（展开回 `WRAP_CONTENT`）。
@@ -78,4 +78,4 @@
 
 ## 自动化守卫的边界
 
-`scripts/test_ui_contract.py` 当前有 **212 个静态锚点**：底部导航三项、WeekBoard onMeasure、滚动保存恢复、CardLayer 手势与快照、S4 策略、A3 就地更新分支、三个 Screen 存在、学业情况入口与卡片单一挂载点、教务卡 tile 顺序，以及 UI-1 的 token 常量、UI-2 的 shell/底栏不重建与转场防旧回调守卫、底栏外观修正的房屋图标/固定尺寸图标图标槽/胶囊只包图标的 64×32dp 守卫、UI-3 的转场参数（alpha 0.7→1 / ±8dp / 220ms 进 180ms 出）、快速连点竞态守卫（快照 cancel、各动画自带 end 清理、4 处 generation 守卫），以及 UI-3 收尾的滚动恢复守卫（恢复带 generation、同屏重建才搬运滚动、`OnPreDrawListener` 布局后恢复、stale 恢复不得落到别的 tab、离场页移出无障碍树）与跨周跳转守卫（回本周走 jumpWeek、先落周次再整页滑入、保留滚动位置；两处共用 WEEK_SLIDE_DURATION；Pager 滑出位移只取一屏），「数据与隐私 / 使用公告」守卫（文案只在 `LegalText`、待填项必须存在、教务密码与 AES 表述、不得声称充值、manifest 权限逐项披露、两处入口与弹窗同源、`NoticeDialog.VERSION = 3`、两页不得加载网页或发请求），以及更新日志守卫（版本号唯一、版本代码严格递减、日期合法、最新条目必须等于 `delivery/update/update.json`、不得出现尚未发布的版本、每版都要有发布记录可查、页面只取 `released()`、展开动画取 `MotionSpec`、连点 cancel 与 generation 守卫、入口与 exported=false 注册、离线可读），以及学业情况只让叶子课组可点、计划内与计划外两个取课端点都在只读白名单内。**它是静态守卫，不验证视觉/手势/真机效果**；UI 2.0 的真机清单（快速切换、320dp、主题、滚动恢复、返回手势、关动画、今日 60s）本轮未实测，D/E 组真机清单未完成前不得发布。
+`scripts/test_ui_contract.py` 当前有 **213 个静态锚点**：底部导航三项、WeekBoard onMeasure、滚动保存恢复、CardLayer 手势与快照、S4 策略、A3 就地更新分支、三个 Screen 存在、学业情况入口与卡片单一挂载点、教务卡 tile 顺序，以及 UI-1 的 token 常量、UI-2 的 shell/底栏不重建与转场防旧回调守卫、底栏外观修正的房屋图标/固定尺寸图标图标槽/胶囊只包图标的 64×32dp 守卫、UI-3 的转场参数（alpha 0.7→1 / ±8dp / 220ms 进 180ms 出）、快速连点竞态守卫（快照 cancel、各动画自带 end 清理、4 处 generation 守卫），以及 UI-3 收尾的滚动恢复守卫（恢复带 generation、同屏重建才搬运滚动、`OnPreDrawListener` 布局后恢复、stale 恢复不得落到别的 tab、离场页移出无障碍树）与跨周跳转守卫（回本周走 jumpWeek、先落周次再整页滑入、保留滚动位置；两处共用 WEEK_SLIDE_DURATION；Pager 滑出位移只取一屏），「数据与隐私 / 使用公告」守卫（文案只在 `LegalText`、待填项必须存在、教务密码与 AES 表述、不得声称充值、manifest 权限逐项披露、公告唯一入口在 `PrivacyActivity` 页末（`MoreActivity` 不得再挂一条）、页面与弹窗同源、`NoticeDialog.VERSION = 3`、两页不得加载网页或发请求），以及更新日志守卫（版本号唯一、版本代码严格递减、日期合法、最新条目必须等于 `delivery/update/update.json`、不得出现尚未发布的版本、每版都要有发布记录可查、页面只取 `released()`、展开动画取 `MotionSpec`、连点 cancel 与 generation 守卫、入口与 exported=false 注册、离线可读），以及学业情况只让叶子课组可点、计划内与计划外两个取课端点都在只读白名单内且请求必须按节点 `jdkcsx` 选端点。**它是静态守卫，不验证视觉/手势/真机效果**；UI 2.0 的真机清单（快速切换、320dp、主题、滚动恢复、返回手势、关动画、今日 60s）本轮未实测，D/E 组真机清单未完成前不得发布。

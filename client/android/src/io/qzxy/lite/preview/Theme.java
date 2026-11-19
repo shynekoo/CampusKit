@@ -31,7 +31,8 @@ final class Theme {
 
     /** 品牌蓝，也是主题色「默认」的那一档。 */
     static final int BRAND = 0xff275dad;
-    static final int DEFAULT_RADIUS = 8, DEFAULT_OPACITY = 100;
+    /** 圆角默认取满档 20dp：滑杆拉到头和不拉一样，说明这个形状就是默认的样子。 */
+    static final int DEFAULT_RADIUS = 20, DEFAULT_OPACITY = 100;
     static final int MIN_RADIUS = 0, MAX_RADIUS = 20;
 
     private static final int LIGHT_BG = 0xfff6f7f9, LIGHT_SURFACE = 0xffffffff, LIGHT_INK = 0xff202735,
