@@ -14,6 +14,15 @@
 
 三个 Screen 是 `TimetableActivity` 的静态嵌套类，持有 Activity 引用逐字搬运原方法；不放宽任何 private 可见性。`render()` 保持纯分发，改动时须维持这一边界。
 
+### UI 2.0 常驻外壳（UI-1 / UI-2）
+
+`render()` 已拆为 `ensureShell` / `renderHeader` / `buildScreen` / `renderContent` / `selectTab`：
+
+- **`MainShell`** 竖向三段：headerHost、contentHost（0+weight=1）、navHolder。整个 Activity 只构建一次、`setContentView(shell)` 只调一次；系统栏/挖孔 Insets 只在此落实，底部不重复。课表 Pager 在 contentHost 内取到完整高度，不受 FrameLayout 测量退化影响。
+- **`AnimatedNavBar`** 三项底栏只在构造时 new 一次，切 Tab 不再重建。单个胶囊背景只用 `translationX` 移动（260ms，PathInterpolator(0.2,0,0,1)），选中/未选中色由 `ArgbEvaluator` 插值，图标 Drawable 缓存后改色重绘。系统关动画时立即到终态。
+- **Tab 切换**统一走 `selectTab(target)`：保存离开页滚动 → 更新 nav → 换 Header → 转场内容 → 胶囊动画 → 恢复目标页滚动。数据/主题/返回等普通刷新走 `renderContent(false,0)`，无 Tab 入场动画；转场有 `transitionGeneration` 防止旧回调删新页。
+- `UiTokens` / `MotionSpec` 是尺寸与动效的单一来源；页面左右边距仍由 `AppUi.side()` 决定。视觉圆角本轮不变（卡片 18dp、底栏 24dp），UI-4 才调整。
+
 ## 返回栈规则（`MainNavigator`）
 
 `core/MainNavigator` 只管「当前是哪个视图」与返回顺序，**不持有 View、不依赖 Android**：
@@ -53,4 +62,4 @@
 
 ## 自动化守卫的边界
 
-`scripts/test_ui_contract.py` 有 **46 个静态锚点**：底部导航三项、WeekBoard onMeasure、滚动保存恢复、CardLayer 手势与快照、S4 策略、A3 就地更新分支、三个 Screen 存在、学业情况入口与卡片单一挂载点、教务卡 tile 顺序等。**它是静态守卫，不验证视觉/手势/真机效果**；D/E 组真机清单未完成前不得发布。
+`scripts/test_ui_contract.py` 当前有 **117 个静态锚点**：底部导航三项、WeekBoard onMeasure、滚动保存恢复、CardLayer 手势与快照、S4 策略、A3 就地更新分支、三个 Screen 存在、学业情况入口与卡片单一挂载点、教务卡 tile 顺序，以及 UI-1 的 token 常量、UI-2 的 shell/底栏不重建与转场防旧回调守卫。**它是静态守卫，不验证视觉/手势/真机效果**；UI 2.0 的真机清单（快速切换、320dp、主题、滚动恢复、返回手势、关动画、今日 60s）本轮未实测，D/E 组真机清单未完成前不得发布。

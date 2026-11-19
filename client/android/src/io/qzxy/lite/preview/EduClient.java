@@ -60,6 +60,16 @@ final class EduClient {
     };
     /** 学生学业情况查询: the whole credit tree is rendered into this one page. */
     private static final String ACADEMIC_PAGE = "/xsxy/xsxyqk_cxXsxyqkIndex.html?gnmkdm=N105515";
+    /**
+     * One credit group's courses. The page inlines only the tree; the courses behind each group are
+     * fetched on demand by the school's own script, keyed by the group id.
+     */
+    private static final String ACADEMIC_COURSES = "/xsxy/xsxyqk_cxJxzxjhxfyqKcxx.html";
+    /** The hidden fields the course request has to echo, in the order the school's script sends them. */
+    private static final String[] ACADEMIC_FORM = {
+        "xh_id", "cjlrxn", "cjlrxq", "bkcjlrxn", "bkcjlrxq",
+        "xscjcxkz", "cjcxkzzt", "cjztkz", "cjzt",
+    };
     /** The student timetable page, used as Referer for its own query endpoints. */
     private static final String TIMETABLE_PAGE = "/kbcx/xskbcx_cxXskbcxIndex.html?gnmkdm=N2151&layout=default";
     /** 正方 names this query differently across deployments; try each with the same term fields. */
@@ -180,6 +190,14 @@ final class EduClient {
      * opened — this is the only way a query can leave the two folders compiled into the app.
      */
     private static volatile String discovery = "";
+
+    /**
+     * The academic page's hidden term/student fields, kept from the read that produced the tree so
+     * a group's courses can be requested without downloading the 1.7 MB page again. Cleared on sign
+     * out with the rest of the session, because they belong to that student's page.
+     */
+    private static final Map<String, String> academicForm = new LinkedHashMap<>();
+    private static volatile boolean academicFormReady;
 
     private EduClient() { }
 
@@ -306,6 +324,10 @@ final class EduClient {
         menuLink = "";
         menuChecked = false;
         discovery = "";
+        synchronized (academicForm) {
+            academicForm.clear();
+            academicFormReady = false;
+        }
         if (held.isEmpty()) return;
         try {
             Map<String, String> jar = new LinkedHashMap<>();
@@ -482,7 +504,63 @@ final class EduClient {
      * exact extraction is unit-tested there; this method only owns transport and the session.</p>
      */
     static EduAcademic.Report academicStatus() throws IOException {
-        return EduAcademic.parse(fetch(ACADEMIC_PAGE, null));
+        String html = fetch(ACADEMIC_PAGE, null);
+        rememberAcademicForm(html);
+        return EduAcademic.parse(html);
+    }
+
+    /**
+     * The courses inside one credit group.
+     *
+     * <p>The academic page inlines only the credit tree; each group's courses sit behind this one
+     * endpoint, which is what the school's own script calls when a group is expanded. The request
+     * echoes the page's hidden term/student fields, kept from the tree read so expanding a group
+     * costs one small POST instead of another 1.7 MB page. It is a read-only query: no doType, no
+     * command, nothing that changes the plan.</p>
+     */
+    static List<EduAcademic.Course> academicCourses(String nodeId) throws IOException {
+        String group = nodeId == null ? "" : nodeId.trim();
+        if (group.isEmpty()) throw new IOException("这个课组没有编号，读不到课程。");
+        if (!academicFormReady) rememberAcademicForm(fetch(ACADEMIC_PAGE, null));
+        Map<String, String> form = new LinkedHashMap<>();
+        // fromXh_id is the school's own "whose plan" marker; empty means "the signed-in student".
+        form.put("fromXh_id", "");
+        form.put("xfyqjd_id", group);
+        for (String key : ACADEMIC_FORM) {
+            String value;
+            synchronized (academicForm) { value = academicForm.get(key); }
+            form.put(key, value == null ? "" : value);
+        }
+        return EduAcademic.parseCourses(fetch(ACADEMIC_COURSES, form));
+    }
+
+    /** Reads the hidden fields the course request echoes; they are the same for every group. */
+    private static void rememberAcademicForm(String html) {
+        if (academicFormReady || html == null) return;
+        synchronized (academicForm) {
+            if (academicFormReady) return;
+            for (String key : ACADEMIC_FORM) academicForm.put(key, valueOf(html, key));
+            academicFormReady = true;
+        }
+    }
+
+    /**
+     * The value of the hidden field {@code key}.
+     *
+     * <p>Matched by whole tag rather than by attribute order: the page writes
+     * {@code <input type="hidden" name="xh_id" value="…" id="xh_id"/>}, so an id-first regex sees
+     * nothing. Reading the tag first and then its {@code value} also covers a page that reorders
+     * or drops one of the two attributes.</p>
+     */
+    private static String valueOf(String html, String key) {
+        java.util.regex.Matcher tag = java.util.regex.Pattern
+            .compile("<[^>]*\\b(?:id|name)=\"" + key + "\"[^>]*>").matcher(html);
+        while (tag.find()) {
+            java.util.regex.Matcher value = java.util.regex.Pattern
+                .compile("value=\"([^\"]*)\"").matcher(tag.group());
+            if (value.find()) return value.group(1);
+        }
+        return "";
     }
 
     /**
@@ -952,8 +1030,8 @@ final class EduClient {
 
     private static void checkPath(String path) throws IOException {
         if (path.startsWith("/cdjy/") || path.startsWith("/cjcx/") || path.startsWith("/kbcx/")) return;
-        // 学生学业情况查询: one read-only page, no paged/command endpoints.
-        if (path.startsWith(ACADEMIC_PAGE)) return;
+        // 学生学业情况查询: one read-only page plus the per-group course query it expands into.
+        if (path.startsWith(ACADEMIC_PAGE) || path.startsWith(ACADEMIC_COURSES)) return;
         // 正方's other grade module. Named one path, not the whole folder, so this stays as narrow as
         // the feature needs: two read-only modules, nothing else.
         if (path.startsWith("/kwgl/kscjcx_kscjcx.html")) return;

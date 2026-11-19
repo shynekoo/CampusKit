@@ -11,10 +11,10 @@
 
 ```bash
 python scripts/bootstrap_android.py            # 首次准备 SDK
-python scripts/test_core.py                    # 1228 项 core 断言
+python scripts/test_core.py                    # 1262 项 core 断言
 python scripts/test_build_config.py            # 构建开关 5 项
 python scripts/test_webview_policy.py          # WebView 守卫 5 项
-python scripts/test_ui_contract.py             # UI 契约 46 锚点
+python scripts/test_ui_contract.py             # UI 契约 117 锚点
 python scripts/build_preview.py                # 普通只读版出包（默认跑前 3 个测试）
 ```
 
@@ -36,7 +36,7 @@ python scripts/build_preview.py                # 普通只读版出包（默认�
 
 ## 版本号处理与 `FIELD_VERSION_NAME` 的影响（只说明，不改）
 
-- 版本真源是 `client/android/AndroidManifest.xml` 的 `versionCode` / `versionName`。当前工作区：`202` / `2.5.8.4`（未提交，由 2.5.8.3 递增用于真机覆盖安装）；已提交 HEAD：`199` / `2.5.8.1`；线上下载站：`197` / `2.5.7`。
+- 版本真源是 `client/android/AndroidManifest.xml` 的 `versionCode` / `versionName`。当前工作区/已提交 HEAD：`204` / `2.5.8.6`（普通版，未发布）；线上正式版与下载站：`197` / `2.5.7`。
 - `scripts/build_preview.py` 顶部 `FIELD_VERSION_NAME = "2.5.6.11"` **只在 `--field-water` 且未传 `--version-name` 时**用于覆盖 manifest 的 versionName；versionCode 仍取 manifest+1（或 `--version-code`）。
 - 影响：不带参数跑 `--field-water` 会产出 versionName 停留在 2.5.6.11 的**内部用水版**。它不会被当作正式版发布（正式版用不带 `--field-water` 的普通构建，直接读 manifest），但**若有人把用水版误传更新通道**，应用内更新/用户看到的版本号会出现显著倒退与混淆。规避方式：始终显式传 `--version-name` / `--version-code`，或用普通构建发版。**本次不修改该常量与发布逻辑**。
 

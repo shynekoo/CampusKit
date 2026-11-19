@@ -3,11 +3,16 @@ package io.qzxy.lite.preview;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.view.Gravity;
+import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import io.qzxy.lite.core.EduAcademic;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -15,9 +20,11 @@ import java.util.concurrent.Executors;
  * 学生学业情况查询: GPA, course statistics and the credit-group tree, read straight from the
  * school's own page through {@link EduClient} (the same signed-in session grades use).
  *
- * <p>Extraction is unit-tested in the core module; this screen only lays the result out. It keeps
- * the same card language as the grades screen — a headline card, then one calm row per credit
- * group with a thin progress bar — so nothing here depends on the school's own styling.</p>
+ * <p>The tree is the point of this module, so it is laid out as one: a card per 二级分类 holding
+ * the earned/required credits and a bar, then one indented row per deeper group. A group that
+ * actually holds courses is tappable and fetches them on demand — the school keeps those behind a
+ * separate query, which is exactly what its own page does when an arrow is expanded. Extraction is
+ * unit-tested in the core module; this screen only lays the result out.</p>
  */
 public final class AcademicStatusActivity extends Page {
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
@@ -28,6 +35,10 @@ public final class AcademicStatusActivity extends Page {
     private boolean busy;
     private boolean needsLogin;
     private boolean afterAccount;
+    /** Courses already fetched, per credit-group id, so re-opening a group costs nothing. */
+    private final Map<String, List<EduAcademic.Course>> courses = new HashMap<>();
+    /** Groups with a request in flight, so a double tap cannot post twice. */
+    private final Set<String> loading = new HashSet<>();
     private final android.os.Handler watchdog = new android.os.Handler(android.os.Looper.getMainLooper());
 
     private int dp(int n) { return Math.round(n * getResources().getDisplayMetrics().density); }
@@ -71,6 +82,8 @@ public final class AcademicStatusActivity extends Page {
 
     private void reload() {
         if (busy) return;
+        courses.clear();
+        loading.clear();
         results.removeAllViews();
         load();
     }
@@ -132,6 +145,8 @@ public final class AcademicStatusActivity extends Page {
 
     private void signOut() {
         EduClient.signOutLater();
+        courses.clear();
+        loading.clear();
         status.setText("已退出教务登录。下次读取会重新登录一次。");
     }
 
@@ -153,16 +168,294 @@ public final class AcademicStatusActivity extends Page {
             results.addView(hint("换用网页登录后再试，或到教务系统确认已开放该模块。"));
             return;
         }
-        status.setText("共 " + report.nodes.size() + " 个课程类别" + (report.gpa.isEmpty() ? "" : " · GPA " + report.gpa));
+        status.setText("共 " + report.nodes.size() + " 个课程类别 · 点课组看具体课程");
         headCard(report);
-        for (EduAcademic.Node node : report.nodes) addCard(nodeCard(node));
+        tree(report.nodes);
+    }
+
+    /**
+     * Lays the school's own tree out: one card per 一级 / 二级分类 with its credits and a bar, then
+     * one indented row per deeper group. A row whose group has no children is where the school
+     * keeps the courses, so it becomes the tappable one; tapping it fetches that group's courses
+     * and drops them in underneath. A page that carries no parent links degrades to one card per
+     * node instead of an empty screen.
+     */
+    private void tree(List<EduAcademic.Node> nodes) {
+        LinearLayout body = null;
+        for (int i = 0; i < nodes.size(); i++) {
+            EduAcademic.Node node = nodes.get(i);
+            boolean hasChildren = i + 1 < nodes.size() && nodes.get(i + 1).depth > node.depth;
+            if (node.depth <= 2) {
+                if (node.depth == 1 && hasChildren) {
+                    // The root already names the headline card; its categories are the cards.
+                    body = null;
+                    continue;
+                }
+                LinearLayout card = card();
+                body = categoryCard(card, node, hasChildren);
+                addCard(card);
+                continue;
+            }
+            if (body == null) {
+                LinearLayout card = card();
+                body = card;
+                addCard(card);
+            }
+            body.addView(rowGroup(node, !hasChildren));
+        }
+    }
+
+    /**
+     * A category card's head plus its foldable body. A category that owns children folds open and
+     * shut on tap; one that owns none is a leaf and opens its courses instead. The arrow is the
+     * only affordance, so it is always present and always reflects state.
+     */
+    private LinearLayout categoryCard(LinearLayout card, EduAcademic.Node node, boolean hasChildren) {
+        LinearLayout head = new LinearLayout(this);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        head.setMinimumHeight(dp(30));
+
+        TextView name = new TextView(this);
+        name.setText(node.name);
+        name.setTextSize(15);
+        name.setTypeface(null, Typeface.BOLD);
+        name.setTextColor(AppUi.INK);
+        name.setMaxLines(2);
+        head.addView(name, new LinearLayout.LayoutParams(0, -2, 1));
+        head.addView(credit(node, 12));
+
+        TextView arrow = new TextView(this);
+        arrow.setTextSize(12);
+        arrow.setTextColor(AppUi.MUTED);
+        arrow.setPadding(dp(8), 0, 0, 0);
+        arrow.setText(hasChildren ? "▾" : "▸");
+        head.addView(arrow);
+        card.addView(head);
+
+        if (positive(node.required)) {
+            ProgressBar bar = bar(node.earned, node.required);
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, dp(6));
+            params.topMargin = dp(8);
+            card.addView(bar, params);
+        }
+
+        LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        if (hasChildren) body.setPadding(0, dp(2), 0, 0);
+        card.addView(body);
+
+        AppUi.press(head, 0x00ffffff, 8);
+        if (hasChildren) {
+            head.setOnClickListener(v -> {
+                boolean shown = body.getVisibility() == View.VISIBLE;
+                body.setVisibility(shown ? View.GONE : View.VISIBLE);
+                arrow.setText(shown ? "▸" : "▾");
+            });
+        } else {
+            LinearLayout[] area = courseArea(body);
+            head.setOnClickListener(v -> toggle(node, area[0], area[1], arrow));
+        }
+        return body;
+    }
+
+    /**
+     * An empty block for a group's courses, with a hairline down its left edge.
+     *
+     * <p>Without the rule, a course row and the next group's row sit at nearly the same indent and
+     * read as one list; the rule brackets the courses under the group they belong to. Returns
+     * {@code [outer, inner]}: {@code outer} owns visibility, {@code inner} owns the rows.</p>
+     */
+    private LinearLayout[] courseArea(LinearLayout parent) {
+        LinearLayout outer = new LinearLayout(this);
+        outer.setOrientation(LinearLayout.HORIZONTAL);
+        outer.setVisibility(View.GONE);
+        outer.setPadding(0, dp(2), 0, dp(4));
+        View rule = new View(this);
+        rule.setBackgroundColor(AppUi.LINE);
+        outer.addView(rule, new LinearLayout.LayoutParams(dp(2), LinearLayout.LayoutParams.MATCH_PARENT));
+        LinearLayout inner = new LinearLayout(this);
+        inner.setOrientation(LinearLayout.VERTICAL);
+        outer.addView(inner, new LinearLayout.LayoutParams(0, -2, 1));
+        parent.addView(outer);
+        return new LinearLayout[]{outer, inner};
+    }
+
+    /** One nested group row plus, for a leaf group, the container its courses expand into. */
+    private LinearLayout rowGroup(EduAcademic.Node node, boolean leaf) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+
+        LinearLayout line = new LinearLayout(this);
+        line.setGravity(Gravity.CENTER_VERTICAL);
+        line.setMinimumHeight(dp(30));
+        line.setPadding(dp(14) * Math.max(0, node.depth - 2), node.depth == 3 ? dp(9) : dp(5), 0, dp(5));
+
+        TextView name = new TextView(this);
+        name.setText(node.name);
+        name.setTextSize(node.depth >= 4 ? 12 : 13);
+        // Third level is the first "heading" inside a card, so it stays bold; everything under it
+        // is detail and reads as normal weight. Three steps (card / heading / detail) are enough
+        // to make the hierarchy obvious without turning the card into a wall of bold text.
+        if (node.depth == 3) name.setTypeface(null, Typeface.BOLD);
+        name.setTextColor(node.depth >= 4 ? AppUi.MUTED : AppUi.INK);
+        name.setMaxLines(2);
+        line.addView(name, new LinearLayout.LayoutParams(0, -2, 1));
+        if (node.passed) {
+            TextView ok = new TextView(this);
+            ok.setText("✓");
+            ok.setTextSize(11);
+            ok.setTextColor(AppUi.ACCENT);
+            ok.setPadding(dp(6), 0, dp(6), 0);
+            line.addView(ok);
+        }
+        line.addView(credit(node, node.depth >= 4 ? 11 : 12));
+        box.addView(line);
+
+        if (!leaf) return box;
+        LinearLayout[] area = courseArea(box);
+
+        TextView arrow = new TextView(this);
+        arrow.setText("▸");
+        arrow.setTextSize(11);
+        arrow.setTextColor(AppUi.MUTED);
+        arrow.setPadding(dp(8), 0, dp(2), 0);
+        line.addView(arrow);
+        AppUi.press(line, 0x00ffffff, 8);
+        line.setOnClickListener(v -> toggle(node, area[0], area[1], arrow));
+        return box;
+    }
+
+    /**
+     * Opens or closes one credit group's courses, fetching them the first time.
+     *
+     * <p>The fetch runs on the same single worker as the page load, so a burst of taps queues
+     * instead of racing the session. The callback is guarded by the generation taken when the tap
+     * happened: a reload in between drops the reply rather than painting it into a dead view.</p>
+     */
+    private void toggle(EduAcademic.Node node, LinearLayout area, LinearLayout holder, TextView arrow) {
+        if (area.getVisibility() == View.VISIBLE) {
+            area.setVisibility(View.GONE);
+            arrow.setText("▸");
+            return;
+        }
+        List<EduAcademic.Course> known = courses.get(node.id);
+        if (known != null) {
+            fill(holder, known, node);
+            area.setVisibility(View.VISIBLE);
+            arrow.setText("▾");
+            return;
+        }
+        if (loading.contains(node.id)) return;
+        loading.add(node.id);
+        holder.removeAllViews();
+        holder.addView(courseNote("正在读取课程…"));
+        area.setVisibility(View.VISIBLE);
+        arrow.setText("…");
+        final int ticket = generation;
+        worker.execute(() -> {
+            try {
+                List<EduAcademic.Course> list = EduClient.academicCourses(node.id);
+                post(ticket, () -> {
+                    loading.remove(node.id);
+                    if (area.getParent() == null) return;
+                    courses.put(node.id, list);
+                    fill(holder, list, node);
+                    arrow.setText("▾");
+                });
+            } catch (Exception failure) {
+                post(ticket, () -> {
+                    loading.remove(node.id);
+                    if (area.getParent() == null) return;
+                    holder.removeAllViews();
+                    boolean expired = failure instanceof EduClient.NotSignedIn;
+                    TextView retry = courseNote(expired
+                        ? "登录过期了，点右上角重新读取。"
+                        : "课程没读出来，点这里重试。");
+                    if (!expired) retry.setOnClickListener(v -> {
+                        area.setVisibility(View.GONE);
+                        arrow.setText("▸");
+                        toggle(node, area, holder, arrow);
+                    });
+                    holder.addView(retry);
+                    arrow.setText("▾");
+                });
+            }
+        });
+    }
+
+    private void fill(LinearLayout holder, List<EduAcademic.Course> list, EduAcademic.Node node) {
+        holder.removeAllViews();
+        if (list.isEmpty()) {
+            holder.addView(courseNote("这个课组还没有课程记录。"));
+            return;
+        }
+        for (EduAcademic.Course course : list) holder.addView(courseRow(course, node.depth));
+    }
+
+    /**
+     * One course: name, then its score (or the status word when there is none yet), then credit.
+     * A passed course is the only one drawn in full contrast — the rest are context, not results.
+     */
+    private LinearLayout courseRow(EduAcademic.Course course, int groupDepth) {
+        LinearLayout line = new LinearLayout(this);
+        line.setGravity(Gravity.CENTER_VERTICAL);
+        line.setPadding(dp(14) * Math.max(0, groupDepth - 2) + dp(10), dp(4), 0, dp(4));
+
+        TextView name = new TextView(this);
+        name.setText(course.name);
+        name.setTextSize(12);
+        name.setTextColor(course.passed() ? AppUi.INK : AppUi.MUTED);
+        name.setMaxLines(2);
+        line.addView(name, new LinearLayout.LayoutParams(0, -2, 1));
+
+        String mark = course.score.isEmpty() ? course.statusLabel() : course.score;
+        if (!mark.isEmpty()) {
+            TextView score = new TextView(this);
+            score.setText(mark);
+            score.setTextSize(12);
+            score.setTextColor(course.passed() ? AppUi.ACCENT : AppUi.MUTED);
+            score.setPadding(dp(8), 0, dp(8), 0);
+            line.addView(score);
+        }
+        TextView credit = new TextView(this);
+        credit.setText(course.credit + " 学分");
+        credit.setTextSize(11);
+        credit.setTextColor(AppUi.MUTED);
+        line.addView(credit);
+        return line;
+    }
+
+    private TextView courseNote(String text) {
+        TextView view = new TextView(this);
+        view.setText(text);
+        view.setTextSize(12);
+        view.setTextColor(AppUi.MUTED);
+        view.setPadding(dp(14), dp(6), 0, dp(6));
+        return view;
+    }
+
+    /** "24.5 / 45" — earned over required, or just earned when the school set no requirement. */
+    private TextView credit(EduAcademic.Node node, int size) {
+        TextView view = new TextView(this);
+        view.setText(node.earned + " / " + (node.required.isEmpty() ? "—" : node.required));
+        view.setTextSize(size);
+        view.setTextColor(AppUi.MUTED);
+        return view;
+    }
+
+    private boolean positive(String value) {
+        try { return Float.parseFloat(value) > 0; } catch (RuntimeException notANumber) { return false; }
     }
 
     /** Headline card: GPA, earned/required credits and the course counts school reported. */
     private void headCard(EduAcademic.Report report) {
         LinearLayout card = card();
+        String root = "";
+        for (EduAcademic.Node node : report.nodes) {
+            if (node.depth <= 1) { root = node.name; break; }
+        }
         TextView label = new TextView(this);
-        label.setText("课程修读情况");
+        label.setText(root.isEmpty() ? "课程修读情况" : root + " · 课程修读情况");
         label.setTextSize(13);
         label.setTextColor(AppUi.MUTED);
         card.addView(label);
@@ -181,10 +474,13 @@ public final class AcademicStatusActivity extends Page {
         top.addView(gpaLabel);
         card.addView(top);
 
-        // Earned / required credits from the 主修 root node (first row the school emits).
+        // Earned / required credits of the top group (主修): the only root the school gives a
+        // requirement for. Matched by shape rather than by the name, so a rename cannot hide it.
         String earned = "", required = "";
         for (EduAcademic.Node node : report.nodes) {
-            if ("主修".equals(node.name)) { earned = node.earned; required = node.required; break; }
+            if (node.depth <= 1 && positive(node.required)) {
+                earned = node.earned; required = node.required; break;
+            }
         }
         if (!earned.isEmpty()) {
             TextView credits = new TextView(this);
@@ -197,15 +493,21 @@ public final class AcademicStatusActivity extends Page {
             card.addView(bar, new LinearLayout.LayoutParams(-1, dp(8)));
         }
 
-        LinearLayout stats = new LinearLayout(this);
-        stats.setOrientation(LinearLayout.HORIZONTAL);
-        stats.setPadding(0, dp(10), 0, 0);
-        stat(stats, "计划课程", report.plan);
-        stat(stats, "通过", report.passed);
-        stat(stats, "在读", report.studying);
-        stat(stats, "未修", report.unread);
-        card.addView(stats);
+        // Two rows of three: the school reports six counts, and six in one row would squeeze the
+        // labels off. 未通过 and 计划外 belong here too — they are part of "how am I doing".
+        card.addView(statRow("计划课程", report.plan, "通过", report.passed, "在读", report.studying));
+        card.addView(statRow("未修", report.unread, "未通过", report.failed, "计划外通过", report.extra));
         addCard(card);
+    }
+
+    private LinearLayout statRow(String l1, String v1, String l2, String v2, String l3, String v3) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setPadding(0, dp(10), 0, 0);
+        stat(row, l1, v1);
+        stat(row, l2, v2);
+        stat(row, l3, v3);
+        return row;
     }
 
     private void stat(LinearLayout row, String label, String value) {
@@ -226,42 +528,16 @@ public final class AcademicStatusActivity extends Page {
         row.addView(cell, new LinearLayout.LayoutParams(0, -2, 1));
     }
 
-    /** One credit group: name, earned/required, a thin progress bar and a pass marker. */
-    private LinearLayout nodeCard(EduAcademic.Node node) {
-        LinearLayout card = card();
-        LinearLayout head = new LinearLayout(this);
-        head.setGravity(Gravity.CENTER_VERTICAL);
-        TextView name = new TextView(this);
-        name.setText(node.name);
-        name.setTextSize(14);
-        name.setTypeface(null, Typeface.BOLD);
-        name.setTextColor(AppUi.INK);
-        name.setMaxLines(2);
-        head.addView(name, new LinearLayout.LayoutParams(0, -2, 1));
-        if (node.passed) {
-            TextView pass = new TextView(this);
-            pass.setText("已达标");
-            pass.setTextSize(11);
-            pass.setTextColor(AppUi.ACCENT);
-            head.addView(pass);
-        }
-        card.addView(head);
-
-        TextView value = new TextView(this);
-        value.setText(node.earned + " / " + (node.required.isEmpty() ? "—" : node.required) + " 学分");
-        value.setTextSize(12);
-        value.setTextColor(AppUi.MUTED);
-        value.setPadding(0, dp(2), 0, dp(4));
-        card.addView(value);
-        card.addView(bar(node.earned, node.required), new LinearLayout.LayoutParams(-1, dp(6)));
-        return card;
-    }
-
+    /**
+     * A horizontal credit bar. Both sides are scaled by 100 so half-credit courses still show
+     * (24.5 / 45 must not round to 25 / 45); a zero requirement means "nothing to fill", and the
+     * caller hides the bar rather than drawing a permanently empty one.
+     */
     private ProgressBar bar(String earned, String required) {
         ProgressBar bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         int max = 0, have = 0;
-        try { have = Math.round(Float.parseFloat(earned)); } catch (RuntimeException ignored) { }
-        try { max = Math.round(Float.parseFloat(required)); } catch (RuntimeException ignored) { }
+        try { have = Math.round(Float.parseFloat(earned) * 100); } catch (RuntimeException ignored) { }
+        try { max = Math.round(Float.parseFloat(required) * 100); } catch (RuntimeException ignored) { }
         if (max <= 0) max = Math.max(1, have);
         bar.setMax(max);
         bar.setProgress(Math.max(0, Math.min(max, have)));

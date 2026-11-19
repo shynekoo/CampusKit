@@ -6,14 +6,80 @@
 
 - 线上正式版与下载站：`2.5.7`（versionCode `197`，2026-11-18，`delivery/update/update.json`）。
 - 已提交并 push、尚未发版：`2.5.8.1`（versionCode `199`，Git HEAD `6406500`）。
-- 工作区未提交的开发版本：`2.5.8.4`（versionCode `202`），由 2.5.8.3 递增以便真机覆盖安装。
-- 核心断言：当前工作区实跑 `python scripts/test_core.py` → **1228 项全过**（2026-11-19）。
+- 已提交、尚未发版：`2.5.8.2`–`2.5.8.6`（最新 versionCode `204`），含学业情况查询与 UI-1/UI-2 第一轮。
+- 核心断言：当前工作区实跑 `python scripts/test_core.py` → **1262 项全过**（2026-11-19）。
 
 更早版本的发布说明见 [`delivery/release-*.md`](delivery/)。
 
 ---
 
-## [未发布 · 2.5.8.4] — 工作区未提交（versionCode 202）
+## [未发布 · UI 2.0 第一轮] — 工作区未提交（UI-1 + UI-2，未发版）
+
+> 已提交、未发版。本轮只做 UI-1（设计/动效 token）与 UI-2（常驻主界面 + 动画底栏），不改视觉圆角数值、不动网络/账号/支付/水控/升级、不碰课表 JSON 与 WeekBoard。UI-3/4/5 未实施。核心 1262 断言、UI 守卫 **117 锚点**（原 60 + UI-1 的 20 + UI-2 的 37）全绿，普通版 APK 已构建并 v2/v3 验签（水控与诊断均为 false，控制路由 occurrence 全 0）。
+
+### 新增
+- **`UiTokens.java`**：尺寸/字号单一来源，逻辑 dp/sp 数值，第一阶段取现有基线（卡片 18dp、底栏 24dp、胶囊 18dp、间距 4–24dp、触控 48dp、导航图标 22dp/文字 12sp、标题 28sp、卡片标题 16sp）。页面左右边距仍走 `AppUi.side()`，未硬编码。
+- **`MotionSpec.java`**：时长/位移单一来源（按压 140ms、胶囊 260ms、Tab 进 220ms/出 180ms、位移 8dp、PathInterpolator(0.2,0,0,1)），并提供 `shouldAnimate(Context)`：Android 8+ 用 `ValueAnimator.areAnimatorsEnabled()`，低版本读系统动画倍率；关闭动画时所有组件立即到终态。
+- **`MainShell.java`**：一次构建的竖向 shell（headerHost / contentHost 0+weight=1 / navHolder），系统栏与挖孔 Insets 只在此落实一次；底部 Insets 不重复。课表 Pager 在 contentHost 中仍取到完整可用高度。
+- **`AnimatedNavBar.java`**：单个可移动胶囊 + 一行三等分 Tab，三项只在构造时创建一次。胶囊仅用 `translationX` 移动；选中/未选中色用 `ArgbEvaluator` 插值；缓存的 `AppUi.Icon` Drawable 改色后 `invalidateSelf()`，不逐帧新建；`contentDescription` 标注选中态。
+
+### 变更
+- `TimetableActivity` 的 `render()` 拆为 `ensureShell` / `renderHeader` / `buildScreen` / `renderContent` / `selectTab`。`setContentView(shell)` 只在 `ensureShell` 调一次；Tab 切换不再重建底栏或整个 Activity。普通数据/主题/返回刷新走 `renderContent(false, 0)`，不触发 Tab 入场动画。
+- 「今天的课 · 查看课表」改为先定周次再走统一 `selectTab` 流程；`onNewIntent(showToday)` 仍走非动画 `render()`。
+- Tab 切换记录/恢复各 Tab 滚动位置（课表用 Pager `verticalPosition()/restoreVerticalPosition()`）；内容转场带 `transitionGeneration` 防旧回调删新页。`onDestroy` 取消动画并清引用。
+- `MainNavigator` 返回顺序、`Page`/`CardLayer`/`WeekBoard` 均未改动。
+
+### 验证
+- `test_core` 1262 / `test_build_config` 5 / `test_webview_policy` 5 / `test_ui_contract` 117 全绿；构建 APK v2/v3 验签通过，普通版无诊断、无水控。
+- **待真机验收**：无连接设备/模拟器，底栏快速点击、320dp 窄屏、深色/自定义主题、课表高度、滚动恢复、返回手势完成与取消、系统关动画、今日页 60s 无闪烁均未实测。
+
+---
+
+## [未发布 · 2.5.8.6] — 工作区未提交（versionCode 204）
+
+> 已提交、未发版。学业情况页补上每个课组的课程明细，并改为点击展开；核心 1262 断言、UI 守卫（当时 60 锚点）全过，普通版 APK 已构建并验签。
+
+### 新增
+- **课组课程明细**：学校页面只内联学分树，每个课组的课程在 `POST /xsxy/xsxyqk_cxJxzxjhxfyqKcxx.html` 这个只读查询里（学校自己展开箭头时调的就是它）。`EduClient.academicCourses()` 发起该查询，参数回显页面的隐藏字段 `xh_id`/`cjlrxn`/`cjlrxq` 等——这些字段在读到学分树时顺带缓存，展开一个课组只花一次小 POST，不再下整页 1.7 MB。
+- **点击展开**：叶子课组行可点击，点开才取课组课程，取过的按课组 id 缓存，再点不重复请求；分类卡片头部可折叠/展开整块课组。加载中、空结果、失败重试三种状态都有明确文案。
+- **课程行**：课程名 + 成绩（无成绩时显示「在读 / 未修 / 未过」）+ 学分；通过的课程用正文色与强调色，未通过/未修降为次要色。展开出来的课程块左侧加一条 2dp 细线做括注，否则课程行与下一个课组行缩进接近，会读成同一个列表。
+- `EduAcademic.Course` 类型化课程模型（课程名/课程号/学分/成绩/绩点/学年/学期/必修限选/修读状态），附带 `passed()` 与 `statusLabel()`；`EduAcademic.parseCourses()` 在 core 里解析该接口的扁平 JSON 数组，不引入外部 JSON 库。
+- `EduAcademic.Node` 新增 `id` 字段（课组编号，课程查询以它为键）。
+- 汇总卡补全统计：原先只显示计划/通过/在读/未修，现按学校给的六个数字分两行显示，补上 **未通过** 与 **计划外通过**。
+
+### 修复
+- 隐藏字段提取改为「先定位整个标签、再读 value」：页面实际写成 `<input type="hidden" name="xh_id" value="…" id="xh_id"/>`，id 在 value 之后，按 `id="…"` 前缀取值的正则一个都取不到。
+
+### 变更
+- 去掉 2.5.8.4 里把「创新实践课 / 其他课程 / 创新创业情况」合并成紧凑卡的做法：其中「其他课程」实际挂着 6 门计划外课程，合并会让它无法展开。现在每个分类各自成卡，卡片数量与分类数一致。
+
+### 验证
+- `test_core` **1262**（新增 23 条课程解析断言，含裸数字、`null`、转义引号、全角括号、无名行丢弃、超长拒绝）/ `test_build_config` 5 / `test_webview_policy` 5 / `test_ui_contract` **60**（新增 8 条：课程解析必须在 core、只读路径白名单显式放行、只有叶子课组可点、取回结果要缓存、汇总必须显示未通过）全绿。
+- 真实账号端到端：16 个课组、94 门课程，经 Java `parseCourses` 后学分合计、通过/在读/未修分布与学校页面逐项一致，无空名或 `null` 泄漏；9 个隐藏字段全部可读（`cjzt` 页面本就没有，传空有效）。普通版 APK v2/v3 验签通过，三开关全 false、控制路由全 0。
+
+---
+
+## [未发布 · 2.5.8.5] — 已被 2.5.8.6 取代（versionCode 203）
+
+> 尚未 commit、未发版。学业情况页按学校层级重排版；核心 1239 断言、UI 守卫 52 锚点全过，普通版 APK 已构建并验签。
+
+### 变更
+- **学业情况页按真实层级排版**：学校页面是「主修 → 通识教育/专业教育/第二课堂 → 课组 → 课程方向」的五层树，此前把 37 个节点平铺成 37 张同级卡片，看不出层级。现在二级分类各自成卡（分类名 + 已获/要求学分 + 进度条），三级课组作为加粗行、四级及以下作为缩进细节行（每深一层缩进 14dp，字号 13→12，学分 12→11），顶部汇总卡标题带上根分类名（如「主修 · 课程修读情况」）。页面未提供层级时自动回退为原平铺卡片，不会空白。
+- 既无学分也无子分类的类别（创新实践课 / 其他课程 / 创新创业情况）合并到一张紧凑卡，避免末尾连续三张空卡。
+- 学分进度条按 0.01 精度换算（原先取整会把 24.5 学分显示成 25）；要求学分为 0 时不再画一条永远空着的进度条。
+
+### 修复
+- `EduAcademic` 原正则要求 `id`→`yxxf`→`yqzdxf`→`sftg` 严格按序且都存在，真实页面存在缺 `yxxf` 的写法会被漏掉；改为先取标签再逐个读属性，顺序与缺省都不再影响结果。
+
+### 新增
+- `EduAcademic.Node` 新增 `depth` 字段、`Report.layered` 标记：深度来自页面自身的 jQuery 建树关系（`<li id='li…'>` 被 `.appendTo($("#ul父ID"))`），不是猜的；父链断裂的节点降为根节点，保证不漏分类。
+
+### 验证
+- `test_core` **1239** / `test_build_config` 5 / `test_webview_policy` 5 / `test_ui_contract` **52** 全绿；真实账号端到端跑 Java 解析器：`layered=true, 37 节点, 最深 5 层, GPA 2.9875, 计划 118/通过 54/未修 50/在读 14`。普通版 APK v2/v3 验签通过，三开关全 false、控制路由全 0。
+
+---
+
+## [未发布 · 2.5.8.4] — 已被 2.5.8.5 取代（versionCode 202）
 
 > 尚未 commit、未发版。修复包，供真机覆盖安装验证；UI 守卫 46 锚点全过，普通版 APK 已构建并验签。
 

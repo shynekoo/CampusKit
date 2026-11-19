@@ -35,9 +35,13 @@ def main():
     card = CARD.read_text(encoding="utf-8")
     board = BOARD.read_text(encoding="utf-8")
 
-    # --- bottom navigation: three parallel views, selected state driven by nav -------------
+    # --- bottom navigation: three persistent tabs, selected state driven by nav -------------
+    # UI-2: the three tabs now live in one AnimatedNavBar built once by MainShell, not rebuilt
+    # by every render(). Keep the "three entries survive" guard, retargeted at the new owner.
+    nav_src_path = PREVIEW / "AnimatedNavBar.java"
+    nav_src = nav_src_path.read_text(encoding="utf-8") if nav_src_path.exists() else ""
     for label in ("今日", "课表", "账号"):
-        require(activity, 'tabItem("%s"' % label, "TimetableActivity",
+        require(nav_src, '"%s"' % label, "AnimatedNavBar",
                 "bottom navigation tab must survive every refactor")
     require(activity, "nav.tab()==0", "TimetableActivity", "tab selection reads nav state")
 
@@ -166,6 +170,136 @@ def main():
     positions = [ac.find(t) for t in expected]
     if -1 in positions or positions != sorted(positions):
         failures.append("TimetableActivity: 教务 card tile order does not match row1=成绩/空教室/教务系统 row2=学业情况/河工程/科信")
+
+    # 学业情况页 (2.5.8.5): the page carries 一级/二级 categories and the screen must show that
+    # hierarchy — one card per second-level category, deeper nodes as indented rows keyed off depth.
+    require(status, "private void tree(List<EduAcademic.Node> nodes)", "AcademicStatusActivity",
+            "academic categories must render as a tree, not one flat card per node")
+    require(status, "node.depth <= 2", "AcademicStatusActivity",
+            "first/second-level categories own the cards")
+    require(status, "dp(14) * Math.max(0, node.depth - 2)", "AcademicStatusActivity",
+            "nested rows must indent by depth so 一级/二级 read as levels")
+    show_block = status[status.find("private void show(EduAcademic.Report report)"):status.find("private void tree(")]
+    checks += 1
+    if "addCard(nodeCard(" in show_block or "addCard(leafCard(" in show_block:
+        failures.append("AcademicStatusActivity: show() flattened the tree into per-node cards again")
+    core_academic = (ROOT / "client/core/src/io/qzxy/lite/core/EduAcademic.java").read_text(encoding="utf-8")
+    require(core_academic, "public final int depth", "EduAcademic",
+            "core must expose the school's tree depth")
+    require(core_academic, r"\\.appendTo\\", "EduAcademic",
+            "depth must come from the page's own appendTo parent links")
+
+    # 学业情况页 (2.5.8.6): each group's courses were missing — only the categories were shown.
+    # Courses now come from the school's own per-group endpoint and open on tap.
+    require(core_academic, "public static List<Course> parseCourses(String json)", "EduAcademic",
+            "course rows must be parsed in the testable core")
+    require(core_academic, "public static final class Course", "EduAcademic",
+            "courses need a typed model, not raw JSON strings")
+    client = (PREVIEW / "EduClient.java").read_text(encoding="utf-8")
+    require(client, "ACADEMIC_COURSES", "EduClient",
+            "the per-group course endpoint must be named by the feature")
+    require(client, 'if (path.startsWith(ACADEMIC_PAGE) || path.startsWith(ACADEMIC_COURSES)) return;',
+            "EduClient",
+            "the course query must be added to the read-only path allow-list explicitly")
+    require(status, "private void toggle(EduAcademic.Node node", "AcademicStatusActivity",
+            "courses must open on tap rather than all at once")
+    require(status, "rowGroup(node, !hasChildren)", "AcademicStatusActivity",
+            "only a group that holds courses may be tappable")
+    require(status, "courses.put(node.id, list)", "AcademicStatusActivity",
+            "a fetched group must be cached so re-opening costs nothing")
+    require(status, '"未通过", report.failed', "AcademicStatusActivity",
+            "the headline must show the counts the school reports, not a subset")
+
+    # --- CampusKit UI 2.0 / UI-1: centralized design + motion tokens ------------------------
+    ui_tokens = (PREVIEW / "UiTokens.java")
+    motion_spec = (PREVIEW / "MotionSpec.java")
+    tokens_src = ui_tokens.read_text(encoding="utf-8") if ui_tokens.exists() else ""
+    motion_src = motion_spec.read_text(encoding="utf-8") if motion_spec.exists() else ""
+    require(tokens_src, "CARD_RADIUS = 18", "UiTokens", "UI-1 card radius baseline is 18dp")
+    require(tokens_src, "NAV_RADIUS = 24", "UiTokens", "UI-1 nav radius baseline is 24dp")
+    require(tokens_src, "PILL_RADIUS = 18", "UiTokens", "UI-1 pill radius baseline is 18dp")
+    require(tokens_src, "MIN_TOUCH = 48", "UiTokens", "48dp minimum touch target")
+    require(tokens_src, "NAV_ICON = 22", "UiTokens", "22dp nav icon")
+    require(tokens_src, "NAV_TEXT = 12", "UiTokens", "12sp nav label")
+    require(tokens_src, "PAGE_TITLE = 28", "UiTokens", "28sp page title")
+    require(tokens_src, "CARD_TITLE = 16", "UiTokens", "16sp card title")
+    require(tokens_src, "SPACE_4 = 4", "UiTokens", "4dp spacing base")
+    require(motion_src, "PRESS_DURATION = 140", "MotionSpec", "140ms press feedback")
+    require(motion_src, "NAV_DURATION = 260", "MotionSpec", "260ms nav capsule")
+    require(motion_src, "TAB_ENTER_DURATION = 220", "MotionSpec", "220ms tab enter")
+    require(motion_src, "TAB_EXIT_DURATION = 180", "MotionSpec", "180ms tab exit")
+    require(motion_src, "TAB_OFFSET_DP = 8", "MotionSpec", "8dp tab offset")
+    require(motion_src, "PathInterpolator(0.2f, 0f, 0f, 1f)", "MotionSpec", "indicator interpolator")
+    require(motion_src, "areAnimatorsEnabled()", "MotionSpec", "Android 8+ animation-off detection")
+    require(motion_src, "ANIMATOR_DURATION_SCALE", "MotionSpec", "pre-8 animation scale fallback")
+    # tokens must be actually used, not dead code
+    require(activity, "UiTokens.CARD_RADIUS", "TimetableActivity", "whiteCard must use the shared token")
+    require(nav_src, "UiTokens.NAV_RADIUS", "AnimatedNavBar", "nav bar must use the shared token")
+    # narrow-screen adaptation must survive tokenization
+    screens = (PREVIEW / "AppUi.java").read_text(encoding="utf-8")
+    require(screens, "static int side(Context c,int base)", "AppUi",
+            "AppUi.side() narrow-screen adaptation must be preserved")
+
+    # --- CampusKit UI 2.0 / UI-2: persistent shell + animated nav, no rebuild per tab --------
+    shell_path = PREVIEW / "MainShell.java"
+    shell_src = shell_path.read_text(encoding="utf-8") if shell_path.exists() else ""
+    require(shell_src, "class MainShell extends LinearLayout", "MainShell", "persistent shell type")
+    require(shell_src, "headerHost", "MainShell", "header host region")
+    require(shell_src, "contentHost", "MainShell", "content host region")
+    require(shell_src, "navHolder", "MainShell", "nav holder region")
+    require(shell_src, "AnimatedNavBar", "MainShell", "shell owns the one nav bar")
+    require(shell_src, "WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout()", "MainShell",
+            "system bar + cutout insets handled once by shell")
+    require(shell_src, "setPadding", "MainShell", "shell applies the single inset padding")
+    # AnimatedNavBar: one indicator + one tabRow, three tabs built ONCE, capsule + colour anim.
+    require(nav_src, "class AnimatedNavBar extends FrameLayout", "AnimatedNavBar", "nav bar type")
+    require(nav_src, "indicator", "AnimatedNavBar", "moving capsule indicator")
+    require(nav_src, "tabRow", "AnimatedNavBar", "three-slot tab row")
+    require(nav_src, "AppUi.icon(", "AnimatedNavBar", "reuse existing icon family")
+    require(nav_src, "ArgbEvaluator", "AnimatedNavBar", "selected/unselected colour interpolation")
+    require(nav_src, "invalidateSelf()", "AnimatedNavBar", "reuse cached icon drawable, no per-frame alloc")
+    require(nav_src, "setContentDescription", "AnimatedNavBar", "selected tab announced to a11y")
+    require(nav_src, "MotionSpec.NAV_DURATION", "AnimatedNavBar", "capsule uses shared nav duration")
+    require(nav_src, "MotionSpec.shouldAnimate(", "AnimatedNavBar", "animation-off handled")
+    require(nav_src, "translationX", "AnimatedNavBar", "capsule moves by translationX only")
+    require(nav_src, "target < 0 || target > 2", "AnimatedNavBar", "selected index always 0/1/2")
+    # Activity: shell created once, tabs never re-inflated on select, split render flow present.
+    require(activity, "setContentView(shell)", "TimetableActivity", "setContentView only inside ensureShell")
+    checks += 1
+    if activity.count("setContentView(") != 1:
+        failures.append("TimetableActivity: setContentView must appear exactly once (ensureShell only)")
+    checks += 1
+    if activity.count("new AnimatedNavBar(") != 0:
+        failures.append("TimetableActivity: nav bar must be owned by MainShell, not rebuilt by activity")
+    checks += 1
+    if activity.count("new MainShell(") != 1:
+        failures.append("TimetableActivity: MainShell must be created once")
+    st = activity.find("private void selectTab(")
+    select_block = activity[st:activity.find("\n    private ", st + 1)] if st >= 0 else ""
+    checks += 1
+    if "new LinearLayout" in select_block or "setContentView(" in select_block:
+        failures.append("selectTab: must not allocate new tab views or re-inflate the shell")
+    require(activity, "private void ensureShell()", "TimetableActivity", "ensureShell split out")
+    require(activity, "private void renderHeader()", "TimetableActivity", "renderHeader split out")
+    require(activity, "private LinearLayout buildScreen(LinearLayout target)", "TimetableActivity",
+            "buildScreen fills the current screen root")
+    require(activity, "private void renderContent(boolean animate, int direction)", "TimetableActivity",
+            "renderContent owns content swap")
+    require(activity, "private void selectTab(int target)", "TimetableActivity", "unified selectTab flow")
+    require(activity, "renderContent(false, 0)", "TimetableActivity", "render() never animates tabs")
+    require(activity, "renderContent(true, direction)", "TimetableActivity", "selectTab animates tabs")
+    require(activity, "navBar.select(target, true)", "TimetableActivity", "capsule animates on user tab switch")
+    # MainNavigator back order and Page/CardLayer must be byte-for-byte unchanged.
+    nav_core = (ROOT / "client/core/src/io/qzxy/lite/core/MainNavigator.java").read_text(encoding="utf-8")
+    require(nav_core, "if (tab == 2 && campusView == 1) { campusView = 0; return true; }", "MainNavigator",
+            "campus records back step unchanged")
+    require(nav_core, "if (tab != 0) { tab = 0; campusView = 0; return true; }", "MainNavigator",
+            "non-today back step unchanged")
+    require(activity, "if (nav.consumeBack()) { render(); return; }", "TimetableActivity",
+            "back uses non-animated render, no race with system gesture")
+    require(page, "protected boolean backMayStay()", "Page", "Page back contract untouched")
+    require(card, "static void clearPending()", "CardLayer", "CardLayer snapshot policy untouched")
+    require(board, "protected void onMeasure", "WeekBoard", "WeekBoard adaptive measure untouched")
 
     if failures:
         print("UI CONTRACT FAILED (%d/%d checks):" % (len(failures), checks))

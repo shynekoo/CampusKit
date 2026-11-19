@@ -4,6 +4,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import io.qzxy.lite.core.UseSession.State;
@@ -1453,7 +1454,40 @@ public final class CoreTests {
             + "<p class='title1' id='pCCC333' yxxf='4.0' yqzdxf='4' sftg='1'>\" + \"体育课组 </p>"
             // duplicate of pBBB222 in another campus branch: must collapse to one row
             + "<p class='title1' id='pBBB222' yxxf='24.5' yqzdxf='45' sftg='0'>\" + \"通识教育重复</p>";
-        EduAcademic.Report academicReport = EduAcademic.parse(academic);
+        EduAcademic.Report flat = EduAcademic.parse(academic);
+        equal(false, flat.layered);                     // no parent links on this page
+        equal(3, flat.nodes.size());                    // duplicate id collapsed
+        for (EduAcademic.Node node : flat.nodes) equal(1, node.depth);
+        equal("主修", flat.nodes.get(0).name);
+        equal(true, flat.nodes.get(2).passed);
+
+        // The same page as the school actually builds it: every <li> is appended to its parent's
+        // container, so the tree is recoverable. 大学英语 is deliberately emitted before its parent
+        // 体育课组 to prove the order comes from the tree, not from document order.
+        String layered =
+            "<div role='alert'>某同学&nbsp;同学，您的课程修读情况："
+            + "平均学分绩点（GPA）：<font style=\"color: red;\"> 2.9875 &nbsp;</font>"
+            + "计划总课程<!-- 计划总课程 -->&nbsp;118&nbsp;门<!-- 门 -->通过<!-- 通过 -->&nbsp;54&nbsp;门<!-- 门 -->，"
+            + "未通过<!-- 未通过 -->&nbsp;0&nbsp;门<!-- 门 -->；未修<!-- 未修 -->&nbsp;50&nbsp;门<!-- 门 -->；"
+            + "在读&nbsp;14&nbsp;门<!-- 门 -->！ 计划外<!-- 计划外 -->：通过<!-- 通过 -->&nbsp;6&nbsp;门<!-- 门 --></div>"
+            + "$(\"<li id='liAAA111' class='first start'><div class='title'>"
+            + "<p class='title1' id='pAAA111' yxxf='100.0' yqzdxf='180' sftg='0'>\" + \"主修</p></div>"
+            + "<ul id='ulAAA111'></ul></li>\").appendTo($(\"#ul#start\"));"
+            + "$(\"<li id='liBBB222'><div class='title'>"
+            + "<p class='title1' id='pBBB222' yxxf='24.5' yqzdxf='45' sftg='0'>\" + \"通识教育</p></div>\" + "
+            + "'<ul id=\"ulBBB222\"></ul></li>').appendTo($(\"#ulAAA111\"));"
+            + "$(\"<li id='liDDD444'><div class='title'>"
+            + "<p class='title1' id='pDDD444' yxxf='0.0' yqzdxf='16' sftg='0'>\" + \"大学英语</p></div></li>\")"
+            + ".appendTo($(\"#ulCCC333\"));"
+            + "$(\"<li id='liCCC333'><div class='title'>"
+            + "<p class='title1' id='pCCC333' yxxf='4.0' yqzdxf='4' sftg='1'>\" + \"体育课组</p></div>\" + "
+            + "'<ul id=\"ulCCC333\"></ul></li>').appendTo($(\"#ulBBB222\"));"
+            // a branch whose parent is missing from the page entirely: must surface as its own root
+            + "$(\"<li id='liEEE555'><div class='title'>"
+            + "<p class='title1' id='pEEE555' yxxf='0' yqzdxf='0' sftg='0'>\" + \"其他课程</p></div></li>\")"
+            + ".appendTo($(\"#ulZZZ999\"));";
+        EduAcademic.Report academicReport = EduAcademic.parse(layered);
+        equal(true, academicReport.layered);
         equal("2.9875", academicReport.gpa);
         equal("118", academicReport.plan);
         equal("54", academicReport.passed);
@@ -1461,19 +1495,61 @@ public final class CoreTests {
         equal("50", academicReport.unread);
         equal("14", academicReport.studying);
         equal("6", academicReport.extra);
-        equal(3, academicReport.nodes.size());          // duplicate id collapsed
+        equal(5, academicReport.nodes.size());          // 4 in the tree + 1 orphan root
         equal("主修", academicReport.nodes.get(0).name);
-        equal("100.0", academicReport.nodes.get(0).earned);
-        equal("180", academicReport.nodes.get(0).required);
-        equal(false, academicReport.nodes.get(0).passed);
+        equal(1, academicReport.nodes.get(0).depth);
         equal("通识教育", academicReport.nodes.get(1).name);
-        equal(true, academicReport.nodes.get(2).passed);
+        equal(2, academicReport.nodes.get(1).depth);
         equal("体育课组", academicReport.nodes.get(2).name);
+        equal(3, academicReport.nodes.get(2).depth);
+        equal("大学英语", academicReport.nodes.get(3).name);
+        equal(4, academicReport.nodes.get(3).depth);    // ordered by tree, not by document order
+        equal("其他课程", academicReport.nodes.get(4).name);
+        equal(1, academicReport.nodes.get(4).depth);    // orphan parent falls back to a root
         rejects(() -> EduAcademic.parse(null));
         rejects(() -> EduAcademic.parse(""));
         rejects(() -> EduAcademic.parse("<html>not the academic page</html>"));
         rejects(() -> EduAcademic.parse(repeat('x', EduAcademic.MAX_HTML + 1)));
         System.out.println("PASS: academic status page yields GPA, statistics and a de-duplicated credit tree");
+
+        // A credit group's courses come from a separate array endpoint. Values are a mix of quoted
+        // strings and bare numbers ("JD":3); an unstudied course omits CJ/XNMC or sends null, and a
+        // row without a name is noise rather than a course.
+        String courses = "["
+            + "{\"KCH_ID\":\"A1\",\"KCMC\":\"思想道德与法治\",\"XDZT\":\"4\",\"XNMC\":\"2024-2025\","
+            + "\"XQMMC\":\"1\",\"XF\":\"3\",\"CJ\":\"80\",\"JD\":3,\"KCXZMC\":\"必修\",\"MAXCJ\":\"80\"},"
+            + "{\"KCH_ID\":\"A2\",\"KCMC\":\"形势与政策\",\"XDZT\":\"1\",\"XF\":\"2\",\"CJ\":null,"
+            + "\"JD\":null,\"KCXZMC\":\"必修\"},"
+            + "{\"KCH_ID\":\"A3\",\"KCMC\":\"大学体育（1）\",\"XDZT\":\"3\",\"XF\":\"1.0\",\"XNMC\":null,"
+            + "\"KCXZMC\":\"限选\"},"
+            + "{\"KCMC\":\"\",\"XF\":\"9\"}"
+            + "]";
+        List<EduAcademic.Course> rows = EduAcademic.parseCourses(courses);
+        equal(3, rows.size());                          // the unnamed row is dropped
+        equal("思想道德与法治", rows.get(0).name);
+        equal("3", rows.get(0).credit);
+        equal("80", rows.get(0).score);
+        equal("3", rows.get(0).point);
+        equal(true, rows.get(0).passed());
+        equal("必修", rows.get(0).kind);
+        equal("2024-2025", rows.get(0).year);
+        equal("1", rows.get(0).term);
+        equal("形势与政策", rows.get(1).name);
+        equal(false, rows.get(1).passed());
+        equal("1", rows.get(1).status);
+        equal("", rows.get(1).score);                   // null becomes empty, never the text "null"
+        equal("", rows.get(1).point);
+        equal("在读", rows.get(1).statusLabel());
+        equal("未修", rows.get(2).statusLabel());
+        equal(true, rows.get(2).name.contains("（1）"));  // full-width brackets survive parsing
+        equal(0, EduAcademic.parseCourses("[]").size());
+        // An escaped quote inside a name must not swallow the rest of the row.
+        equal("课\"程", EduAcademic.parseCourses("[{\"KCMC\":\"课\\\"程\",\"XF\":\"1\"}]").get(0).name);
+        rejects(() -> EduAcademic.parseCourses(null));
+        rejects(() -> EduAcademic.parseCourses(""));
+        rejects(() -> EduAcademic.parseCourses("{\"KCMC\":\"x\"}"));
+        rejects(() -> EduAcademic.parseCourses(repeat('x', EduAcademic.MAX_COURSES_JSON + 1)));
+        System.out.println("PASS: a credit group's courses parse into typed rows");
 
         System.out.println("All " + assertions + " assertions passed. Live API/Bluetooth compatibility is not tested here.");
     }

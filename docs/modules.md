@@ -1,6 +1,6 @@
 # 模块清单
 
-按实际 source set 与文件名整理（`git ls-files '*.java'`：core 44、android 67、fieldtest 7、测试 11）。完整类清单可直接看目录，这里按职责分组。
+按实际 source set 与文件名整理（`git ls-files '*.java'`：core 44、android 71、fieldtest 7、测试 11）。完整类清单可直接看目录，这里按职责分组。
 
 ## client/core — 平台无关规则（44 个文件，JVM 可测）
 
@@ -14,19 +14,19 @@
 | 使用码 | `UseCode` | 8 位使用码（5+3）解析与校验 |
 | 更新 | `UpdateManifest`、`UpdateUrls` | 更新清单必填字段校验、HTTPS 逐跳重定向策略 |
 | 安全策略 | `TrustedUrlPolicy`、`SnapshotPolicy`、`DiagPolicy` | WebView 准入、敏感页快照、诊断默认关 |
-| 教务学业 | `EduAcademic`（工作区新增） | 学生学业情况页解析：GPA、统计、去重学分树 |
+| 教务学业 | `EduAcademic` | 学生学业情况：GPA/统计/去重学分树解析（含 `appendTo` 层级还原），课程明细 JSON 解析（`parseCourses`） |
 | 其他 | `DailyQuote`、`AlipayWaterLink`、`PickupCodeLinks`、`RechargeSignature`、`NativeSigningV6528` | 文案、跳转链接、签名/协议辅助 |
 
-测试：`client/core/test/.../CoreTests.java` —— 当前工作区 1228 项断言，涵盖上述状态机、解析与策略。
+测试：`client/core/test/.../CoreTests.java` —— 当前 1262 项断言，涵盖上述状态机、解析与策略。
 
-## client/android — 原生界面与平台适配（67 个文件）
+## client/android — 原生界面与平台适配（71 个文件）
 
 | 组 | 代表文件 | 职责 |
 | :-- | :-- | :-- |
-| 主屏 | `TimetableActivity`、`App`、`Page`、`CardLayer`、`AppUi`、`Theme` | 三 tab 主屏、页面基类/返回手势、主题下发、卡片动画 |
+| 主屏 | `TimetableActivity`、`MainShell`、`AnimatedNavBar`、`MotionSpec`、`UiTokens`、`App`、`Page`、`CardLayer`、`AppUi`、`Theme` | 三 tab 主屏、壳层与 tab 指示器动画（含 reduce-motion 降级）、UI 尺寸 token、页面基类/返回手势、主题下发、卡片动画 |
 | 课表 UI | `WeekBoard`、`CourseAdapter`、`CoursePickers`、`CourseWeeks`、`ScheduleInfo`、`ScheduleWidget*`(3 个) | 周视图、课程编辑、桌面组件 |
 | 账号与凭据 | `AccountActivity`、`AccountVault`、`EduVault`、`LifeSessionVault`、`AccountProfile`、`AccountInfoActivity` | 登录入口、加密存储、账号资料 |
-| 教务 | `EduClient`、`EduLoginActivity`、`EduQueryActivity`、`EduResultActivity`、`EduPortalActivity`、`EduTimetableImportActivity`、`EduTables`、`EduTimetableReader`、`AcademicActivity`、`AcademicStatusActivity`(工作区新增) | 教务会话、查询、导入、学业情况页 |
+| 教务 | `EduClient`、`EduLoginActivity`、`EduQueryActivity`、`EduResultActivity`、`EduPortalActivity`、`EduTimetableImportActivity`、`EduTables`、`EduTimetableReader`、`AcademicActivity`、`AcademicStatusActivity` | 教务会话、查询、导入、学业情况页（学分树 + 点击展开课程明细） |
 | 慧生活/水控 | `LifeLoginActivity`、`LifeDeviceActivity`、`LifeDeviceApi`、`LifeAuthApi`、`LifeDeviceProfile`、`DeviceDetails`、`DeviceLookup`、`ScanActivity`、`QrDecoder`、`WaterApi` | 登录、设备资料（只读）、扫码、订单状态 |
 | 趣智校园 | `SmsAccountApi`、`UseCodeApi`、`UseCodeActivity`、`QzxyAlipayActivity`、`AlipayLogin` | 使用码、支付宝授权/充值 |
 | 更新/隐私/其他 | `UpdateCheck`、`ApkProvider`、`PrivacyActivity`、`FeedbackActivity`、`MoreActivity`、`AppearanceActivity`、`DiagActivity`、`SchoolSiteActivity`、`TimetableWebActivity`、`WebBack`、`Diag`、`HttpForm`、`NoticeDialog`、`ColorDialog` | 应用内更新、隐私、外观、网页容器、网络与弹窗 |
@@ -39,10 +39,10 @@
 
 | 脚本 | 检查内容 |
 | :-- | :-- |
-| `scripts/test_core.py` | core 源码 JVM 编译 + `CoreTests`（当前 1228 项） |
+| `scripts/test_core.py` | core 源码 JVM 编译 + `CoreTests`（当前 1262 项） |
 | `scripts/test_build_config.py` | 5 种诊断开关组合 |
 | `scripts/test_webview_policy.py` | 5 处 WebView 导航 HTTPS 守卫 |
-| `scripts/test_ui_contract.py` | 46 个 UI 结构锚点（静态守卫，非真机测试） |
+| `scripts/test_ui_contract.py` | 117 个 UI 结构锚点（静态守卫，非真机测试；含 UI-1/UI-2 守卫） |
 
 ## 改动时的落点建议
 

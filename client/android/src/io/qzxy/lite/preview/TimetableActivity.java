@@ -8,7 +8,11 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
 import android.view.WindowInsets;
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.ValueAnimator;
 import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -104,6 +108,14 @@ public final class TimetableActivity extends Page implements App.Themed {
     private boolean unreadable;
     private LinearLayout root;
     private boolean importing;
+    /** The persistent UI-2 shell; built once in ensureShell, reused for every tab switch. */
+    private MainShell shell;
+    private AnimatedNavBar navBar;
+    /** Scroll position remembered per tab so switching back restores where the reader was. */
+    private final int[] tabScroll = new int[3];
+    /** Bumped on every content transition so a late callback from an old one cannot remove the new page. */
+    private int transitionGeneration;
+    private final java.util.List<android.animation.Animator> contentAnimators = new ArrayList<>();
     /** Which side the next board should animate in from: +1 from the right, -1 from the left, 0 none. */
     private WeekBoard.Pager pager;
     /** Navigation state lives in core so the back order is unit-tested; views read it via nav. */
@@ -122,7 +134,14 @@ public final class TimetableActivity extends Page implements App.Themed {
     /** Opened in this order when the identity code is tapped; 淘宝 owns the page now. */
     private static final String[] PICKUP_FALLBACK_PACKAGES = {TAOBAO_PACKAGE, CAINIAO_PACKAGE, "com.eg.android.AlipayGphone"};
     private final java.util.concurrent.ExecutorService backgroundWorker = java.util.concurrent.Executors.newSingleThreadExecutor();
-    @Override protected void onDestroy() { backgroundWorker.shutdown(); clockHandler.removeCallbacks(clockTick);if(store!=null)store.unregisterOnSharedPreferenceChangeListener(timetableChanged); super.onDestroy(); }
+    @Override protected void onDestroy() {
+        backgroundWorker.shutdown(); clockHandler.removeCallbacks(clockTick);
+        for (Animator anim : contentAnimators) anim.cancel(); contentAnimators.clear();
+        if (navBar != null) navBar.cancelAnimations();
+        navBar = null; shell = null; pager = null; root = null;
+        if(store!=null)store.unregisterOnSharedPreferenceChangeListener(timetableChanged);
+        super.onDestroy();
+    }
 
     /** 外观与主题 changed while this page was behind it: draw the same tab again in the new look. */
     @Override public void onThemeChanged() { render(); }
@@ -747,35 +766,35 @@ public final class TimetableActivity extends Page implements App.Themed {
     private void gap(LinearLayout parent,int height){parent.addView(new View(this),new LinearLayout.LayoutParams(1,dp(height)));}
     private TextView bold(String value,int size){TextView view=text(value,size);view.setTypeface(null,android.graphics.Typeface.BOLD);return view;}
 
-    /** One row of the 趣智校园 list: badge, title, description, chevron. */
-    private TextView tabItem(String label,boolean selected,Runnable action) {
-        TextView item=bold(label,12);
-        item.setTextColor(selected?AppUi.ACCENT:AppUi.MUTED);
-        // A minimum rather than a fixed height: the bar grows with the reader's font size instead of
-        // clipping the label under its icon.
-        item.setMinHeight(dp(56));
-        item.setGravity(android.view.Gravity.CENTER);item.setSelected(selected);item.setCompoundDrawables(null,AppUi.icon(this,label.equals("今日")?"today":label.equals("课表")?"calendar":"user",selected?AppUi.ACCENT:AppUi.MUTED,22),null,null);item.setCompoundDrawablePadding(dp(4));item.setPadding(0,dp(6),0,dp(6));AppUi.press(item,selected?AppUi.SOFT:0x00ffffff,18);
-        
-        item.setOnClickListener(v->action.run());
-        item.setContentDescription(selected?label+"，已选中":label);
-        return item;
+    // ---- UI-2: persistent shell -----------------------------------------------------------
+
+    /** Build the one outer shell and hand it to Page exactly once. Never called from selectTab. */
+    private void ensureShell() {
+        if (shell != null) return;
+        shell = new MainShell(this, this::selectTab);
+        navBar = shell.navBar;
+        setContentView(shell);
+        shell.requestApplyInsets();
     }
-    private void render() {
-        // tab / campusView 刚变过，返回该不该缩卡片也跟着变；refreshBackMode 内部有记忆，
-        // 方式没变时什么也不做。
-        refreshBackMode();
-        pager=null;
-        // The whole tree is rebuilt below, so any live references into the old 今日 view are stale.
-        todaySummary=null;todayRows.clear();
-        // Margins come from the screen, not a constant: a 320dp phone gets 4dp back for its seven
-        // columns, and a tablet gets a centred column instead of body text running the full width.
-        final int side = AppUi.side(this, 8);
-        root=column();root.setBackgroundColor(AppUi.BG);root.setPadding(side,dp(8),side,0);
-        if(android.os.Build.VERSION.SDK_INT>=30) {
-            getWindow().setDecorFitsSystemWindows(false);
-            root.setOnApplyWindowInsetsListener((v,insets)->{android.graphics.Insets bars=insets.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());v.setPadding(side+bars.left,dp(8)+bars.top,side+bars.right,bars.bottom);return insets;});
-        }
-        // One header shape for all three tabs, so 今日 / 课表 / 趣智校园 read as views of the same app.
+
+    /** The Three screens always write into {@link #root}; buildScreen gives them a fresh root inside
+     *  contentHost. Clearing the live 今日 handles here is what keeps A3 updates from touching a
+     *  view that no longer exists after a full rebuild. */
+    private LinearLayout buildScreen(LinearLayout target) {
+        root = target;
+        pager = null;
+        todaySummary = null;
+        todayRows.clear();
+        if (nav.tab()==0) new HomeScreen(this).build();
+        else if (nav.tab()==1) new ScheduleScreen(this).build();
+        else new CampusScreen(this).build();
+        return target;
+    }
+
+    /** Rebuild only the header into its host; no setContentView, no nav re-inflation. */
+    private void renderHeader() {
+        shell.headerHost.removeAllViews();
+        // One header shape for all three tabs, so 今日 / 课表 / 账号 read as views of the same app.
         LinearLayout header=new LinearLayout(this);header.setGravity(android.view.Gravity.CENTER_VERTICAL);header.setPadding(dp(8),0,dp(8),0);
         LinearLayout heading=column();
         if(nav.tab()==1){
@@ -788,7 +807,7 @@ public final class TimetableActivity extends Page implements App.Themed {
             pickerName.setEllipsize(android.text.TextUtils.TruncateAt.END);
             // Whatever the header has left after the 管理 button, so a long table name ellipsizes
             // instead of pushing the button off a narrow screen.
-            pickerName.setMaxWidth(Math.max(dp(120), getResources().getDisplayMetrics().widthPixels-2*side-dp(76)-dp(28)));
+            pickerName.setMaxWidth(Math.max(dp(120), getResources().getDisplayMetrics().widthPixels-2*AppUi.side(this,8)-dp(76)-dp(28)));
             picker.addView(pickerName,new LinearLayout.LayoutParams(-2,-2));
             android.widget.ImageView caret=new android.widget.ImageView(this);
             caret.setImageDrawable(AppUi.icon(this,"caret",AppUi.INK,17));
@@ -801,32 +820,121 @@ public final class TimetableActivity extends Page implements App.Themed {
             AppUi.press(picker,0x00ffffff,8);
             picker.setContentDescription("当前课表 "+TimetableStore.currentName(this)+"，点按切换或重命名");
             heading.addView(picker);
-        } else heading.addView(bold(nav.tab()==0?"今日":"账号",28));
+        } else heading.addView(bold(nav.tab()==0?"今日":"账号",UiTokens.PAGE_TITLE));
         String subtitle;
         if(nav.tab()==0)subtitle=DAYS[todayIndex()]+" · "+todayIso()+(currentWeek()>=1&&currentWeek()<=CoursePickers.LAST_WEEK?" · 第 "+currentWeek()+" 周":"");
         else if(nav.tab()==1)subtitle=monday.isEmpty()?"设置开学日期，自动定位本周":(dayDate(0).replace(" · ",""))+" — "+dayDate(6).replace(" · ","");
         else subtitle="校园服务账号";
-        TextView caption=text(subtitle,12);caption.setTextColor(AppUi.MUTED);caption.setPadding(0,0,0,dp(6));heading.addView(caption);
+        TextView caption=text(subtitle,UiTokens.BODY_SMALL);caption.setTextColor(AppUi.MUTED);caption.setPadding(0,0,0,dp(6));heading.addView(caption);
         if(nav.tab()==1&&monday.isEmpty()&&!unreadable)caption.setOnClickListener(v->semester());
         header.addView(heading,new LinearLayout.LayoutParams(0,-2,1));
         if(nav.tab()==1){Button settings=weekAction(importing?"识别中…":"管理",this::manage);settings.setEnabled(!unreadable&&!importing);header.addView(settings,new LinearLayout.LayoutParams(dp(76),dp(48)));}
         else if(nav.tab()==2&&nav.campusView()==1){TextView back=text("‹ 返回",14);back.setTextColor(AppUi.ACCENT);back.setPadding(dp(10),dp(10),0,dp(10));back.setOnClickListener(v->{nav.openCampusList();render();});header.addView(back);}
-        root.addView(header);
-        if(nav.tab()==0)new HomeScreen(this).build();else if(nav.tab()==1)new ScheduleScreen(this).build();else new CampusScreen(this).build();
-        LinearLayout holder=column();holder.setPadding(dp(8),dp(2),dp(8),dp(8));
-        // No elevation: the cast shadow is offset downward, so a rounded white bar shows a dark smudge
-        // under the two bottom corners while the top corners stay clean. The hairline border alone
-        // separates the bar from the page, evenly on all four corners.
-        LinearLayout bar=new LinearLayout(this);bar.setBackground(AppUi.outlined(this,AppUi.SURFACE,24,AppUi.LINE));bar.setPadding(dp(5),dp(5),dp(5),dp(5));
-        bar.addView(tabItem("今日",nav.tab()==0,()->{if(nav.tab()!=0){nav.selectTab(0);render();}}),new LinearLayout.LayoutParams(0,-2,1));
-        bar.addView(tabItem("课表",nav.tab()==1,()->{if(nav.tab()!=1){nav.selectTab(1);render();}}),new LinearLayout.LayoutParams(0,-2,1));
-        bar.addView(tabItem("账号",nav.tab()==2,()->{if(nav.tab()!=2){nav.selectTab(2);render();}}),new LinearLayout.LayoutParams(0,-2,1));
-        holder.addView(bar,new LinearLayout.LayoutParams(-1,-2));root.addView(holder,new LinearLayout.LayoutParams(-1,-2));
-        setContentView(root);root.requestApplyInsets();
+        shell.headerHost.addView(header,new FrameLayout.LayoutParams(-1,-2));
+    }
+
+    /** Capture the current screen's scroll so a later switch back can restore it. */
+    private int captureScroll() {
+        if (pager != null) return pager.verticalPosition();
+        if (root == null) return 0;
+        for (int i=0;i<root.getChildCount();i++) {
+            View child = root.getChildAt(i);
+            if (child instanceof ScrollView) return child.getScrollY();
+        }
+        return 0;
+    }
+
+    /** Restore a remembered scroll once the new screen has been laid out. */
+    private void restoreScroll(int tab, int y) {
+        if (y <= 0) return;
+        final int value = y;
+        root.post(() -> {
+            if (tab == 1 && pager != null) { pager.restoreVerticalPosition(value); return; }
+            if (root == null) return;
+            for (int i=0;i<root.getChildCount();i++) {
+                View child = root.getChildAt(i);
+                if (child instanceof ScrollView) { child.scrollTo(0, value); break; }
+            }
+        });
+    }
+
+    /** Replace the contentHost child. With animate=false (ordinary render) the swap is immediate;
+     *  selectTab passes animate=true to play the isolated content crossfade. */
+    private void renderContent(boolean animate, int direction) {
+        final int generation = ++transitionGeneration;
+        for (Animator running : contentAnimators) running.cancel();
+        contentAnimators.clear();
+        View outgoing = shell.contentHost.getChildCount() > 0 ? shell.contentHost.getChildAt(0) : null;
+
+        LinearLayout next = column();
+        next.setBackgroundColor(AppUi.BG);
+        FrameLayout.LayoutParams full = new FrameLayout.LayoutParams(-1,-1);
+        buildScreen(next);
+        shell.contentHost.addView(next, full);
+
+        boolean motion = animate && outgoing != null
+            && MotionSpec.shouldAnimate(this) && navBar != null;
+        if (!motion) {
+            if (outgoing != null) shell.contentHost.removeView(outgoing);
+            next.setAlpha(1f); next.setTranslationX(0f);
+            restoreScroll(nav.tab(), tabScroll[nav.tab()]);
+            return;
+        }
+
+        final View old = outgoing;
+        final float offset = dp(MotionSpec.TAB_OFFSET_DP) * direction;
+        next.setAlpha(.7f);
+        next.setTranslationX(offset);
+        ValueAnimator enter = ValueAnimator.ofFloat(0f,1f);
+        enter.setDuration(MotionSpec.TAB_ENTER_DURATION);
+        enter.addUpdateListener(a -> {
+            float t = (Float) a.getAnimatedValue();
+            next.setAlpha(.7f + .3f*t);
+            next.setTranslationX(offset * (1f - t));
+        });
+        ValueAnimator exit = ValueAnimator.ofFloat(1f,0f);
+        exit.setDuration(MotionSpec.TAB_EXIT_DURATION);
+        exit.addUpdateListener(a -> old.setAlpha((Float) a.getAnimatedValue()));
+        exit.addListener(new AnimatorListenerAdapter() {
+            @Override public void onAnimationEnd(Animator anim) {
+                if (generation != transitionGeneration) return;   // stale callback: a newer tab won
+                if (old.getParent() == shell.contentHost) shell.contentHost.removeView(old);
+                next.setAlpha(1f); next.setTranslationX(0f);
+                contentAnimators.clear();
+            }
+        });
+        contentAnimators.add(enter); contentAnimators.add(exit);
+        enter.start(); exit.start();
+        restoreScroll(nav.tab(), tabScroll[nav.tab()]);
+    }
+
+    /** Ordinary full rebuild (data / theme / course change / back). Never animates a tab entrance. */
+    private void render() {
+        // tab / campusView 刚变过，返回该不该缩卡片也跟着变；refreshBackMode 内部有记忆，
+        // 方式没变时什么也不做。
+        refreshBackMode();
+        ensureShell();
+        renderHeader();
+        renderContent(false, 0);
+        navBar.refreshPalette();           // 主题换色后胶囊底色/文字取新的 AppUi 调色板
+        navBar.select(nav.tab(), false);   // keep capsule in sync without animating
+    }
+
+    /** The only user-driven tab switch path. Header, content and capsule update in a fixed order. */
+    private void selectTab(int target) {
+        if (target == nav.tab()) return;
+        int from = nav.tab();
+        tabScroll[from] = captureScroll();          // save the page we are leaving
+        nav.selectTab(target);
+        refreshBackMode();
+        renderHeader();
+        int direction = target > from ? 1 : -1;
+        renderContent(true, direction);
+        navBar.select(target, true);                // animate the capsule after content is in place
     }
 
     private TextView cardTitle(String value){return bold(value,16);}
-    private LinearLayout whiteCard(){LinearLayout card=column();card.setBackground(AppUi.outlined(this,AppUi.SURFACE,18,AppUi.LINE));card.setPadding(dp(18),dp(16),dp(18),dp(16));return card;}
+    private LinearLayout whiteCard(){LinearLayout card=column();card.setBackground(AppUi.outlined(this,AppUi.SURFACE,UiTokens.CARD_RADIUS,AppUi.LINE));card.setPadding(dp(18),dp(16),dp(18),dp(16));return card;}
     private TextView cardAction(String label,Runnable action) {
         TextView view=text(label,13);view.setTextColor(AppUi.ACCENT);view.setPadding(dp(10),dp(6),0,dp(6));
         view.setMinHeight(dp(48));view.setGravity(android.view.Gravity.CENTER_VERTICAL);AppUi.press(view,0x00ffffff,8);view.setOnClickListener(v->action.run());return view;
@@ -1097,7 +1205,8 @@ public final class TimetableActivity extends Page implements App.Themed {
         private void todayCourses(LinearLayout parent) {
             LinearLayout card=a.whiteCard();
             int todayWeek=a.currentWeek();
-            a.cardHeader(card,"今天的课","查看课表",()->{a.nav.selectTab(1);a.week=Math.max(1,Math.min(CoursePickers.LAST_WEEK,a.currentWeek()));a.render();});a.gap(card,10);
+            // 先定周次，再走统一的 selectTab 流程（含胶囊动画与滚动恢复），不再自己 nav+render。
+            a.cardHeader(card,"今天的课","查看课表",()->{a.week=Math.max(1,Math.min(CoursePickers.LAST_WEEK,a.currentWeek()));a.selectTab(1);});a.gap(card,10);
             if(a.unreadable) {
                 card.addView(a.body("本机课表无法完整读取，已保留原数据。"));
             } else if(a.monday.isEmpty()) {
