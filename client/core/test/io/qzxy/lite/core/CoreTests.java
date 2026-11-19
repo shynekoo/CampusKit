@@ -1282,6 +1282,29 @@ public final class CoreTests {
         equal(false, DiagPolicy.explicitlyEnabled(false));
         System.out.println("PASS: diagnostics stay off by default; only an explicit turn-on enables them");
 
+        // S3: the school WebView may only render HTTPS pages on approved hosts and ports. Kept as
+        // pure Java so navigation rules are tested without an Android runtime. Host suffix matching
+        // is on label boundaries: hebeu.edu.cn.evil.test must never count as a school host.
+        TrustedUrlPolicy schoolPolicy = new TrustedUrlPolicy(
+            java.util.Arrays.asList("hebeu.edu.cn"), java.util.Arrays.asList(443));
+        equal(true, schoolPolicy.allowsInApp("https://www.hebeu.edu.cn/"));
+        equal(true, schoolPolicy.allowsInApp("https://kexin.hebeu.edu.cn/"));
+        equal(true, schoolPolicy.allowsInApp("https://hebeu.edu.cn:443/a"));
+        equal(false, schoolPolicy.allowsInApp("http://www.hebeu.edu.cn/"));
+        equal(false, schoolPolicy.allowsInApp("https://example.com/"));
+        equal(false, schoolPolicy.allowsInApp("https://hebeu.edu.cn.evil.test/"));
+        equal(false, schoolPolicy.allowsInApp("https://evil-hebeu.edu.cn/"));
+        equal(false, schoolPolicy.allowsInApp("https://www.hebeu.edu.cn:8443/"));
+        equal(false, schoolPolicy.allowsInApp("https://user@www.hebeu.edu.cn/"));
+        equal(false, schoolPolicy.allowsInApp("https://www.hebeu.edu.cn\\@evil.test/"));
+        equal(false, schoolPolicy.allowsInApp("javascript:alert(1)"));
+        equal(false, schoolPolicy.allowsInApp("file:///sdcard/a.html"));
+        equal(false, schoolPolicy.allowsInApp(null));
+        equal(false, schoolPolicy.allowsInApp("not a url"));
+        equal(true, schoolPolicy.isSchoolUrl("http://www.hebeu.edu.cn/"));
+        equal(false, schoolPolicy.isSchoolUrl("http://example.com/"));
+        System.out.println("PASS: school WebView loads only HTTPS on approved hosts and ports");
+
         System.out.println("All " + assertions + " assertions passed. Live API/Bluetooth compatibility is not tested here.");
     }
 

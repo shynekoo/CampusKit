@@ -20,6 +20,8 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import io.qzxy.lite.core.TrustedUrlPolicy;
+
 /**
  * Shows an official school website inside the app.
  *
@@ -28,10 +30,15 @@ import android.widget.TextView;
  * site: it needs no login, no injected cookie and no native session, so nothing here touches
  * {@link EduClient}.</p>
  *
- * <p>Only pages on {@code *.hebeu.edu.cn} are rendered here. A link that leaves the school domain
- * is handed to the system browser instead of being blocked, so an outbound link still works. Plain
- * HTTP is allowed for these hosts because the school's own pages and their images still use it;
- * mixed content is loaded in compatibility mode for the same reason.</p>
+ * <p>Only HTTPS pages on {@code *.hebeu.edu.cn} (port 443 or default) are rendered here. A link
+ * that leaves the school domain, a school link that falls back to plaintext, or an unusual port is
+ * handed to the system browser instead of being blocked, so an outbound link still works. The
+ * browser is a separate process with its own cookie jar, so no school session follows the hand-off.
+ * Plaintext subresources are blocked rather than tolerated in compatibility mode.</p>
+ *
+ * <p>Admission rules live in {@link TrustedUrlPolicy} in core so they can be unit-tested without a
+ * device. Subresources are left to WebView's mixed-content policy; checking every image request in
+ * Java would only break legitimate school pages for no extra navigation safety.</p>
  */
 public final class SchoolSiteActivity extends Page {
     public static final String EXTRA_URL = "url";
@@ -50,17 +57,12 @@ public final class SchoolSiteActivity extends Page {
         catch (Exception unknown) { return "unknown"; }
     }
 
-    /** The school's own hosts; the port, if any, is irrelevant for a public site. */
-    private static boolean school(String url) {
-        if (url == null) return false;
-        Uri uri = Uri.parse(url);
-        String host = uri.getHost();
-        String scheme = uri.getScheme();
-        if (host == null) return false;
-        if (!"http".equals(scheme) && !"https".equals(scheme)) return false;
-        host = host.toLowerCase(java.util.Locale.ROOT);
-        return host.equals("hebeu.edu.cn") || host.endsWith(".hebeu.edu.cn");
-    }
+    /** Same rules as the academic portal: HTTPS, school host, default or 443 only. */
+    private static final TrustedUrlPolicy SITE = new TrustedUrlPolicy(
+        java.util.Collections.singletonList("hebeu.edu.cn"),
+        java.util.Collections.singletonList(443));
+
+    private static boolean school(String url) { return SITE.allowsInApp(url); }
 
     private Button action(LinearLayout row, String title, Runnable task) {
         Button button = new Button(this);
@@ -77,14 +79,32 @@ public final class SchoolSiteActivity extends Page {
         return button;
     }
 
-    /** Anything that is not a school page goes to whichever app can handle it. */
+    /**
+     * Leave the WebView for anything it must not render. Only HTTP(S) URLs go to the system browser:
+     * handing a {@code javascript:} or {@code file:} link to an Intent would be a hole, not a
+     * fallback. The browser gets the URL alone - never a cookie or a token we happen to hold.
+     */
     private void handOff(String url) {
+        if (url == null) return;
+        String scheme = Uri.parse(url).getScheme();
+        if (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) {
+            status.setText("已拦截不安全的链接。");
+            return;
+        }
+        String reason = SITE.isSchoolUrl(url) ? "学校网站的明文链接" : "站外链接";
         try {
             startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
-            status.setText("该链接不属于学校网站，已用系统浏览器打开。");
+            status.setText(reason + "已用系统浏览器打开。");
         } catch (ActivityNotFoundException none) {
-            status.setText("该链接不属于学校网站，本机也没有能打开它的应用。");
+            status.setText(reason + "已拦截，本机也没有能打开它的应用。");
         }
+    }
+
+    /** Returns true when the app took the navigation over instead of letting WebView load it. */
+    private boolean navigate(String url) {
+        if (school(url)) return false;
+        handOff(url);
+        return true;
     }
 
     @Override public void onCreate(Bundle saved) {
@@ -137,8 +157,10 @@ public final class SchoolSiteActivity extends Page {
         settings.setDomStorageEnabled(true);
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
-        // School pages are HTTPS but still pull in plain-HTTP images and fonts.
-        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
+        settings.setAllowFileAccessFromFileURLs(false);
+        settings.setAllowUniversalAccessFromFileURLs(false);
+        // A TLS page must not pull plaintext images or fonts. No downgrade, even on school pages.
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setBuiltInZoomControls(true);
         settings.setDisplayZoomControls(false);
         settings.setUseWideViewPort(true);
@@ -153,10 +175,11 @@ public final class SchoolSiteActivity extends Page {
 
         web.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                String url = request.getUrl().toString();
-                if (school(url)) return false;
-                handOff(url);
-                return true;
+                return navigate(request.getUrl().toString());
+            }
+            // Older WebViews and some POST redirects still arrive through the String overload.
+            @Override public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                return navigate(url);
             }
             @Override public void onPageStarted(WebView view, String url, android.graphics.Bitmap icon) {
                 if (url != null) status.setText("正在加载 " + Uri.parse(url).getHost() + "…");
@@ -179,6 +202,12 @@ public final class SchoolSiteActivity extends Page {
             @Override public void onReceivedTitle(WebView view, String pageTitle) {
                 if (pageTitle != null && pageTitle.length() > 0 && heading != null)
                     heading.setText(pageTitle.length() > 30 ? pageTitle.substring(0, 30) + "…" : pageTitle);
+            }
+            // No new windows: a target=_blank or window.open must still pass SITE first. Without a
+            // WebViewClient callback for these, an unchecked popup would be a way around navigation.
+            @Override public boolean onCreateWindow(WebView view, boolean dialog, boolean userGesture,
+                                                    android.os.Message result) {
+                return false;
             }
         });
         // PDFs and attachments on school sites cannot be rendered by a bare WebView.
