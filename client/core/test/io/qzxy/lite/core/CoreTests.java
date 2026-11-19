@@ -1305,6 +1305,21 @@ public final class CoreTests {
         equal(false, schoolPolicy.isSchoolUrl("http://example.com/"));
         System.out.println("PASS: school WebView loads only HTTPS on approved hosts and ports");
 
+        // S4: a snapshot taken while leaving a page becomes the next page's back-animation
+        // backdrop. Sensitive pages must never contribute one. Central list so adding a page is
+        // one change, and null/unknown names are refused conservatively.
+        equal(true, SnapshotPolicy.allows("TimetableActivity"));
+        equal(true, SnapshotPolicy.allows("SchoolSiteActivity"));
+        equal(false, SnapshotPolicy.allows("QzxyAlipayActivity"));
+        equal(false, SnapshotPolicy.allows("EduLoginActivity"));
+        equal(false, SnapshotPolicy.allows("LifeLoginActivity"));
+        equal(false, SnapshotPolicy.allows("AccountInfoActivity"));
+        equal(false, SnapshotPolicy.allows("EduAccountActivity"));
+        equal(false, SnapshotPolicy.allows("AccountActivity"));
+        equal(false, SnapshotPolicy.allows(null));
+        equal(false, SnapshotPolicy.allows(""));
+        System.out.println("PASS: sensitive pages are excluded from back-animation snapshots");
+
         System.out.println("All " + assertions + " assertions passed. Live API/Bluetooth compatibility is not tested here.");
     }
 

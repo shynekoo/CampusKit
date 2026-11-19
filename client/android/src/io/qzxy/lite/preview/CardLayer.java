@@ -205,6 +205,12 @@ final class CardLayer {
      * 而且总是压着一层暗色。
      */
     static void hold(Activity activity) {
+        // Defence in depth: even if a caller reaches hold() directly, a page that denies snapshots
+        // must never be photographed and must not leave an older bitmap behind for the next page.
+        if (activity instanceof Page && !((Page) activity).allowPageSnapshot()) {
+            clearPending();
+            return;
+        }
         View decor = activity.getWindow().getDecorView();
         int width = decor.getWidth(), height = decor.getHeight();
         if (width <= 0 || height <= 0) return;
@@ -227,6 +233,27 @@ final class CardLayer {
             if (pending != null && !pending.isRecycled()) pending.recycle();
             pending = shot;
             pendingAt = System.currentTimeMillis();
+        }
+    }
+
+    /** Free the backdrop bitmap when the page goes away; it is half a screen of pixels held only
+     * here. Set null first so the ImageView cannot draw a recycled bitmap on a late frame. */
+    void release() {
+        android.graphics.drawable.Drawable drawable = preview.getDrawable();
+        preview.setImageBitmap(null);
+        if (drawable instanceof android.graphics.drawable.BitmapDrawable) {
+            Bitmap bitmap = ((android.graphics.drawable.BitmapDrawable) drawable).getBitmap();
+            if (bitmap != null && !bitmap.isRecycled()) bitmap.recycle();
+        }
+    }
+
+    /** Drop the reusable snapshot without consuming it for a new card. Used when leaving a
+     * sensitive page: nothing from that page should survive into the next back animation. */
+    static void clearPending() {
+        synchronized (CardLayer.class) {
+            if (pending != null && !pending.isRecycled()) pending.recycle();
+            pending = null;
+            pendingAt = 0L;
         }
     }
 

@@ -7,6 +7,8 @@ import android.os.Bundle;
 import android.view.View;
 import android.view.ViewGroup;
 
+import io.qzxy.lite.core.SnapshotPolicy;
+
 /**
  * 每个页面的共同外壳：进出动画，以及「返回」该由谁来画。
  *
@@ -97,6 +99,11 @@ public class Page extends Activity {
 
     // ---- leaving ---------------------------------------------------------------------------
 
+    @Override protected void onDestroy() {
+        if (cardLayer != null) cardLayer.release();
+        super.onDestroy();
+    }
+
     @Override public void startActivity(Intent intent) {
         holdPreview();
         super.startActivity(intent);
@@ -115,9 +122,24 @@ public class Page extends Activity {
         if (Build.VERSION.SDK_INT < 34) overridePendingTransition(R.anim.page_enter, 0);
     }
 
+    /**
+     * Whether this page may be photographed as the backdrop of the next page's back animation.
+     * Account, password and payment pages override this to {@code false}. Default comes from the
+     * central core deny-list so the rule is unit-testable and a new sensitive page is one entry.
+     */
+    protected boolean allowPageSnapshot() {
+        return SnapshotPolicy.allows(getClass().getSimpleName());
+    }
+
     /** 下一页要拿这张画面当底：跨 Activity 时真正的上一页被新窗口盖着，只能自己拍一张。 */
     private void holdPreview() {
-        if (Build.VERSION.SDK_INT >= 34 && Theme.slide()) CardLayer.hold(this);
+        if (Build.VERSION.SDK_INT < 34 || !Theme.slide()) return;
+        if (!allowPageSnapshot()) {
+            // Sensitive page: drop any stale bitmap so the next back animation shows plain colour.
+            CardLayer.clearPending();
+            return;
+        }
+        CardLayer.hold(this);
     }
 
     /**

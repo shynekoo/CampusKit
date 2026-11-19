@@ -7,6 +7,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.webkit.CookieManager;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -33,6 +34,9 @@ public final class EduLoginActivity extends Page {
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
+        // Academic password is typed here; keep it out of system screenshots and the recents
+        // thumbnail. This does not replace the snapshot deny-list - that covers in-app animations.
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(AppUi.BG);
