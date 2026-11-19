@@ -15,7 +15,7 @@
 
 ## [未发布 · UI 2.0 第一轮] — 工作区未提交（UI-1 + UI-2，未发版）
 
-> 尚未 commit、未发版。本轮只做 UI-1（设计/动效 token）与 UI-2（常驻主界面 + 动画底栏），不改视觉圆角数值、不动网络/账号/支付/水控/升级、不碰课表 JSON 与 WeekBoard。UI-3/4/5 未实施。核心 1262 断言、UI 守卫 **120 锚点**（原 60 + UI-1 的 20 + UI-2 的 40）全绿，普通版 APK 已构建并 v2/v3 验签（水控与诊断均为 false，控制路由 occurrence 全 0）。
+> 尚未 commit、未发版。本轮只做 UI-1（设计/动效 token）与 UI-2（常驻主界面 + 动画底栏），不改视觉圆角数值、不动网络/账号/支付/水控/升级、不碰课表 JSON 与 WeekBoard。UI-3/4/5 未实施。核心 1262 断言、UI 守卫 **131 锚点**（原 60 + UI-1 的 20 + UI-2 的 40）全绿，普通版 APK 已构建并 v2/v3 验签（水控与诊断均为 false，控制路由 occurrence 全 0）。
 
 ### 新增
 - **`UiTokens.java`**：尺寸/字号单一来源，逻辑 dp/sp 数值，第一阶段取现有基线（卡片 18dp、底栏 24dp、胶囊 18dp、间距 4–24dp、触控 48dp、导航图标 22dp/文字 12sp、标题 28sp、卡片标题 16sp）。页面左右边距仍走 `AppUi.side()`，未硬编码。
@@ -30,8 +30,24 @@
 - `MainNavigator` 返回顺序、`Page`/`CardLayer`/`WeekBoard` 均未改动。
 
 ### 验证
-- `test_core` 1262 / `test_build_config` 5 / `test_webview_policy` 5 / `test_ui_contract` 120 全绿；构建 APK v2/v3 验签通过，普通版无诊断、无水控。
+- `test_core` 1262 / `test_build_config` 5 / `test_webview_policy` 5 / `test_ui_contract` 131 全绿；构建 APK v2/v3 验签通过，普通版无诊断、无水控。
 - **待真机验收**：无连接设备/模拟器，底栏快速点击、320dp 窄屏、深色/自定义主题、课表高度、滚动恢复、返回手势完成与取消、系统关动画、今日页 60s 无闪烁均未实测。
+
+---
+
+## [未发布 · 底栏外观修正] — 未发版（UI-2 收尾）
+
+> 真机反馈底栏视觉比例失衡：选中胶囊铺满整格、底栏偏高、图标不可见。本轮只改底栏外观，不动 MainNavigator 状态管理、Tab 转场、课表与返回手势。核心 1262 断言、UI 守卫 131 锚点全绿，普通版 APK 已构建并 v2/v3 验签。
+
+### 修复
+- **图标 0×0 根因**：`AnimatedNavBar` 的图标 `ImageView` 原用 `wrap_content`，而 `AppUi.Icon` 没有固有尺寸，被量成 0×0——真机只显示文字。改为固定 `NAV_ICON`(22dp) 尺寸，图标正常显示。
+- **选中胶囊只包图标**：从「铺满整格（slotWidth−8 × 行高−8）」收敛到 64×32dp、圆角 16dp，定位在图标槽背后、不压文字；三个 Tab 各有等宽图标槽，图标/胶囊/文字始终对齐。今日入口改用房屋图标 `home`（在现有 `AppUi.Icon` 家族内新增画法，未引入图标库）。
+- **底栏尺寸**：内容高度固定 72dp（落在 68–76dp 目标区间），外框圆角 24→28dp，`navHolder` 水平/底部留白 8→4dp；宽度、左右边距仍走 `AppUi.side()` 自适应，系统栏 Insets 仍只在 MainShell 处理一次。
+- 选中/未选中色仍为 `AppUi.ACCENT` / `AppUi.MUTED`，胶囊为 `AppUi.SOFT`，随浅色/深色/自定义主题刷新；胶囊 260ms `translationX` 平滑移动、快速连点从当前位置续接、首次布局/旋转/关动画直接到终态——原有动画机制不变。
+
+### 验证
+- `test_core` 1262 / `test_build_config` 5 / `test_webview_policy` 5 / `test_ui_contract` 131 全绿；APK v2/v3 验签通过，普通版无诊断、无水控。
+- **待真机验收**：胶囊位置/图标显示、320dp 窄屏、大字体、深色/自定义主题、快速连点无残影错位。
 
 ---
 

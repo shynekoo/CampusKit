@@ -32,8 +32,9 @@ final class MainShell extends LinearLayout {
 
         LinearLayout navHolder = new LinearLayout(activity);
         navHolder.setOrientation(LinearLayout.VERTICAL);
-        // 旧版底栏的 8dp 水平留白、2dp 顶部、8dp 底部作为初始基线。
-        navHolder.setPadding(AppUi.dp(activity, 8), AppUi.dp(activity, 2), AppUi.dp(activity, 8), AppUi.dp(activity, 8));
+        // 外观修正：水平/底部留白从 8dp 收敛到 4dp，缩小无意义留白；顶部仍留 2dp 与内容分隔。
+        // 左右边距仍叠加在 shell 的 AppUi.side() 自适应之上，系统导航栏 Insets 仍只在 shell 处理一次。
+        navHolder.setPadding(AppUi.dp(activity, 4), AppUi.dp(activity, 2), AppUi.dp(activity, 4), AppUi.dp(activity, 4));
         navHolder.addView(navBar, new LinearLayout.LayoutParams(-1, -2));
 
         addView(headerHost, new LinearLayout.LayoutParams(-1, -2));

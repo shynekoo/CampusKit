@@ -3,7 +3,6 @@ package io.qzxy.lite.preview;
 import android.animation.ArgbEvaluator;
 import android.animation.ValueAnimator;
 import android.content.Context;
-import android.graphics.drawable.Drawable;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.FrameLayout;
@@ -17,14 +16,19 @@ import android.widget.TextView;
  * <p>三项只在构造时各 new 一次，切 Tab 走 {@link #select(int, boolean)} 只更新颜色与胶囊位置，
  * 不再重建视图——这是「底栏不消失再出现」的关键。胶囊只用 {@code translationX} 移动，坐标全程
  * 留在 tabRow 父容器这一层，不混用 getX/getLeft。图标 Drawable 也只建一次，之后改色 + 重绘。</p>
+ *
+ * <p>外观修正：胶囊只覆盖图标那一行（64×32dp、圆角 16dp），不再铺满整格；每个 Tab 是一个固定宽度
+ * 的图标槽 + 12sp 文字，图标槽与胶囊同宽，保证三个入口始终对齐。图标 ImageView 用固定 dp 尺寸
+ * ——AppUi.Icon 没有固有尺寸，wrap_content 会把它量成 0×0，这正是真机「只有文字」的根因。</p>
  */
 final class AnimatedNavBar extends FrameLayout {
     private static final String[] LABELS = {"今日", "课表", "账号"};
-    private static final String[] ICONS = {"today", "calendar", "user"};
+    private static final String[] ICONS = {"home", "calendar", "user"};
 
     private final View indicator;
     private final LinearLayout tabRow;
     private final LinearLayout[] tabs = new LinearLayout[3];
+    private final FrameLayout[] iconSlots = new FrameLayout[3];
     private final TextView[] captions = new TextView[3];
     private final AppUi.Icon[] icons = new AppUi.Icon[3];
 
@@ -33,7 +37,7 @@ final class AnimatedNavBar extends FrameLayout {
     private ValueAnimator[] colorAnims = new ValueAnimator[3];
     private float[] colorState = new float[3];   // 0 = MUTED, 1 = ACCENT
     private int selected = 0;
-    private int slotWidth, inset, indicatorW, indicatorH;
+    private int slotWidth, indicatorW, indicatorH;
     private boolean layoutReady;
 
     interface Listener { void onTab(int index); }
@@ -42,69 +46,72 @@ final class AnimatedNavBar extends FrameLayout {
     AnimatedNavBar(Context context, Listener listener) {
         super(context);
         this.listener = listener;
-        this.inset = AppUi.dp(context, MotionSpec.TAB_OFFSET_DP);
-        // 旧版的细描边胶囊外框：hairline 四角均匀，不加 elevation 投影（偏下会在两个下角留黑印）。
+        indicatorW = AppUi.dp(context, UiTokens.PILL_W);
+        indicatorH = AppUi.dp(context, UiTokens.PILL_H);
+        // 外框：细描边四角均匀，不加 elevation 投影（偏下会在两个下角留黑印）。圆角走 token 28dp。
         setBackground(AppUi.outlined(context, AppUi.SURFACE, UiTokens.NAV_RADIUS, AppUi.LINE));
-        setPadding(AppUi.dp(context, 5), AppUi.dp(context, 5), AppUi.dp(context, 5), AppUi.dp(context, 5));
+        // 缩小无意义留白：左右 4dp、上下 4dp；宽度/左右边距仍由 MainShell 的 AppUi.side() 决定。
+        setPadding(AppUi.dp(context, 4), AppUi.dp(context, 4), AppUi.dp(context, 4), AppUi.dp(context, 4));
 
         indicator = new View(context);
         indicator.setBackground(AppUi.shape(context, AppUi.SOFT, UiTokens.PILL_RADIUS));
-        addView(indicator, new FrameLayout.LayoutParams(0, 0, Gravity.TOP));
+        addView(indicator, new FrameLayout.LayoutParams(indicatorW, indicatorH, Gravity.TOP));
 
         tabRow = new LinearLayout(context);
         tabRow.setOrientation(LinearLayout.HORIZONTAL);
-        tabRow.setPadding(AppUi.dp(context, 5), AppUi.dp(context, 5), AppUi.dp(context, 5), AppUi.dp(context, 5));
         for (int i = 0; i < 3; i++) {
             LinearLayout tab = new LinearLayout(context);
             tab.setOrientation(LinearLayout.VERTICAL);
             tab.setGravity(Gravity.CENTER);
-            tab.setMinimumHeight(AppUi.dp(context, 56));
-            tab.setPadding(0, AppUi.dp(context, 6), 0, AppUi.dp(context, 6));
+            tab.setMinimumHeight(AppUi.dp(context, UiTokens.MIN_TOUCH));
             AppUi.press(tab, 0x00ffffff, UiTokens.PILL_RADIUS);
 
+            // 图标槽与胶囊同宽同高：胶囊盖住的就是这一格，不会压到下面的文字。
+            FrameLayout iconSlot = new FrameLayout(context);
             ImageView iconView = new ImageView(context);
             // 用现有 icon 工厂拿图标，并把它当 AppUi.Icon 缓存下来：换色只改字段 + 重绘，
             // 不在每一帧重新创建 Drawable。
             AppUi.Icon icon = (AppUi.Icon) AppUi.icon(context, ICONS[i], AppUi.MUTED, UiTokens.NAV_ICON);
+            // 固定 dp 尺寸而非 wrap_content：自定义 Drawable 无固有尺寸，wrap_content 会量成 0×0。
             iconView.setImageDrawable(icon);
             iconView.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-            tab.addView(iconView, new LinearLayout.LayoutParams(-2, -2));
+            iconSlot.addView(iconView, new FrameLayout.LayoutParams(AppUi.dp(context, UiTokens.NAV_ICON),AppUi.dp(context, UiTokens.NAV_ICON), Gravity.CENTER));
+            iconSlot.setClickable(false);
+            tab.addView(iconSlot, new LinearLayout.LayoutParams(indicatorW, indicatorH));
 
             TextView caption = new TextView(context);
             caption.setText(LABELS[i]);
             caption.setTextSize(UiTokens.NAV_TEXT);
             caption.setGravity(Gravity.CENTER);
-            caption.setPadding(0, AppUi.dp(context, 4), 0, 0);
+            caption.setPadding(0, AppUi.dp(context, 2), 0, 0);
             tab.addView(caption, new LinearLayout.LayoutParams(-2, -2));
 
             final int index = i;
             tab.setOnClickListener(v -> { if (listener != null) listener.onTab(index); });
-            tabRow.addView(tab, new LinearLayout.LayoutParams(0, -2, 1));
+            // 高度 MATCH_PARENT 撑满 tabRow，tabRow 固定 NAV_CONTENT_HEIGHT - 外框上下留白。
+            tabRow.addView(tab, new LinearLayout.LayoutParams(0, -1, 1));
             tabs[i] = tab;
+            iconSlots[i] = iconSlot;
             captions[i] = caption;
             icons[i] = icon;
             colorState[i] = 0f;
         }
-        addView(tabRow, new FrameLayout.LayoutParams(-1, -2, Gravity.TOP));
+        int rowHeight = AppUi.dp(context, UiTokens.NAV_CONTENT_HEIGHT) - AppUi.dp(context, 4) * 2;
+        addView(tabRow, new FrameLayout.LayoutParams(-1, rowHeight, Gravity.TOP));
     }
 
     @Override protected void onLayout(boolean changed, int l, int t, int r, int b) {
         super.onLayout(changed, l, t, r, b);
         int rowWidth = tabRow.getWidth() - tabRow.getPaddingLeft() - tabRow.getPaddingRight();
-        int rowHeight = tabRow.getHeight() - tabRow.getPaddingTop() - tabRow.getPaddingBottom();
-        if (rowWidth <= 0 || rowHeight <= 0) return;
+        if (rowWidth <= 0 || iconSlots[0].getHeight() <= 0) return;
         slotWidth = rowWidth / 3;
-        indicatorW = slotWidth - inset;
-        indicatorH = rowHeight - inset;
-        // 胶囊的父容器就是这个 FrameLayout，tabRow 也在同一个父容器里；起点取 tabRow 的 padding 内沿，
-        // 全程只用同一层坐标 + translationX，不混用 getX/getLeft 或跨父容器换算。
-        int originX = tabRow.getLeft() + tabRow.getPaddingLeft();
-        int originY = tabRow.getTop() + tabRow.getPaddingTop();
-        if (indicator.getWidth() != indicatorW || indicator.getHeight() != indicatorH) {
-            indicator.measure(View.MeasureSpec.makeMeasureSpec(indicatorW, View.MeasureSpec.EXACTLY),
-                View.MeasureSpec.makeMeasureSpec(indicatorH, View.MeasureSpec.EXACTLY));
-        }
-        indicator.layout(originX, originY, originX + indicatorW, originY + indicatorH);
+        // 胶囊的父容器就是这个 FrameLayout，tabRow 也在同一父容器里。图标槽是 tab 的子、tab 是
+        // tabRow 的子，逐层 getLeft/getTop 累加得到图标槽在胶囊父容器坐标系的落点；全程只用
+        // 同一层坐标 + translationX，不混用 getX 或跨父容器换算。
+        int originX = tabRow.getLeft() + tabRow.getPaddingLeft()
+            + tabs[0].getLeft() + iconSlots[0].getLeft();
+        int iconTop = tabRow.getTop() + tabs[0].getTop() + iconSlots[0].getTop();
+        indicator.layout(originX, iconTop, originX + indicatorW, iconTop + indicatorH);
         layoutReady = true;
         // 首次布局 / 旋转 / 分区变化：直接放到终态，绝不播放从左滑来的假动画。
         indicator.setTranslationX(targetX(selected));
@@ -112,7 +119,8 @@ final class AnimatedNavBar extends FrameLayout {
 
     private float targetX(int index) {
         if (slotWidth <= 0) return 0f;
-        return (float) (index * slotWidth + (slotWidth - indicatorW) / 2);
+        // 三项等宽、图标槽在每个 tab 内水平居中，相邻槽的间距正好是一个 slotWidth。
+        return (float) index * slotWidth;
     }
 
     /** 更新选中项。animate=false 用于初次显示、旋转、数据刷新后的同步。 */
@@ -138,6 +146,8 @@ final class AnimatedNavBar extends FrameLayout {
         if (capsuleAnim != null) { capsuleAnim.cancel(); capsuleAnim = null; }
         float end = targetX(to);
         if (!animate) { indicator.setTranslationX(end); return; }
+        // 从「当前位置」动画到新目标：快速连点时先 cancel 旧动画，translationX 停在中间值，
+        // 新动画从该值接着走，不会跳回起点重播。
         ValueAnimator anim = ValueAnimator.ofFloat(indicator.getTranslationX(), end);
         anim.setDuration(MotionSpec.NAV_DURATION);
         anim.setInterpolator(MotionSpec.indicator());

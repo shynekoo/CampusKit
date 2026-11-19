@@ -216,8 +216,11 @@ def main():
     tokens_src = ui_tokens.read_text(encoding="utf-8") if ui_tokens.exists() else ""
     motion_src = motion_spec.read_text(encoding="utf-8") if motion_spec.exists() else ""
     require(tokens_src, "CARD_RADIUS = 18", "UiTokens", "UI-1 card radius baseline is 18dp")
-    require(tokens_src, "NAV_RADIUS = 24", "UiTokens", "UI-1 nav radius baseline is 24dp")
-    require(tokens_src, "PILL_RADIUS = 18", "UiTokens", "UI-1 pill radius baseline is 18dp")
+    require(tokens_src, "NAV_RADIUS = 28", "UiTokens", "nav bar corner refined to 28dp")
+    require(tokens_src, "PILL_RADIUS = 16", "UiTokens", "selection pill corner refined to 16dp")
+    require(tokens_src, "PILL_W = 64", "UiTokens", "selection pill width 64dp")
+    require(tokens_src, "PILL_H = 32", "UiTokens", "selection pill height 32dp (behind icon only)")
+    require(tokens_src, "NAV_CONTENT_HEIGHT = 72", "UiTokens", "nav content height in 68-76dp")
     require(tokens_src, "MIN_TOUCH = 48", "UiTokens", "48dp minimum touch target")
     require(tokens_src, "NAV_ICON = 22", "UiTokens", "22dp nav icon")
     require(tokens_src, "NAV_TEXT = 12", "UiTokens", "12sp nav label")
@@ -263,6 +266,18 @@ def main():
     require(nav_src, "MotionSpec.shouldAnimate(", "AnimatedNavBar", "animation-off handled")
     require(nav_src, "translationX", "AnimatedNavBar", "capsule moves by translationX only")
     require(nav_src, "target < 0 || target > 2", "AnimatedNavBar", "selected index always 0/1/2")
+    # --- nav visual refinement: house icon, fixed-size icon, pill behind icon only ----------
+    require(nav_src, '"home", "calendar", "user"', "AnimatedNavBar",
+            "today tab uses a house icon; calendar/user unchanged")
+    require(screens, 'case "home":', "AppUi", "house icon drawing must be provided by the shared icon family")
+    require(nav_src, "UiTokens.PILL_W", "AnimatedNavBar", "pill width comes from the 64dp token")
+    require(nav_src, "UiTokens.PILL_H", "AnimatedNavBar", "pill height comes from the 32dp token")
+    require(nav_src, "AppUi.dp(context, UiTokens.NAV_ICON),AppUi.dp(context, UiTokens.NAV_ICON)",
+            "AnimatedNavBar", "icon ImageView must use a fixed dp size, not wrap_content (0x0 bug)")
+    require(nav_src, "iconSlots", "AnimatedNavBar", "per-tab icon slots keep icon/pill/label aligned")
+    require(nav_src, "indicator.layout(originX, iconTop, originX + indicatorW, iconTop + indicatorH)",
+            "AnimatedNavBar", "pill is positioned behind the icon row, not the whole tab")
+    require(nav_src, "UiTokens.MIN_TOUCH", "AnimatedNavBar", "each tab keeps a 48dp touch target")
     # Activity: shell created once, tabs never re-inflated on select, split render flow present.
     require(activity, "setContentView(shell)", "TimetableActivity", "setContentView only inside ensureShell")
     checks += 1

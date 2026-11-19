@@ -64,6 +64,8 @@ final class AppUi {
     case "user":c.drawCircle(12,8,3.5f,p);c.drawArc(4,13,20,25,190,160,false,p);break;
     case "calendar":rect(c,3,5,21,21);line(c,3,10,21,10);line(c,8,3,8,7);line(c,16,3,16,7);line(c,7,14,10,14);line(c,14,14,17,14);break;
     case "today":rect(c,4,3,20,21);line(c,8,8,16,8);line(c,8,12,16,12);line(c,8,16,13,16);break;
+    // 底栏「今日」的房屋图标：屋顶两斜边 + 墙体 + 门。与 today 的文档形区分，避免两个入口混淆。
+    case "home":line(c,3,11,12,4);line(c,12,4,21,11);line(c,5.5f,10,5.5f,20);line(c,18.5f,10,18.5f,20);line(c,4.5f,20,19.5f,20);rect(c,10,14,14,20);break;
     case "pay":rect(c,3,5,21,19);line(c,3,10,21,10);line(c,6,15,10,15);break;
     case "parcel":rect(c,4,5,20,20);line(c,4,10,20,10);line(c,12,5,12,10);line(c,9,15,15,15);break;
     case "water":Path drop=new Path();drop.moveTo(12,2);drop.cubicTo(9,7,5,10,5,15);drop.cubicTo(5,24,19,24,19,15);drop.cubicTo(19,10,15,7,12,2);c.drawPath(drop,p);break;
