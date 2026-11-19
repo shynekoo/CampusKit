@@ -190,6 +190,11 @@ public final class EduTimetableImportActivity extends Page {
         final String label = years.get(yearIndex)[1] + " · " + terms.get(termIndex)[1];
         final int ticket = ++generation;
         worker.execute(() -> {
+            // 一次导入分成账号、登录、请求、解析四段：日志里能看出停在哪一段，而不是只有一句
+            // 「导入失败」。只记录阶段和结果，不记录课程内容。
+            String trace = Diag.trace();
+            long mark = Diag.mark();
+            Diag.event(Diag.INFO, "TIMETABLE", "load.start", "trace", trace, "stage", "account");
             try {
                 EduVault.Credential credential = new EduVault(getApplicationContext()).load();
                 if (credential == null || !credential.complete())
@@ -198,10 +203,24 @@ public final class EduTimetableImportActivity extends Page {
                     throw new AccountNeeded("保存的密码曾被学校拒绝。请重新保存一次，或改用网页手动导入。");
                 EduClient.reopen();
                 EduClient.remember(credential.user, credential.password, false);
-                if (!EduClient.signedIn()) EduClient.signIn();
+                if (!EduClient.signedIn()) {
+                    Diag.event(Diag.INFO, "TIMETABLE", "login.stage", "trace", trace, "stage", "signin");
+                    EduClient.signIn();
+                }
+                Diag.event(Diag.INFO, "TIMETABLE", "load.start", "trace", trace, "stage", "request");
                 String raw = EduClient.timetable(year, term);
-                EduTimetableReader.Result parsed = EduTimetableReader.parse(raw);
-                TimetableWebReader.parse(parsed.json);   // final check with the shared course parser
+                Diag.event(Diag.INFO, "TIMETABLE", "request.end", "trace", trace,
+                    "bytes", raw == null ? 0 : raw.length());
+                EduTimetableReader.Result parsed;
+                try {
+                    parsed = EduTimetableReader.parse(raw);
+                } catch (RuntimeException broken) {
+                    Diag.failure("TIMETABLE", "parse.failed", "PARSE", broken, trace);
+                    throw broken;
+                }
+                int courses = TimetableWebReader.parse(parsed.json).courses.size();   // final check with the shared course parser
+                Diag.event(Diag.INFO, "TIMETABLE", "parse.success", "trace", trace,
+                    "courses", courses, "count", parsed.skipped, "duration", Diag.since(mark));
                 post(ticket, () -> {
                     setResult(RESULT_OK, new Intent()
                         .putExtra("courses", parsed.json)
@@ -212,6 +231,8 @@ public final class EduTimetableImportActivity extends Page {
                     finish();
                 });
             } catch (AccountNeeded need) {
+                Diag.event(Diag.WARN, "TIMETABLE", "load.failed", "trace", trace,
+                    "reason", "NO_CREDENTIALS", "stage", "account");
                 post(ticket, () -> {
                     busy = false;
                     screen.loading(false);
@@ -220,6 +241,7 @@ public final class EduTimetableImportActivity extends Page {
                     openAccount(true);
                 });
             } catch (Exception failure) {
+                Diag.failure("TIMETABLE", "load.failed", Diag.reason(failure), failure, trace);
                 final String message = describe(failure);
                 post(ticket, () -> {
                     busy = false;

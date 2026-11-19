@@ -36,19 +36,25 @@ final class AlipayLogin {
      */
     static String code(Activity activity) throws Refused {
         Map<String, String> result;
+        String trace = Diag.trace();
+        long mark = Diag.mark();
+        Diag.event(Diag.INFO, "AUTH", "auth.start", "trace", trace);
         try {
             result = new AuthTask(activity).authV2(AUTH_INFO, true);
         } catch (Throwable error) {
-            Diag.step("授权", "authV2 抛异常 " + error.getClass().getSimpleName());
+            // 记类型与阶段，不记 SDK 原文：那串里逐字带着授权码。
+            Diag.failure("AUTH", "auth.failed", "AUTH_CANCELLED", error, trace);
             throw new Refused("没能唤起支付宝，请确认已安装并登录支付宝后重试。");
         }
         String status = value(result == null ? null : result.get("resultStatus"));
         String body = value(result == null ? null : result.get("result"));
         String memo = value(result == null ? null : result.get("memo"));
         // 这一行是整份记录里最关键的一行：有它，说明 SDK 回到了 App；没有它，就是回调丢了。
-        Diag.step("授权", "authV2 返回 status=" + status + " memo=" + memo
-            + " 结果=" + Diag.maskChain(body));
+        Diag.event(Diag.INFO, "AUTH", "auth.returned", "trace", trace,
+            "status", status, "duration", Diag.since(mark));
         if (!"9000".equals(status)) {
+            Diag.event(Diag.WARN, "AUTH", "auth.failed", "trace", trace,
+                "reason", "AUTH_CANCELLED", "status", status);
             if ("6001".equals(status)) throw new Refused("已取消支付宝授权。");
             throw new Refused(memo.isEmpty()
                 ? "支付宝授权未完成（状态 " + (status.isEmpty() ? "未知" : status) + "）。"
@@ -57,6 +63,8 @@ final class AlipayLogin {
         String code = param(body, "auth_code");
         String resultCode = param(body, "result_code");
         if (!"200".equals(resultCode) || code.isEmpty()) {
+            Diag.event(Diag.ERROR, "AUTH", "auth.failed", "trace", trace,
+                "reason", "PARSE", "code", resultCode, "stage", "no_auth_code");
             throw new Refused("支付宝已经返回，但没有给出授权码（结果 " + (resultCode.isEmpty() ? "未知" : resultCode) + "）。");
         }
         return code;

@@ -76,6 +76,15 @@ final class AppChangelog {
      * 收录口径写在这里，免得下次有人以为漏了。</p>
      */
     static final Entry[] ENTRIES = {
+        new Entry("2.5.8", 208, "2026-11-19", null,
+            new Item(Kind.IMPROVED, "底栏和页面切换动画重做：切换更顺，切走再回来还停在原来的位置"),
+            new Item(Kind.ADDED, "新增学业情况查询：每个课组都能点开，看到课程、成绩和学分"),
+            new Item(Kind.ADDED, "新增趣智校园使用码：没带手机扫不了码时，输入 8 位码也能开启设备"),
+            new Item(Kind.ADDED, "新增应用内更新日志：更多 → 更新日志，每次改了什么都能回看"),
+            new Item(Kind.IMPROVED, "「回本周」改成整屏滑过去，松手那一刻就是那一周，不再闪一下"),
+            new Item(Kind.FIXED, "修好部分课组「右边写着有学分、点开却说没有课程记录」的问题"),
+            new Item(Kind.ADDED, "新增诊断日志：遇到问题时打开记录、导出给开发者；默认关闭，只存在本机"),
+            new Item(Kind.IMPROVED, "使用公告与隐私说明按实际行为重写，并去掉一个从未用过的权限")),
         new Entry("2.5.7", 197, "2026-11-18", null,
             new Item(Kind.ADDED, "新增深色主题：版面和浅色一样，晚上看课表不再刺眼"),
             new Item(Kind.ADDED, "新增返回手势动画：从屏幕边缘滑回时，页面跟着手指缩小"),

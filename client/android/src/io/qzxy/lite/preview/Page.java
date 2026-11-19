@@ -56,8 +56,8 @@ public class Page extends Activity {
     @Override protected void onCreate(Bundle saved) {
         super.onCreate(saved);
         // 进出动画不在这里写死：统一由 refreshBackMode() 决定，避免两处各写一套互相顶掉。
-        if (Diag.ON) Diag.step("返回手势", "SDK=" + Build.VERSION.SDK_INT
-            + " 动画=" + (Theme.slide() ? "开" : "关") + " 类型=" + (backMayStay() ? "页内返回" : "关闭页面"));
+        if (Diag.DETAIL) Diag.event(Diag.INFO, "UI", "nav.open", "page", getClass().getSimpleName(),
+            "stage", backMayStay() ? "stay" : "close");
     }
 
     @Override public void setContentView(View view) {
@@ -185,7 +185,7 @@ public class Page extends Activity {
         applyTransition(mode);
         applyCallback(mode);
         backMode = mode;
-        if (Diag.ON) Diag.step("返回手势", "方式=" + (mode == BACK_CARD ? "跟手缩卡" : "轻过渡"));
+        if (Diag.DETAIL) Diag.event(Diag.INFO, "UI", "back.gesture", "stage", mode == BACK_CARD ? "card" : "mild");
     }
 
     /**
@@ -218,7 +218,7 @@ public class Page extends Activity {
         }
         // 轻过渡：注册普通回调，系统就不再缩卡片，页面按 onBackPressed() 的说法走。
         android.window.OnBackInvokedCallback plain = () -> {
-            if (Diag.ON) Diag.step("返回手势", "回调命中");
+            if (Diag.DETAIL) Diag.event(Diag.INFO, "UI", "back.gesture", "stage", "callback");
             onBackPressed();
         };
         getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
@@ -230,7 +230,7 @@ public class Page extends Activity {
     private void registerCardBack() {
         android.window.OnBackAnimationCallback animated = new android.window.OnBackAnimationCallback() {
             @Override public void onBackStarted(android.window.BackEvent event) {
-                if (Diag.ON) Diag.step("返回手势", "开始 边缘=" + event.getSwipeEdge());
+                if (Diag.DETAIL) Diag.event(Diag.INFO, "UI", "back.gesture", "stage", "start", "code", event.getSwipeEdge());
                 cardLayer.start(event.getSwipeEdge());
             }
 
@@ -239,12 +239,12 @@ public class Page extends Activity {
             }
 
             @Override public void onBackCancelled() {
-                if (Diag.ON) Diag.step("返回手势", "中途放弃，弹回");
+                if (Diag.DETAIL) Diag.event(Diag.INFO, "UI", "back.gesture", "stage", "cancel");
                 cardLayer.cancel();
             }
 
             @Override public void onBackInvoked() {
-                if (Diag.ON) Diag.step("返回手势", "松手，关窗");
+                if (Diag.DETAIL) Diag.event(Diag.INFO, "UI", "back.gesture", "stage", "commit");
                 closing = true;
                 cardLayer.leave(Page.this::finishNow);
             }

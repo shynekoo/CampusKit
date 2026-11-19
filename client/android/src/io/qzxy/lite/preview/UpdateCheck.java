@@ -111,17 +111,27 @@ final class UpdateCheck {
         final int installed = versionCode(activity);
         Thread worker = new Thread(new Runnable() {
             @Override public void run() {
+                String trace = Diag.trace();
+                long mark = Diag.mark();
+                Diag.event(Diag.INFO, "UPDATE", "check.start", "trace", trace);
                 UpdateManifest manifest;
                 try {
                     manifest = UpdateManifest.parse(read(MANIFEST));
                 } catch (Exception unavailable) {
+                    // 检查更新失败一直是不打扰的静默失败；日志里留原因，界面仍然不弹窗。
+                    Diag.failure("UPDATE", "check.failed", Diag.reason(unavailable), unavailable, trace);
                     if (manual) say(activity, "暂时查不到新版本", "读不到版本信息，请确认网络后重试。");
                     return;
                 }
                 if (!manifest.newerThan(installed)) {
+                    Diag.event(Diag.INFO, "UPDATE", "check.start", "trace", trace,
+                        "stage", "latest", "duration", Diag.since(mark));
                     if (manual) say(activity, "已是最新版本", "当前 " + AppUi.version(activity) + "，没有可安装的更新。");
                     return;
                 }
+                Diag.event(Diag.INFO, "UPDATE", "check.available", "trace", trace,
+                    "version", manifest.version, "code", manifest.versionCode,
+                    "duration", Diag.since(mark));
                 // 稍后 is remembered for that exact release; asking again on every start would be
                 // the nagging this check is supposed to avoid.
                 if (!manual && manifest.versionCode == skipped(activity)) return;
@@ -245,8 +255,10 @@ final class UpdateCheck {
             @Override public void run() {
                 String failure = null;
                 try {
+                    Diag.event(Diag.INFO, "UPDATE", "install.start", "version", manifest.version);
                     save(activity, manifest, target, progress, cancelled);
                 } catch (Exception problem) {
+                    Diag.failure("UPDATE", "download.failed", Diag.reason(problem), problem, Diag.trace());
                     failure = problem.getMessage() == null ? "下载失败" : problem.getMessage();
                     target.delete();
                 }
@@ -303,11 +315,18 @@ final class UpdateCheck {
             output.flush();
             output.close();
             output = null;
-            if (progress.done != manifest.bytes) throw new IOException("安装包大小与说明不符");
-            StringBuilder hex = new StringBuilder(64);
-            for (byte value : digest.digest()) hex.append(String.format(Locale.US, "%02x", value & 0xff));
-            if (!hex.toString().equals(manifest.sha256)) throw new IOException("安装包校验失败，已删除");
-            verifyPackage(context, target, manifest);
+            String trace = Diag.trace();
+            try {
+                if (progress.done != manifest.bytes) throw new IOException("安装包大小与说明不符");
+                StringBuilder hex = new StringBuilder(64);
+                for (byte value : digest.digest()) hex.append(String.format(Locale.US, "%02x", value & 0xff));
+                if (!hex.toString().equals(manifest.sha256)) throw new IOException("安装包校验失败，已删除");
+                verifyPackage(context, target, manifest);
+            } catch (IOException invalid) {
+                // 校验失败要能区分「下载不完整」和「包被换过」，日志里就记这一步的类与原因。
+                Diag.failure("UPDATE", "verify.failed", "VERIFY", invalid, trace);
+                throw invalid;
+            }
         } finally {
             if (output != null) try { output.close(); } catch (IOException ignored) { }
             if (connection != null) connection.disconnect();

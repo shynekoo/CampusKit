@@ -58,6 +58,8 @@ final class HttpForm {
             if (testTransport == null) throw new IOException("Offline test transport not installed");
             return testTransport.request(path, form, post);
         }
+        long mark = Diag.mark();
+        String trace = Diag.trace();
         URL url = new URL(origin + path + (post ? "" : "?" + form));
         HttpsURLConnection connection = (HttpsURLConnection) url.openConnection();
         connection.setConnectTimeout(TIMEOUT_MS);
@@ -81,6 +83,10 @@ final class HttpForm {
             }
             int status = connection.getResponseCode();
             rememberConfig(connection);
+            // 路由与状态码足够定位：哪个接口、返回几、花了多久。请求体与响应体一律不进日志。
+            Diag.event(status == 200 ? Diag.INFO : Diag.WARN, "NETWORK", "request.end",
+                "trace", trace, "route", path, "method", post ? "POST" : "GET",
+                "http", status, "duration", Diag.since(mark));
             if(status==401)throw new SessionExpired();
             if (status != 200) throw new ResponseFailure("服务器返回 HTTP " + status);
             try (InputStream input = connection.getInputStream()) {
@@ -91,8 +97,17 @@ final class HttpForm {
                     if (bytes.size() + read > MAX_RESPONSE_BYTES) throw new IOException("服务器响应过大");
                     bytes.write(buffer, 0, read);
                 }
-                return new JSONObject(new String(bytes.toByteArray(), StandardCharsets.UTF_8));
+                try {
+                    return new JSONObject(new String(bytes.toByteArray(), StandardCharsets.UTF_8));
+                } catch (JSONException broken) {
+                    Diag.failure("NETWORK", "response.parse.failed", "PARSE", broken, trace);
+                    throw broken;
+                }
             }
+        } catch (java.net.SocketTimeoutException timeout) {
+            Diag.event(Diag.WARN, "NETWORK", "request.timeout", "trace", trace,
+                "route", path, "duration", Diag.since(mark));
+            throw timeout;
         } finally { connection.disconnect(); }
     }
 

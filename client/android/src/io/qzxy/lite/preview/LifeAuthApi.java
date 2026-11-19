@@ -73,9 +73,11 @@ final class LifeAuthApi {
         HttpURLConnection c=(HttpURLConnection)new URL(HOST+path).openConnection();c.setInstanceFollowRedirects(false);c.setConnectTimeout(15000);c.setReadTimeout(15000);
         c.setRequestProperty("ApplicationType","1,1");c.setRequestProperty("VersionCode","31005");c.setRequestProperty("User-Agent","CampusKit/0.9.10 (Android; independent client)");
         if(token!=null)c.setRequestProperty("Authorization",token);
+        long mark=Diag.mark();
         try{if(body!=null){c.setRequestMethod("POST");c.setDoOutput(true);c.setRequestProperty("Content-Type","application/json; charset=utf-8");try(OutputStream out=c.getOutputStream()){out.write(body.toString().getBytes("UTF-8"));}}
             int status=c.getResponseCode();
-            Diag.step("接口",(body!=null?"POST ":"GET ")+quiet(path)+" → HTTP "+status);
+            Diag.event(status==200?Diag.INFO:Diag.WARN,"LIFE","request.end","route",quiet(path),
+                "http",status,"method",body!=null?"POST":"GET","duration",Diag.since(mark));
             if(status!=200)throw new IOException("服务暂不可用，请稍后重试");return TimetableBackup.read(c.getInputStream(),1024*1024);
         }finally{c.disconnect();}
     }

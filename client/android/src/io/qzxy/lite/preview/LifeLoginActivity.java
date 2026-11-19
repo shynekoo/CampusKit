@@ -81,7 +81,7 @@ public final class LifeLoginActivity extends Page {
         // A saved session is worth saying before the reader taps anything, but it is only a hint: an
         // unreadable vault must not stop the page from opening.
         try{if(new LifeSessionVault(this).exists())status.setText("已保存账号，可检查登录状态或重新登录。");}catch(Exception ignored){}
-        Diag.step("登录","打开登录页 "+AppUi.version(this));
+        Diag.event(Diag.INFO,"LIFE","login.start","stage","page");
     }
     private Button primary(LinearLayout form,String label,Runnable action){
         Button b=new Button(this);b.setText(label);b.setAllCaps(false);b.setTextSize(16);b.setTextColor(AppUi.ON_ACCENT);
@@ -99,7 +99,7 @@ public final class LifeLoginActivity extends Page {
         busy=true;status.setText("正在处理…");enable(false);
         worker.execute(()->{
             String message;try{message=job.execute();}catch(Exception error){message=explain(error);
-                Diag.step("异常",error.getClass().getSimpleName()+": "+(error.getMessage()==null?"":error.getMessage()));}
+                Diag.failure("LIFE","login.failed",Diag.reason(error),error,Diag.trace());}
             final String result=message;
             runOnUiThread(()->{if(isDestroyed())return;busy=false;enable(true);status.setText(result);});
         });
@@ -120,23 +120,24 @@ public final class LifeLoginActivity extends Page {
      */
     private void alipaySignIn(){
         if(busy)return;
-        if(!consent.isChecked()){Diag.step("登录","未确认用途，停在页面上");status.setText("请先确认登录信息用途");return;}
+        if(!consent.isChecked()){Diag.event(Diag.WARN,"LIFE","login.stage","stage","consent_missing");status.setText("请先确认登录信息用途");return;}
         run(()->{
-            Diag.step("授权","开始唤起支付宝");
-            long started=android.os.SystemClock.elapsedRealtime();
+            String trace=Diag.trace();
+            long started=Diag.mark();
+            Diag.event(Diag.INFO,"LIFE","login.start","trace",trace,"stage","auth");
             String openCode=AlipayLogin.code(this);
             // 这一步的耗时是判断「回调是丢了还是慢」的分界：正常授权几秒就回来。
-            Diag.step("授权","拿到授权码 "+Diag.maskCode(openCode)
-                +" 用时 "+(android.os.SystemClock.elapsedRealtime()-started)+"ms");
+            Diag.event(Diag.INFO,"LIFE","auth.returned","trace",trace,"duration",Diag.since(started));
             JSONObject response=LifeAuthApi.post("/api/v1/acc/login",LifeAuthApi.alipay(openCode));
             int result=LifeAuthApi.resultCode(response);
             String why=LifeAuthApi.message(response);
-            Diag.step("登录","服务端 code="+result+(why.isEmpty()?"":" msg="+why));
+            Diag.event(result<0?Diag.ERROR:Diag.INFO,"LIFE",result<0?"login.failed":"request.end",
+                "trace",trace,"code",result,"stage","login");
             if(result<0){return why.isEmpty()?"支付宝授权成功，但慧生活没有接受这次登录":why;}
             JSONObject session=LifeAuthApi.session(response);
             if(closed||isFinishing()||isDestroyed())return "已取消保存";
             new LifeSessionVault(this).save(session);
-            Diag.step("登录","凭据已保存，登录完成");
+            Diag.event(Diag.INFO,"LIFE","login.success","trace",trace,"duration",Diag.since(started));
             runOnUiThread(()->{if(isDestroyed()||isFinishing())return;setResult(RESULT_OK);finish();});
             return "已通过支付宝登录，凭据已加密保存在本机。";
         });

@@ -375,7 +375,10 @@ public final class TimetableActivity extends Page implements App.Themed {
                 .putString("import_notes", notes).putString("import_term", term).commit()) {
                 notice("课表保存失败，原课表未修改。"); return;
             }
-            courses.clear(); courses.addAll(replacement); render();
+            courses.clear(); courses.addAll(replacement);
+            Diag.event(Diag.INFO, "TIMETABLE", "import.saved", "courses", replacement.size(),
+                "count", skipped, "term", term);
+            render();
             String message = "已写入 " + replacement.size() + " 门课（" + term + "）到「"
                 + TimetableStore.currentName(this) + "」。"
                 + (skipped > 0 ? "\n另有 " + skipped + " 条记录字段不完整，已跳过。" : "")
@@ -384,6 +387,7 @@ public final class TimetableActivity extends Page implements App.Themed {
             Theme.dialog(this).setTitle("课表已导入").setMessage(message)
                 .setNegativeButton("撤销",(d,w)->undoImport()).setPositiveButton("知道了",null).show();
         } catch (Exception invalid) {
+            Diag.failure("TIMETABLE", "parse.failed", "PARSE", invalid, Diag.trace());
             notice("自动导入的课表未通过校验，原课表未修改。"
                 + (invalid.getMessage() == null ? "" : invalid.getMessage()));
         }
@@ -427,7 +431,11 @@ public final class TimetableActivity extends Page implements App.Themed {
                 JSONObject course = data.getJSONObject(i); validate(course); courses.add(course);
             }
             if (!monday.isEmpty()) parseMonday(monday);
-        } catch (Exception invalid) { unreadable = true; }
+        } catch (Exception invalid) {
+            unreadable = true;
+            // 本机课表读不出来时界面只会说「无法读取」，日志里要留下是哪一步：JSON 坏了还是字段校验没过。
+            Diag.failure("TIMETABLE", "store.unreadable", Diag.reason(invalid), invalid, Diag.trace());
+        }
         week = Math.max(1, Math.min(CoursePickers.LAST_WEEK, currentWeek()));
     }
 
@@ -1029,6 +1037,8 @@ public final class TimetableActivity extends Page implements App.Themed {
         renderContent(false, 0);
         navBar.refreshPalette();           // 主题换色后胶囊底色/文字取新的 AppUi 调色板
         navBar.select(nav.tab(), false);   // keep capsule in sync without animating
+        if (Diag.DETAIL) Diag.event(Diag.INFO, "UI", "render.done", "stage", "timetable",
+            "courses", courses.size(), "week", week);
     }
 
     /** The only user-driven tab switch path. Header, content and capsule update in a fixed order. */

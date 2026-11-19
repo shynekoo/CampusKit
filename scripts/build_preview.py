@@ -75,7 +75,12 @@ def write_build_flags(field_water, device_tests, diagnostics):
         "    /** Compile-time switch: javac removes every branch guarded by a false constant. */\n"
         "    static final boolean WATER_CONTROL = " + ("true" if field_water else "false") + ";\n"
         "    static final boolean DEVICE_TESTS = " + ("true" if device_tests else "false") + ";\n"
-        "    /** 日志页与登录流程记录：测试版打开，发布版不留这条分支。 */\n"
+        "    /**\n"
+        "     * 发布版基础诊断：诊断页 + 白名单字段的结构化事件，运行期默认关，由使用者主动开启。\n"
+        "     * 已经过安全审计（无自由文本字段、无 SDK 原文、不联网），所以两种正式包都带。\n"
+        "     */\n"
+        "    static final boolean DIAG_BASIC = true;\n"
+        "    /** 内部细节事件（手势、渲染、逐次请求）：只有显式 --diagnostics 才编入。 */\n"
         "    static final boolean DIAGNOSTICS = " + ("true" if diagnostics else "false") + ";\n"
         "    private BuildFlags() { }\n"
         "}\n", encoding="utf-8")
@@ -109,6 +114,8 @@ def main():
     if "--skip-tests" not in sys.argv:
         run([sys.executable, ROOT / "scripts/test_core.py"])
         run([sys.executable, ROOT / "scripts/test_build_config.py"])
+        run([sys.executable, ROOT / "scripts/test_diag_privacy.py"])
+        run([sys.executable, ROOT / "scripts/test_diag_files.py"])
         run([sys.executable, ROOT / "scripts/test_webview_policy.py"])
     properties = subprocess.run(["java", "-XshowSettings:properties", "-version"], capture_output=True, text=True, errors="replace", check=True)
     found = re.search(r"java.home\s*=\s*(.+)", properties.stderr)
@@ -265,7 +272,10 @@ def main():
               "account_login_implemented": True, "device_profile_implemented": True, "order_query_implemented": True,
               "recovery_store_implemented": True, "water_control_implemented": field_water,
               "field_water_build": field_water, "control_route_occurrences_in_dex": route_hits,
-              "diagnostics_implemented": diagnostics,
+              # 基础诊断在所有构建里都有；detail 才是 --diagnostics 的有无。两个都写进产物报告，
+              # 免得把 "diagnostics_implemented: false" 误读成「正式包没有诊断页」。
+              "diagnostics_basic": True,
+              "diagnostics_detail": diagnostics,
               "live_verification": "See analysis/account-balance-integration.md; this build performs no live requests",
               "live_water_supported": False,
               "source_sha256": input_hashes}

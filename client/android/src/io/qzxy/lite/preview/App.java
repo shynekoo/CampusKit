@@ -30,6 +30,9 @@ public final class App extends Application {
     @Override public void onCreate() {
         super.onCreate();
         Theme.load(this);
+        // 越早装崩溃兜底越好：登录、课表这些页面崩之前，进程可能还没打开过任何一页。
+        // 这里不写任何记录（运行期默认关），只是把文件目录和未捕获异常处理准备好。
+        Diag.install(this);
         registerActivityLifecycleCallbacks(new Lifecycle());
     }
 

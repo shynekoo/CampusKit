@@ -10,13 +10,13 @@
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ client/android  (77 个受管 Java 文件)                    │
+│ client/android  (79 个受管 Java 文件)                    │
 │   Activity / Page / View / 主题 / 平台 SDK 适配           │
 │   TimetableActivity, EduClient, LifeDeviceApi, UpdateCheck │
 └───────────────┬─────────────────────────────────────────┘
                 │ 纯 Java 调用，无 Android 依赖
 ┌───────────────▼─────────────────────────────────────────┐
-│ client/core  (45 个受管 Java 文件)                       │
+│ client/core  (48 个受管 Java 文件)                       │
 │   会话 / 协议解析 / 状态机 / 导航 / 课程模型 / 决策规则     │
 │   MainNavigator, Course, RefreshDecision, TrustedUrlPolicy│
 │   UseSession, PendingUse, UpdateManifest, 4_000_000 上限  │
@@ -30,6 +30,9 @@
 
 - `client/core` 不 import Android 类，可单独在 JVM 上编译测试（`scripts/test_core.py`）。
 - `client/android` 持有 Activity、View、平台 API；需要把规则下沉时加入 `core` 并补断言，不在 Activity 里堆业务状态。
+- 诊断日志另分三层：`core/DiagRedact`（字段白名单与脱敏）、`core/DiagEvent` / `DiagCatalog`（行格式与文案）、
+  `android/Diag`（开关、崩溃兜底、写盘）与 `android/DiagFiles`（轮转）。规则在 core 里由 JVM 断言锁住，
+  存储与页面在 android 里。详见 [`diagnostics.md`](diagnostics.md)。
 - `client/fieldtest` 是用水控制代码的独立 source set。正式（read-only）构建不包含它，构建后以 DEX 字符串扫描确认控制路由 occurrence 全为 0。
 
 ## 数据流（不公开请求细节）
@@ -39,6 +42,7 @@
                               └→ 支付 SDK（支付宝收银台 / 免密）
 凭据 → AccountVault / LifeSessionVault / EduVault → Android Keystore + AES-256-GCM → 应用私有目录
 更新 → delivery/update/update.json → UpdateManifest 校验 → 下载 → 字节数+SHA-256+包身份校验 → 用户点安装
+诊断 → Diag.event（白名单字段）→ 队列 → files/diag/*.log（256 KB × 4，7 天）→ 诊断页 / 导出 / 故障报告
 ```
 
 平台接口只写架构约束，具体域名/路径与请求头实现在源码里查；接口分类见 [`data-interfaces.md`](data-interfaces.md)，安全约束见 [`security.md`](security.md)。
@@ -58,6 +62,7 @@
 | :-- | :-- |
 | `client/core/**` | `architecture.md`、`modules.md`、`data-interfaces.md` |
 | `client/android/**` | `modules.md`、`ui-navigation.md`、`data-interfaces.md` |
+| `**/Diag*.java`、`**/Diag*Activity.java` | `diagnostics.md`、`security.md` |
 | `client/fieldtest/**`、`AndroidManifest.xml` | `modules.md`、`security.md` |
 | `scripts/build_preview.py`、`scripts/*.py` | `build-and-release.md`、`known-issues.md` |
 | `delivery/update/**` | `build-and-release.md`、`CHANGELOG.md` |
@@ -67,4 +72,4 @@
 
 ## 相关文档
 
-[模块清单](modules.md) · [构建与发布](build-and-release.md) · [安全约束](security.md) · [UI 与导航](ui-navigation.md) · [数据接口](data-interfaces.md) · [已知问题](known-issues.md) · [Agent 交接](agent-handoff.md)
+[模块清单](modules.md) · [诊断日志](diagnostics.md) · [构建与发布](build-and-release.md) · [安全约束](security.md) · [UI 与导航](ui-navigation.md) · [数据接口](data-interfaces.md) · [已知问题](known-issues.md) · [Agent 交接](agent-handoff.md)

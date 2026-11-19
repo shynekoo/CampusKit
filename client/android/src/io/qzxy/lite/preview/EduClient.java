@@ -776,6 +776,9 @@ final class EduClient {
             // An unreadable page only means the compiled-in candidates below are used as-is.
         }
         for (String path : TIMETABLE_QUERIES) if (!paths.contains(path)) paths.add(path);
+        String trace = Diag.trace();
+        long mark = Diag.mark();
+        Diag.event(Diag.INFO, "TIMETABLE", "load.start", "trace", trace, "stage", "request");
         StringBuilder tried = new StringBuilder();
         int attempts = 0;
         for (String path : paths) {
@@ -796,16 +799,28 @@ final class EduClient {
                 }
                 try {
                     JSONObject reply = ask(url, form, "课表");
-                    if (reply.optJSONArray("kbList") != null) return reply.toString();
+                    if (reply.optJSONArray("kbList") != null) {
+                        Diag.event(Diag.INFO, "TIMETABLE", "request.end", "trace", trace,
+                            "attempts", attempts, "duration", Diag.since(mark));
+                        return reply.toString();
+                    }
+                    Diag.event(Diag.WARN, "TIMETABLE", "load.empty", "trace", trace,
+                        "route", shortPath(url), "attempts", attempts);
                     tried.append(shortPath(url)).append("(无课表数据) ");
                 } catch (IOException failure) {
                     String message = failure.getMessage() == null ? "失败" : failure.getMessage();
+                    // 关键的一行：哪一个候选端点、第几次、什么原因。12 个端点全试完也只看这一串。
+                    Diag.event(Diag.WARN, "TIMETABLE", "request.failed", "trace", trace,
+                        "route", shortPath(url), "attempts", attempts,
+                        "reason", Diag.reason(failure), "duration", Diag.since(mark));
                     tried.append(shortPath(url)).append('(').append(clip(message, 70)).append(") ");
                 }
             }
             if (attempts >= 12) break;
         }
-        throw new IOException("教务课表查询没有返回数据（试过 " + attempts + " 种）：" + tried);
+        IOException empty = new IOException("教务课表查询没有返回数据（试过 " + attempts + " 种）：" + tried);
+        Diag.failure("TIMETABLE", "load.failed", "EMPTY", empty, trace);
+        throw empty;
     }
 
     // ---- transport -----------------------------------------------------------------------
@@ -853,42 +868,59 @@ final class EduClient {
      * the school locks accounts after repeated failures.
      */
     static synchronized void signIn() throws IOException {
-        if (!hasCredentials()) throw new NotSignedIn();
-        Map<String, String> jar = new LinkedHashMap<>();
-        String html = request(ORIGIN + LOGIN, "GET", null, jar, ORIGIN + "/");
-        if (EduLoginProtocol.csrf(html).isEmpty())
-            throw new IOException("没有读到登录页的令牌，学校页面可能改版了。");
-        String key = request(ORIGIN + PUBLIC_KEY + "?time=" + System.currentTimeMillis(), "GET", null, jar,
-            ORIGIN + LOGIN);
-        String modulus = EduLoginProtocol.jsonValue(key, "modulus");
-        String exponent = EduLoginProtocol.jsonValue(key, "exponent");
-        if (modulus.isEmpty() || exponent.isEmpty()) throw new IOException("没有读到学校的登录公钥。");
-        Map<String, String> form = EduLoginProtocol.fields(html);
-        form.put(EduLoginProtocol.USER, user);
+        if (!hasCredentials()) {
+            Diag.event(Diag.WARN, "EDU", "login.failed", "reason", "NO_CREDENTIALS");
+            throw new NotSignedIn();
+        }
+        // 登录是最常被反馈「登不上」的一步，因此每一步都留位置：读页、取公钥、提交、拿会话。
+        // 记录不参与任何判断，失败时照原样抛给调用方。
+        String trace = Diag.trace();
+        long mark = Diag.mark();
+        Diag.event(Diag.INFO, "EDU", "login.start", "trace", trace, "stage", "page");
         try {
-            form.put(EduLoginProtocol.PASSWORD, EduLoginProtocol.encryptPassword(modulus, exponent, password));
-        } catch (java.security.GeneralSecurityException failure) {
-            throw new IOException("密码加密失败，请重试。");
+            Map<String, String> jar = new LinkedHashMap<>();
+            String html = request(ORIGIN + LOGIN, "GET", null, jar, ORIGIN + "/");
+            if (EduLoginProtocol.csrf(html).isEmpty())
+                throw new IOException("没有读到登录页的令牌，学校页面可能改版了。");
+            Diag.event(Diag.INFO, "EDU", "login.stage", "trace", trace, "stage", "key");
+            String key = request(ORIGIN + PUBLIC_KEY + "?time=" + System.currentTimeMillis(), "GET", null, jar,
+                ORIGIN + LOGIN);
+            String modulus = EduLoginProtocol.jsonValue(key, "modulus");
+            String exponent = EduLoginProtocol.jsonValue(key, "exponent");
+            if (modulus.isEmpty() || exponent.isEmpty()) throw new IOException("没有读到学校的登录公钥。");
+            Map<String, String> form = EduLoginProtocol.fields(html);
+            form.put(EduLoginProtocol.USER, user);
+            try {
+                form.put(EduLoginProtocol.PASSWORD, EduLoginProtocol.encryptPassword(modulus, exponent, password));
+            } catch (java.security.GeneralSecurityException failure) {
+                throw new IOException("密码加密失败，请重试。");
+            }
+            Diag.event(Diag.INFO, "EDU", "login.stage", "trace", trace, "stage", "post");
+            String reply = request(ORIGIN + LOGIN + "?time=" + System.currentTimeMillis(), "POST", form, jar,
+                ORIGIN + LOGIN);
+            if (EduLoginProtocol.wrongPassword(reply)) {
+                rejected = true;
+                throw new BadPassword();
+            }
+            if (EduLoginProtocol.captchaRequired(reply)) {
+                rejected = true;
+                throw new CaptchaNeeded();
+            }
+            if (EduLoginProtocol.isLoginForm(reply)) {
+                rejected = true;
+                throw new BadPassword("登录没有成功，请核对账号密码。");
+            }
+            String cookies = cookies(jar);
+            if (cookies.isEmpty()) throw new IOException("登录后没有拿到会话，请重试。");
+            session = cookies;
+            sessionUser = user;
+            closed = false;
+            Diag.event(Diag.INFO, "EDU", "login.success", "trace", trace,
+                "duration", Diag.since(mark));
+        } catch (IOException failure) {
+            Diag.failure("EDU", "login.failed", Diag.reason(failure), failure, trace);
+            throw failure;
         }
-        String reply = request(ORIGIN + LOGIN + "?time=" + System.currentTimeMillis(), "POST", form, jar,
-            ORIGIN + LOGIN);
-        if (EduLoginProtocol.wrongPassword(reply)) {
-            rejected = true;
-            throw new BadPassword();
-        }
-        if (EduLoginProtocol.captchaRequired(reply)) {
-            rejected = true;
-            throw new CaptchaNeeded();
-        }
-        if (EduLoginProtocol.isLoginForm(reply)) {
-            rejected = true;
-            throw new BadPassword("登录没有成功，请核对账号密码。");
-        }
-        String cookies = cookies(jar);
-        if (cookies.isEmpty()) throw new IOException("登录后没有拿到会话，请重试。");
-        session = cookies;
-        sessionUser = user;
-        closed = false;
     }
 
     /** Cookies for the next request: the built-in session first, the embedded browser second. */
@@ -920,6 +952,8 @@ final class EduClient {
     private static String request(String url, String method, Map<String, String> form,
                                   Map<String, String> jar, String referer) throws IOException {
         String body = form == null ? null : SmsLoginProtocol.form(form);
+        String trace = Diag.trace();
+        long mark = Diag.mark();
         for (int redirect = 0; redirect < 6; redirect++) {
             URL target = new URL(url);
             if (!"https".equals(target.getProtocol()) || !HOST.equals(target.getHost()))
@@ -951,6 +985,9 @@ final class EduClient {
                 }
                 int status = connection.getResponseCode();
                 store(connection, jar);
+                Diag.event(status == 200 ? Diag.INFO : Diag.WARN, "NETWORK", "request.end",
+                    "trace", trace, "route", shortPath(url), "method", method,
+                    "http", status, "duration", Diag.since(mark));
                 if (status >= 300 && status < 400) {
                     String location = connection.getHeaderField("Location");
                     if (location == null) throw new IOException("学校返回了无效跳转。");
@@ -961,6 +998,10 @@ final class EduClient {
                 if (status == 401 || status == 403) throw new NotSignedIn();
                 if (status != 200) throw new HttpFailure(status, url, snippet(connection));
                 return read(connection);
+            } catch (java.net.SocketTimeoutException timeout) {
+                Diag.event(Diag.WARN, "NETWORK", "request.timeout", "trace", trace,
+                    "route", shortPath(url), "duration", Diag.since(mark));
+                throw timeout;
             } finally {
                 connection.disconnect();
             }
@@ -1042,7 +1083,8 @@ final class EduClient {
         try {
             return new JSONObject(trimmed);
         } catch (org.json.JSONException broken) {
-            throw new IOException(what + "数据无法解析。");
+            // 保留 cause：日志据此归类为 PARSE，而界面上仍然只显示中文说明。
+            throw new IOException(what + "数据无法解析。", broken);
         }
     }
 

@@ -124,12 +124,22 @@ final class UseCodeApi {
     private static JSONObject request(String path, Map<String, String> fields, boolean post)
             throws IOException, JSONException {
         if (!ROUTES.contains(path)) throw new IllegalArgumentException("Unknown use-code route");
-        return HttpForm.request(SmsLoginProtocol.ORIGIN, path, SmsLoginProtocol.form(fields), post);
+        String trace = Diag.trace();
+        try {
+            return HttpForm.request(SmsLoginProtocol.ORIGIN, path, SmsLoginProtocol.form(fields), post);
+        } catch (IOException | JSONException failure) {
+            // 趣智的失败往往只是「这一支接口今天不可用」，日志里留下路由与原因就够了。
+            Diag.failure("QZXY", "code.failed", Diag.reason(failure), failure, trace);
+            throw failure;
+        }
     }
 
     private static void check(JSONObject reply) throws IOException, JSONException {
         int code = HttpForm.responseCode(reply);
-        if (HttpForm.failed(reply, code)) throw HttpForm.rejection(reply, code);
+        if (HttpForm.failed(reply, code)) {
+            Diag.event(Diag.WARN, "QZXY", "request.rejected", "code", code);
+            throw HttpForm.rejection(reply, code);
+        }
     }
 
     private static JSONObject data(JSONObject reply) throws IOException, JSONException {

@@ -1596,6 +1596,85 @@ public final class CoreTests {
         rejects(() -> EduAcademic.parseCourses(repeat('x', EduAcademic.MAX_COURSES_JSON + 1)));
         System.out.println("PASS: a credit group's courses parse into typed rows");
 
+        // ---- diagnostics: a record is structured, and sensitive values have no way in --------
+        // The whitelist is the security boundary: an unknown key is dropped, not scrubbed. A
+        // number field that is not a number is dropped too, so a course name cannot ride along
+        // in "count". Enum fields fall back to OTHER instead of echoing whatever arrived.
+        equal(true, DiagRedact.value("password", "hunter2") == null);
+        equal(true, DiagRedact.value("course", "高等数学") == null);
+        equal(true, DiagRedact.value("duration", "abc") == null);
+        equal("530", DiagRedact.value("duration", "530"));
+        equal("login", DiagRedact.value("stage", "login"));
+        equal("OTHER", DiagRedact.value("stage", "登录成功"));
+        equal("OTHER", DiagRedact.value("stage", "a\n2026-11-19 00:00:00.000 ERROR [X] fake"));
+        equal("NETWORK_TIMEOUT", DiagRedact.value("reason", "NETWORK_TIMEOUT"));
+        equal("/api/v1/acc/stat", DiagRedact.route("/api/v1/acc/stat?uid=123456"));
+        equal("", DiagRedact.route("http://host/a b"));
+        // A URL is reduced to scheme + host; the path may carry a one-time ticket and the query
+        // almost always carries something worse.
+        equal("https://a.example.com/…", DiagRedact.scrub("https://a.example.com/x?token=abc"));
+        equal(false, DiagRedact.scrub("手机 13812345678").contains("13812345678"));
+        equal(false, DiagRedact.scrub("学号 202312345678").contains("202312345678"));
+        equal(false, DiagRedact.scrub("token=abcdef123456").contains("abcdef123456"));
+        equal(false, DiagRedact.scrub("mail me at someone@example.com").contains("someone@"));
+        equal(false, DiagRedact.scrub("cookie: SESSION=deadbeef").contains("deadbeef"));
+        equal(true, DiagRedact.scrub(repeat('长', 400)).length() <= DiagRedact.MAX_TEXT);
+
+        java.util.Map<String, String> fields = fields(
+            "stage", "network", "duration", "2011", "reason", "NETWORK_TIMEOUT",
+            "password", "hunter2", "course", "高等数学", "route", "/kbcx/xskbcx_cxXsKb.html?su=202312345678");
+        String line = DiagEvent.format(1763559001120L, DiagEvent.ERROR, "TIMETABLE", "load.failed",
+            "7f2c1a90", "main", fields);
+        equal(true, line.contains("ERROR [TIMETABLE] load.failed"));
+        equal(true, line.contains("trace=7f2c1a90"));
+        equal(true, line.contains("duration=2011"));
+        equal(false, line.contains("hunter2"));
+        equal(false, line.contains("高等数学"));
+        equal(false, line.contains("password"));
+        equal(false, line.contains("202312345678"));
+        equal("/kbcx/xskbcx_cxXsKb.html", DiagRedact.route("/kbcx/xskbcx_cxXsKb.html?su=202312345678"));
+
+        DiagEvent parsed = DiagEvent.parse(line);
+        equal(DiagEvent.ERROR, parsed.level);
+        equal("TIMETABLE", parsed.module);
+        equal("load.failed", parsed.code);
+        equal("NETWORK_TIMEOUT", parsed.field("reason"));
+        equal("", parsed.field("nope"));
+        equal("ERROR", DiagEvent.name(parsed.level));
+        equal(DiagEvent.CRASH, DiagEvent.levelOf("CRASH"));
+        equal(true, DiagEvent.parse("    at io.qzxy.lite.core.CoreTests.main(CoreTests.java:1)") == null);
+        equal(true, DiagEvent.parse("随便一行") == null);
+        // An event code cannot smuggle a second record in: the token shape rejects spaces.
+        equal(true, DiagEvent.format(0L, DiagEvent.INFO, "EDU", "login.start\nERROR", "", "", null)
+            .split("\n").length == 1);
+
+        equal("加载失败：网络请求超时", DiagCatalog.summary(parsed));
+        equal("课表", DiagCatalog.module("TIMETABLE"));
+        equal("教务", DiagCatalog.module("EDU"));
+        equal("whatever", DiagCatalog.title("EDU", "whatever"));
+        equal("网络请求超时", DiagCatalog.reason("NETWORK_TIMEOUT"));
+
+        equal("NETWORK_TIMEOUT", DiagRedact.reason(new java.net.SocketTimeoutException()));
+        equal("DNS", DiagRedact.reason(new java.net.UnknownHostException("school")));
+        equal("INVALID_INPUT", DiagRedact.reason(new IllegalArgumentException("bad")));
+        equal("NETWORK", DiagRedact.reason(new java.io.IOException(new RuntimeException("x"))));
+        // A wrapped timeout is still a timeout: the cause chain is walked.
+        equal("NETWORK_TIMEOUT", DiagRedact.reason(new java.io.IOException(
+            new java.net.SocketTimeoutException("read timed out"))));
+
+        // The stack keeps where it broke and nothing the exception was carrying.
+        IllegalStateException leaky = new IllegalStateException("token=abcdef 13812345678");
+        String stack = DiagRedact.stack(leaky, DiagRedact.MAX_FRAMES);
+        equal(true, stack.contains("java.lang.IllegalStateException"));
+        equal(true, stack.contains("CoreTests"));
+        equal(false, stack.contains("13812345678"));
+        equal(false, stack.contains("abcdef"));
+        int frames = 0;
+        for (String row : stack.split("\n")) if (row.trim().startsWith("at ")) frames++;
+        equal(true, frames <= DiagRedact.MAX_FRAMES);
+        equal("", DiagRedact.stack(null, 8));
+        System.out.println("PASS: diagnostics records are structured and cannot carry sensitive values");
+
         System.out.println("All " + assertions + " assertions passed. Live API/Bluetooth compatibility is not tested here.");
     }
 

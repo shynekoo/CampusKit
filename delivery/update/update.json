@@ -1,12 +1,13 @@
 {
-  "version": "2.5.7",
-  "versionCode": 197,
+  "version": "2.5.8",
+  "versionCode": 208,
   "notes": [
-    "新增深色主题与返回手势动画",
-    "应用与课表主题色支持自定义",
-    "修复了课表显示异常的问题：字号与行高按屏幕自动适配，窄屏不再挤成两字一行"
+    "底栏和切页动画重做，页面切换更加丝滑",
+    "新增学业情况查询功能",
+    "新增趣智校园使用码",
+    "新增应用内更新日志"
   ],
-  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.5.7.apk?sharecode=BZD63HRP4B",
-  "bytes": 5359482,
-  "sha256": "33851ee1190e98b1655489bd1c7989119fc6f16cfc4fd7883dc3beae6b5728bc"
+  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.5.8.apk?sharecode=BZD63HRP4B",
+  "bytes": 5420922,
+  "sha256": "ac40b21dfad29e1c2f6e985bec8762ec5244ba31564b497e87f7001f4410d806"
 }

@@ -17,7 +17,7 @@
 4. 运行文档同步检查（见第 2 节），识别受影响文档。
 5. **增量更新**受影响文档：只改相关段落，禁止无理由重写整套文档。
 6. 更新 [`CHANGELOG.md`](CHANGELOG.md) 的「未发布」段。
-7. 执行可用测试：`python scripts/test_core.py`、`test_build_config.py`、`test_webview_policy.py`、`test_ui_contract.py`；出包才跑 `build_preview.py`。
+7. 执行可用测试：`python scripts/test_core.py`、`test_build_config.py`、`test_diag_privacy.py`、`test_diag_files.py`、`test_webview_policy.py`、`test_ui_contract.py`；出包才跑 `build_preview.py`。
 8. 检查代码与文档一致性（命令、路径、版本、测试数量是否与实测一致）。
 9. 汇总：代码改动 / 文档改动 / 测试结果 / 未验证事项。
 
@@ -51,13 +51,15 @@ python scripts/check_doc_sync.py --base origin/main   # 检查一个提交范围
 ## 4. 测试与 CI
 
 ```bash
-python scripts/test_core.py            # core JVM 断言（当前 1278 项）
-python scripts/test_build_config.py    # 构建开关 5 项
+python scripts/test_core.py            # core JVM 断言（当前 1329 项）
+python scripts/test_build_config.py    # 诊断构建开关 7 项
+python scripts/test_diag_privacy.py    # 诊断隐私守卫 634 项
+python scripts/test_diag_files.py      # 日志轮转/上限/清空/过期清理实跑
 python scripts/test_webview_policy.py  # WebView 导航守卫 5 项
-python scripts/test_ui_contract.py     # UI 行为静态守卫 212 锚点
+python scripts/test_ui_contract.py     # UI 行为静态守卫 240 锚点
 ```
 
-CI 在 `.github/workflows/docs-ci.yml`：推送 / PR 时自动跑以上四个入口（构建脚本内置的三个 + UI 守卫），并检查关键文档存在。**CI 不构建、不签名、不发布、不推送任何内容。**
+CI 在 `.github/workflows/docs-ci.yml`：推送 / PR 时自动跑以上六个入口（构建脚本内置的五个 + UI 守卫），并检查关键文档存在。**CI 不构建、不签名、不发布、不推送任何内容。**
 
 ## 5. 发布与提交
 

@@ -562,6 +562,55 @@ def main():
             or "openConnection" in code_lines(data):
         failures.append("更新日志必须离线可读，不得加载网页或发起请求")
 
+    # --- diagnostics page (2.5.8): filters, pagination, export, confirm-before-clear ------
+    # The page exists for one job: turn "课表加载失败" into "网络超时，停在请求阶段". A refactor
+    # that drops the filters, the paging window or the masked export breaks that job silently.
+    diag_page = PREVIEW / "DiagActivity.java"
+    diag_src = diag_page.read_text(encoding="utf-8") if diag_page.exists() else ""
+    require(diag_src, "Diag.records(0)", "DiagActivity", "页面读结构化记录，不读原始文件")
+    require(diag_src, "levelFilter", "DiagActivity", "按等级筛选")
+    require(diag_src, "moduleFilter", "DiagActivity", "按模块筛选")
+    require(diag_src, "PAGE = 40", "DiagActivity", "分页窗口：长日志不能一次建满 View")
+    require(diag_src, "ACTION_CREATE_DOCUMENT", "DiagActivity", "导出走系统新建文件，不申请存储权限")
+    require(diag_src, "StandardCharsets.UTF_8", "DiagActivity", "导出为 UTF-8 文本")
+    require(diag_src, "Diag.clear()", "DiagActivity", "清空按钮真的清文件")
+    require(diag_src, "setNegativeButton", "DiagActivity", "清空必须先确认")
+    require(diag_src, "Switch", "DiagActivity", "诊断记录开关")
+    require(diag_src, "DiagCatalog.summary", "DiagActivity", "列表标题走统一文案，不显示原始事件代码")
+    checks += 1
+    if "Diag.dump(" in diag_src:
+        failures.append("DiagActivity: 旧的自由文本 dump() 不能再用，页面读 DiagEvent")
+    for path in PREVIEW.glob("*.java"):
+        if "RecyclerView" in code_lines(path.read_text(encoding="utf-8")):
+            failures.append("%s: 不引入 AndroidX RecyclerView（项目无 AndroidX）" % path.name)
+    require(diag_src, "DiagReportActivity.class", "DiagActivity", "故障报告入口")
+
+    files_src = (PREVIEW / "DiagFiles.java").read_text(encoding="utf-8")
+    require(files_src, "256 * 1024L", "DiagFiles", "单文件 256 KB 上限")
+    require(files_src, "ARCHIVES = 3", "DiagFiles", "三个历史文件，总量约 1 MB")
+    require(files_src, "7L * 24 * 60 * 60 * 1000", "DiagFiles", "历史保留 7 天")
+    require(files_src, "renameTo", "DiagFiles", "轮转整文件改名，不截断用户正在看的记录")
+
+    diag_core_src = (PREVIEW / "Diag.java").read_text(encoding="utf-8")
+    require(diag_core_src, "ArrayBlockingQueue", "Diag", "写盘走队列，不阻塞主线程")
+    require(diag_core_src, "setDefaultUncaughtExceptionHandler", "Diag", "崩溃兜底")
+    require(diag_core_src, "previous.uncaughtException", "Diag", "不吞掉异常，交回系统处理器")
+    require(diag_core_src, "sink.append(block.toString())", "Diag", "崩溃记录同步、有界落盘")
+    checks += 1
+    if "setupLogCallback" in diag_core_src:
+        failures.append("Diag: SDK 原文日志不再接入（里面逐字带着授权码）")
+
+    report_src = (PREVIEW / "DiagReportActivity.java").read_text(encoding="utf-8") \
+        if (PREVIEW / "DiagReportActivity.java").exists() else ""
+    require(report_src, "MAX_RECORDS", "DiagReportActivity", "报告只带有限条数")
+    require(report_src, "故障模块", "DiagReportActivity", "报告写明所选模块")
+    require(report_src, "问题描述", "DiagReportActivity", "报告包含用户描述")
+    require(manifest, 'android:name=".DiagReportActivity" android:exported="false"', "AndroidManifest",
+            "故障报告页必须注册且不导出")
+    require(more_src, "BuildFlags.DIAG_BASIC || BuildFlags.DIAGNOSTICS", "MoreActivity",
+            "诊断入口在正式版与内部版都出现")
+    require(more_src, "DiagActivity.class", "MoreActivity", "更多页要有诊断日志入口")
+
     if failures:
         print("UI CONTRACT FAILED (%d/%d checks):" % (len(failures), checks))
         for f in failures:

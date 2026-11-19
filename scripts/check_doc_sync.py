@@ -14,6 +14,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 # path fragment (relative to repo root) -> docs that describe that area
 DOC_MAP = (
+    ("client/core/src/io/qzxy/lite/core/Diag", ("docs/diagnostics.md", "docs/security.md")),
+    ("client/android/src/io/qzxy/lite/preview/Diag", ("docs/diagnostics.md", "docs/security.md", "docs/ui-navigation.md")),
     ("client/core/", ("docs/architecture.md", "docs/modules.md", "docs/data-interfaces.md")),
     ("client/android/", ("docs/modules.md", "docs/ui-navigation.md", "docs/data-interfaces.md")),
     ("client/fieldtest/", ("docs/modules.md", "docs/security.md")),

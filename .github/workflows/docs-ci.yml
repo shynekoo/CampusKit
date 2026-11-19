@@ -39,6 +39,12 @@ jobs:
       - name: Run build-config guards
         run: python scripts/test_build_config.py
 
+      - name: Run diagnostics privacy guards
+        run: python scripts/test_diag_privacy.py
+
+      - name: Run diagnostics retention tests
+        run: python scripts/test_diag_files.py
+
       - name: Run WebView policy guards
         run: python scripts/test_webview_policy.py
 
@@ -53,6 +59,7 @@ jobs:
             AGENTS.md README.md CHANGELOG.md AGENT-HANDOFF.md
             docs/architecture.md
             docs/modules.md
+            docs/diagnostics.md
             docs/build-and-release.md
             docs/security.md
             docs/ui-navigation.md

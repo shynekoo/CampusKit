@@ -43,7 +43,7 @@
 
 | 项目 | 情况 |
 | :-- | :-- |
-| 最新版本 | **v2.5.7**（2026-11-18） |
+| 最新版本 | **v2.5.8**（2026-11-19） |
 | 安装包 | 5,359,482 字节 · SHA-256 `33851ee1190e98b1655489bd1c7989119fc6f16cfc4fd7883dc3beae6b5728bc` |
 | 系统要求 | Android 7.0（API 24）及以上，targetSdk 36 |
 | 技术栈 | Java + 原生 View；无 Gradle、无第三方 UI 框架 |
@@ -130,7 +130,7 @@ sequenceDiagram
 | :-- | :-- | :-- |
 | 水控 / 教务登录凭据 | 应用私有目录，AES-256-GCM 加密，密钥由 Android Keystore 保护 | 不会，只在请求对应官方接口时使用 |
 | 课表与设置 | 应用私有目录，且标记为不参与系统备份 | 只有你手动「导出备份」时才会生成文件 |
-| 诊断信息 | 导出前已剔除 token、uid、手机号等字段 | 由你决定发给谁 |
+| 诊断信息 | 只记录白名单字段（不记账号、课程内容、请求正文），默认关闭，存在应用私有目录 | 不会自动离开手机；复制或导出由你决定 |
 | 支付 | 交给支付宝 SDK 与官方收银台 | 不经过任何中间服务器 |
 
 权限只申请这 4 个：
@@ -145,13 +145,13 @@ sequenceDiagram
 
 ## 下载
 
-1. 从 [Releases 最新版](https://github.com/shynekoo/CampusKit/releases/latest) 下载 `kexin-xiaozhushou-2.5.7.apk`（国内也可以用直链：<https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.5.7.apk?sharecode=BZD63HRP4B>）
+1. 从 [Releases 最新版](https://github.com/shynekoo/CampusKit/releases/latest) 下载 `kexin-xiaozhushou-2.5.8.apk`（国内也可以用直链：<https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.5.8.apk?sharecode=BZD63HRP4B>）
 2. 允许浏览器「安装未知应用」，装完打开即可，不需要 Root、不需要任何框架
 3. 想核对包有没有被改过：
 
 ```bash
-sha256sum kexin-xiaozhushou-2.5.7.apk
-# 33851ee1190e98b1655489bd1c7989119fc6f16cfc4fd7883dc3beae6b5728bc
+sha256sum kexin-xiaozhushou-2.5.8.apk
+# ac40b21dfad29e1c2f6e985bec8762ec5244ba31564b497e87f7001f4410d806
 ```
 
 > ⚠️ **升级请覆盖安装。** 换成别的签名只能卸载重装，而卸载会清掉课表与凭据——先在「课表 → 管理 → 导出备份」存一份，重装后再恢复。
@@ -261,6 +261,13 @@ docs/           README 用到的截图
 - **代码贡献**：先开 Issue 说清楚要改什么，再提 PR；改动需通过 `python scripts/test_core.py`，涉及界面的请附截图
 
 ## 更新日志
+
+**v2.5.8**（2026-11-19）
+
+- 底栏和切页动画重做，页面切换更加丝滑
+- 新增学业情况查询功能
+- 新增趣智校园使用码
+- 新增应用内更新日志
 
 **v2.5.7**（2026-11-18）
 

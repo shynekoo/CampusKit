@@ -13,13 +13,15 @@
 
 | 项 | 值 | 说明 |
 | :-- | :-- | :-- |
-| 线上正式版 / 下载站 | **2.5.7** | `delivery/update/update.json`，versionCode `197`，2026-11-18 |
-| 线上 APK | `campuskit-2.5.7.apk` | 5,359,482 字节，SHA-256 `33851ee1…5728bc`；带 `?sharecode=BZD63HRP4B` |
+| 线上正式版 / 下载站 | **2.5.8** | `delivery/update/update.json`，versionCode `208`，2026-11-19 发布 |
+| 线上 APK | `campuskit-2.5.8.apk` | 5,420,922 字节，SHA-256 `ac40b21d…10d806`；带 `?sharecode=BZD63HRP4B`，下载后实测哈希一致 |
 | 已提交并 push | 2.5.8.1（versionCode 199） | HEAD `6406500`；`git status` 显示与 `origin/main` 同步（0/0） |
 | 已提交（本地 `main`，合并后重建） | **2.5.8.8**（versionCode 206） | 产物 `delivery/科信小助手-2.5.8.8.apk`；主线已含少课修复，dex 反查通过，详见「同步状态」 |
+| 当前分支 | **2.5.8**（versionCode 208，已发布） | `feat/diag-2.5.8`：诊断系统重构 + 把 2.5.8.1–2.5.8.9 合并成正式版本号；产物 `delivery/科信小助手-2.5.8.apk`，5 420 922 B，SHA-256 `ac40b21d…10d806` |
+| 发布公告（已写） | `delivery/release-2.5.8.md` | 含短版 / 长版公告、升级注意、已知问题、上线清单；`update.json` 与 App 内更新日志**待发版当天**再改 |
 | 上一版未发版包 | 2.5.8.7（versionCode 205） | 产物仍在 `delivery/`，**不含少课修复**，仅作历史对照 |
-| 最新 Git tag | `v2.5.7` | 尚无 2.5.8.x 的 tag 与 Release |
-| GitHub Release | 最新为 v2.5.7 | 2.5.8.1 / 2.5.8.4 **未建 Release** |
+| 最新 Git tag | `v2.5.8` | 2.5.8.x 开发迭代未各自建 tag |
+| GitHub Release | 最新为 v2.5.8 | 附 `kexin-xiaozhushou-2.5.8.apk` |
 
 ## 二之二、同步状态（2026-11-19 22:45 合并完成）
 
@@ -28,6 +30,18 @@
 - 冲突内容取舍：`CHANGELOG` 事实基准改为合并后视角并保留双方的版本段；`ui-navigation` 的公告守卫取主线较新的「唯一入口在 `PrivacyActivity`」措辞，同时保留本轮的学业页端点守卫。
 - 关键教训：**2.5.8.7 的包是在 `16cec29` 上构建的，那时少课修复还在并行分支上**，dex 里 `cxJxzxjhxfyqFKcxx` / `planCourses` / `opensCourses` 命中数均为 0，所以装 2.5.8.7 看第二课堂仍然少课。合并后的 2.5.8.8 三项均为 1（`jdkcsx` 3 处），已确认修复真的在安装包里。
 - 结论：**出包前先确认 `git log` 里有修复提交**，光看"已经合并"不等于本地工作区拿到了代码。
+
+## 二之三、诊断系统改造（2.5.8，未提交、未合并）
+
+- 目的：让「课表加载失败」能定位到登录 / 网络 / 解析 / 渲染中的具体一段，而不是只说「失败」。
+- 结构：`core/DiagRedact`（字段白名单、脱敏、安全堆栈、原因分类）+ `core/DiagEvent`（固定行格式与解析）+
+  `core/DiagCatalog`（中文文案）；`android/Diag`（开关、崩溃兜底、异步写）+ `android/DiagFiles`（256 KB × 4、7 天）
+  + `DiagActivity`（筛选/展开/分页/复制/导出/清空）+ `DiagReportActivity`（故障报告）。
+- 正式版也有诊断页：`DIAG_BASIC` 恒开，运行期默认关；`--diagnostics` 只多编细节事件（`Diag.DETAIL`，正式包被 javac 删除）。
+- SDK 原文日志回调已彻底移除；不再依赖 `maskCode` / `maskChain` / `maskSdk` 正则，改为「字段进不来」。
+- 已接入：教务登录四阶段、课表候选端点/解析/写入、网络状态与超时、慧生活、支付宝、趣智、更新、页面导航。
+- 未接入：扫码/相机、课表拖拽缩放、支付 Activity 被回收的竞态、ANR / native crash。
+- 权威文档：[`docs/diagnostics.md`](docs/diagnostics.md)。
 
 ## 三、开发进度
 
@@ -42,7 +56,16 @@
 - **2.5.8.4 修复**：学业页 `card()` 双重挂载导致闪退，改为唯一入口 `addCard()` 挂载；`screen.note()` 只在 `onCreate` 设置一次；教务卡顺序调为第一行 成绩/空教室/教务系统，第二行 学业情况/河工程官网/科信官网。
 - 相应新增核心断言与 UI 守卫（46 锚点）。
 
-**未提交文件清单**（`git status`）：`AndroidManifest.xml`、`AppearanceActivity.java`、`EduClient.java`、`TimetableActivity.java`、`CoreTests.java`、`scripts/test_ui_contract.py` 已修改；`AcademicStatusActivity.java`、`EduAcademic.java` 未跟踪。
+**未提交文件清单**（`feat/diag-2.5.8` 的 `git status`）：
+
+- 修改：`CHANGELOG.md`、`README.md`、`AndroidManifest.xml`、`Diag.java`、`DiagActivity.java`、`AlipayLogin.java`、
+  `App.java`、`EduClient.java`、`EduTimetableImportActivity.java`、`HttpForm.java`、`LifeAuthApi.java`、
+  `LifeLoginActivity.java`、`MoreActivity.java`、`Page.java`、`TimetableActivity.java`、`UpdateCheck.java`、
+  `UseCodeApi.java`、`CoreTests.java`、`scripts/build_preview.py`、`check_doc_sync.py`、`test_build_config.py`、
+  `test_ui_contract.py`、7 个文档。
+- 新增：`DiagFiles.java`、`DiagReportActivity.java`、`DiagRedact.java`、`DiagEvent.java`、`DiagCatalog.java`、
+  `docs/diagnostics.md`、`scripts/test_diag_privacy.py`。
+- 未提交、未合并、未 push（按约定由用户确认）。
 
 ## 四、验证状态（如实标注）
 

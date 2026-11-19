@@ -178,9 +178,10 @@ public final class MoreActivity extends Page {
         // 更新日志挨着「检查更新」的入口放：想知道这版改了什么的人，先找的通常是这里。
         entry(card, "refresh", "更新日志", "查看版本更新与历史记录", true,
             () -> startActivity(new Intent(this, ChangelogActivity.class)));
-        // 日志只在测试版出现：发布版里这段被 javac 删掉，读者看不到一个自己用不上的入口。
-        if (BuildFlags.DIAGNOSTICS) {
-            entry(card, "today", "日志", "这次启动走了哪几步，可复制发给开发者", true,
+        // 诊断页从 2.5.8 起对所有构建开放：正文只含白名单字段，运行期默认关，由使用者
+        // 遇到问题时自己打开。内部构建（--diagnostics）只是多了更细的事件，不是另一个开关。
+        if (BuildFlags.DIAG_BASIC || BuildFlags.DIAGNOSTICS) {
+            entry(card, "today", "诊断日志", "遇到问题时记录，可导出给开发者", true,
                 () -> startActivity(new Intent(this, DiagActivity.class)));
         }
         entry(card, "globe", "本项目 GitHub 仓库", "github.com/shynekoo/CampusKit", true, this::openRepository);

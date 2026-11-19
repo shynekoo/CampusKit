@@ -7,13 +7,15 @@
 | 项 | 值 |
 | :-- | :-- |
 | 技术栈 | Java + 原生 Android View + Python 构建；无 Kotlin / Compose / Gradle |
-| 线上正式版 | 2.5.7 / versionCode 197（`delivery/update/update.json`） |
-| 已提交 HEAD | `e59f1d2`（合并后主线：少课修复 + 2.5.8.7 UI 小改 + 文档回填） |
-| 最新包 | `delivery/科信小助手-2.5.8.8.apk`（versionCode 206），dex 已确认含少课修复三标识 |
-| 最新 tag / Release | `v2.5.7`；2.5.8.x 未建 tag / Release |
-| 工作区 | 干净；主线已 rebase 到 `origin/main`，少课修复（`9c9bfbf`）**已合并** |
-| 核心断言 | 合并后实测 **1278 项全过**；UI 契约守卫 **213 锚点全过** |
-| 发布状态 | 2.5.8.x 代码已推送，**未建 tag / Release、未发版、未同步下载站** |
+| 线上正式版 | **2.5.8 / versionCode 208**（2026-11-19 发布，`delivery/update/update.json`） |
+| 已提交 HEAD | `bcee394`（main：2.5.8.8 重建） |
+| 当前开发分支 | `feat/diag-2.5.8`（诊断系统改造，**未提交、未合并**） |
+| 最新包 | `delivery/科信小助手-2.5.8.apk`（versionCode 208，已发布，sha256 `ac40b21d…10d806`）；`2.5.8.8` 仍保留作对照 |
+| 发布公告 | `delivery/release-2.5.8.md`（短版 / 长版公告 + 上线记录 + 原始清单） |
+| 最新 tag / Release | `v2.5.8`（2.5.8.x 开发迭代未各自建 tag） |
+| 工作区 | `feat/diag-2.5.8` 上未提交；主线 `main` 未改 |
+| 核心断言 | 实测 **1329 项全过**；UI 契约守卫 **240 锚点**；诊断隐私守卫 **634 项** |
+| 发布状态 | **2.5.8 已发布**：清单、直链、下载站、App 内更新日志已同步；早期 2.5.8.x 开发包未单独发布 |
 
 ## 二、已提交但未发布（2.5.8.1）
 
@@ -46,11 +48,23 @@
 
 UI-3 本轮修 5 处：滚动恢复带 generation 且改为布局后（pre-draw）执行；`render()` 仅在同屏重建时搬运当前滚动；被取消入场的残留页先归位再离场；离场页在交叉淡化期间移出无障碍树；跨多周（回本周 / 选周次）改走 `jumpWeek`：先落周次，再用 `renderContent(true, ±1, true)` 的 slide 分支整屏滑一屏，落地帧即为本周（不淡入）。**未改**转场参数、`UiTokens`、`MainNavigator`、`Page`、`CardLayer`；`MotionSpec` 新增 `WEEK_SLIDE_DURATION`(190ms) 供 Pager 与跨周共用，`WeekBoard` 只动 `animateOutThen` 的位移与 `settle` 取 token（数值不变），手势/测量/周次提交未改。
 
+## 三之三、诊断系统（2.5.8，未提交）
+
+- 分层：`core/DiagRedact`（字段白名单 + 脱敏 + 安全堆栈 + 原因分类）、`core/DiagEvent`（行格式与解析）、
+  `core/DiagCatalog`（事件/模块/原因文案）；`android/Diag`（开关、崩溃兜底、快照、写线程）、`android/DiagFiles`
+  （256 KB × 4 轮转、7 天保留）、`android/DiagActivity`（筛选/展开/分页/复制/导出/清空）、
+  `android/DiagReportActivity`（故障报告）。
+- 开关：`BuildFlags.DIAG_BASIC` 恒开（正式版也有诊断页，运行期默认关）；`BuildFlags.DIAGNOSTICS` 仅 `--diagnostics`，
+  细节事件用 `Diag.DETAIL` 包住，正式包里被 javac 删除（`Page.class` 的 `back.gesture` 出现 0 次可证）。
+- 已接入模块：教务登录四阶段、课表请求/解析/写入、网络状态与超时、慧生活、支付宝、趣智、更新、页面导航。
+- 未接入：扫码/相机、课表拖拽缩放、Activity 被回收的支付竞态、ANR/native crash。
+- 权威文档：[`diagnostics.md`](diagnostics.md)；隐私边界见 [`security.md`](security.md)「诊断日志的安全边界」。
+
 ## 四、验证状态（如实）
 
-**已执行**：合并后实跑 `test_core` 1278、`test_build_config` 5、`test_webview_policy` 5、`test_ui_contract` 213，全部通过；2.5.8.6 / 2.5.8.7 / 2.5.8.8 普通版 APK 已构建并通过 v2/v3 验签（2.5.8.8 的 dex 反查含 `cxJxzxjhxfyqFKcxx` / `planCourses` / `opensCourses`，2.5.8.7 三项均为 0）；真实账号端到端拉取学业数据成功（GPA 2.9875、37 节点 5 层、16 课组 94 门课）；计划外课组按学校 `jdkcsx` 分流端点后复验（人文科学 5 门、自然科学 6 门，与学校页"共 N 门"一致）。
+**已执行**：`test_core` 1329、`test_build_config` 7、`test_diag_privacy` 634、`test_webview_policy` 5、`test_ui_contract` 240，全部通过；2.5.8 APK 已构建（5 420 922 B，SHA-256 `ac40b21d…10d806`，v2/v3 验签通过，dex 水控路由 0）；2.5.8.6 / 2.5.8.7 / 2.5.8.8 普通版 APK 已构建并通过 v2/v3 验签（2.5.8.8 的 dex 反查含 `cxJxzxjhxfyqFKcxx` / `planCourses` / `opensCourses`，2.5.8.7 三项均为 0）；真实账号端到端拉取学业数据成功（GPA 2.9875、37 节点 5 层、16 课组 94 门课）；计划外课组按学校 `jdkcsx` 分流端点后复验（人文科学 5 门、自然科学 6 门，与学校页"共 N 门"一致）。
 
-**未执行**：真机验收清单全部（含 UI 2.0 的快速连点、滚动恢复与旋转/分屏、返回手势、关动画、320dp）；2.5.8.6 真机覆盖安装与学业页回归；真实支付用水、MobSF、签名轮换、旧版升级兼容。详见 [`known-issues.md`](known-issues.md)。
+**未执行**：诊断页真机流程（G6–G17：开关、复现、导出、轮转、崩溃重启、长日志、深色/大字号）；真机验收清单其余全部（含 UI 2.0 的快速连点、滚动恢复与旋转/分屏、返回手势、关动画、320dp）；2.5.8.6 真机覆盖安装与学业页回归；真实支付用水、MobSF、签名轮换、旧版升级兼容。详见 [`known-issues.md`](known-issues.md)。
 
 ## 五、接手第一步
 
@@ -63,4 +77,4 @@ UI-3 本轮修 5 处：滚动恢复带 generation 且改为布局后（pre-draw�
 
 ## 六、文档索引
 
-[架构](architecture.md) · [模块](modules.md) · [构建与发布](build-and-release.md) · [安全约束](security.md) · [UI 与导航](ui-navigation.md) · [数据接口](data-interfaces.md) · [已知问题](known-issues.md) · [安全审计：网络/SDK](security-audit-network-sdk.md) · [安全审计：支付/用水](security-audit-payment-water.md) · [真机验收](real-device-acceptance.md) · [整改验收](rectification-acceptance.md) · [返回手势](back-gesture.md) · [变更日志](../CHANGELOG.md)
+[架构](architecture.md) · [模块](modules.md) · [诊断日志](diagnostics.md) · [构建与发布](build-and-release.md) · [安全约束](security.md) · [UI 与导航](ui-navigation.md) · [数据接口](data-interfaces.md) · [已知问题](known-issues.md) · [安全审计：网络/SDK](security-audit-network-sdk.md) · [安全审计：支付/用水](security-audit-payment-water.md) · [真机验收](real-device-acceptance.md) · [整改验收](rectification-acceptance.md) · [返回手势](back-gesture.md) · [变更日志](../CHANGELOG.md)

@@ -28,11 +28,12 @@ python scripts/build_preview.py                # 普通只读版出包（默认�
 | :-- | :-- |
 | 默认 | `WATER_CONTROL=false`、`DIAGNOSTICS=false` —— 正式只读版 |
 | `--field-water` | 编入 `client/fieldtest` 用水控制；构建后校验控制路由与 `WaterActivity`/`WaterControl` 的 dex 类型描述符**全部出现** |
-| `--diagnostics` | 编入诊断日志（内部构建）；默认永远关闭 |
+| `--diagnostics` | 额外编入高密度诊断事件（手势、渲染、逐次请求）；基础诊断页与白名单事件在所有构建里都有 |
+| （无参数） | `DIAG_BASIC = true`：诊断页存在，运行期默认关，用户主动开启 |
 | `--no-diagnostics` | 显式关闭（兼容旧参数） |
 | `--device-tests` | 测试 manifest 与 instrumentation |
 
-只读版构建后，脚本验证 7 条控制路由与 field-test 类型描述符在 dex 中 occurrence **全为 0**——「不能发控制请求」是产物级可检查属性，不是口头声明。三配置（普通 / 用水 / 诊断）均已实测通过断言与 v2/v3 验签。
+只读版构建后，脚本验证 7 条控制路由与 field-test 类型描述符在 dex 中 occurrence **全为 0**——「不能发控制请求」是产物级可检查属性，不是口头声明。三配置（普通 / 用水 / 内部诊断）均已实测通过断言与 v2/v3 验签。
 
 ## 版本号处理与 `FIELD_VERSION_NAME` 的影响（只说明，不改）
 
