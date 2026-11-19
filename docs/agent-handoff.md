@@ -8,10 +8,11 @@
 | :-- | :-- |
 | 技术栈 | Java + 原生 Android View + Python 构建；无 Kotlin / Compose / Gradle |
 | 线上正式版 | 2.5.7 / versionCode 197（`delivery/update/update.json`） |
-| 已提交 HEAD | `9a9ccad`（`feat: in-app changelog page`），**本地领先 origin/main 两个提交** |
+| 已提交 HEAD | `e59f1d2`（合并后主线：少课修复 + 2.5.8.7 UI 小改 + 文档回填） |
+| 最新包 | `delivery/科信小助手-2.5.8.8.apk`（versionCode 206），dex 已确认含少课修复三标识 |
 | 最新 tag / Release | `v2.5.7`；2.5.8.x 未建 tag / Release |
-| 工作区 | 干净；`16cec29` 已 push（含数据与隐私/使用公告改版、应用内更新日志）；学业情况少课修复在并行分支 `agent2/parallel-dev`（已 rebase 到 `16cec29`）待合并 |
-| 核心断言 | 合并后实测 **1278 项全过**；UI 契约守卫 **212 锚点全过** |
+| 工作区 | 干净；主线已 rebase 到 `origin/main`，少课修复（`9c9bfbf`）**已合并** |
+| 核心断言 | 合并后实测 **1278 项全过**；UI 契约守卫 **213 锚点全过** |
 | 发布状态 | 2.5.8.x 代码已推送，**未建 tag / Release、未发版、未同步下载站** |
 
 ## 二、已提交但未发布（2.5.8.1）
@@ -47,7 +48,7 @@ UI-3 本轮修 5 处：滚动恢复带 generation 且改为布局后（pre-draw�
 
 ## 四、验证状态（如实）
 
-**已执行**：合并后实跑 `test_core` 1278、`test_build_config` 5、`test_webview_policy` 5、`test_ui_contract` 213，全部通过；2.5.8.6 / 2.5.8.7 普通版 APK 已构建并通过 v2/v3 验签；真实账号端到端拉取学业数据成功（GPA 2.9875、37 节点 5 层、16 课组 94 门课）；计划外课组按学校 `jdkcsx` 分流端点后复验（人文科学 5 门、自然科学 6 门，与学校页"共 N 门"一致）。
+**已执行**：合并后实跑 `test_core` 1278、`test_build_config` 5、`test_webview_policy` 5、`test_ui_contract` 213，全部通过；2.5.8.6 / 2.5.8.7 / 2.5.8.8 普通版 APK 已构建并通过 v2/v3 验签（2.5.8.8 的 dex 反查含 `cxJxzxjhxfyqFKcxx` / `planCourses` / `opensCourses`，2.5.8.7 三项均为 0）；真实账号端到端拉取学业数据成功（GPA 2.9875、37 节点 5 层、16 课组 94 门课）；计划外课组按学校 `jdkcsx` 分流端点后复验（人文科学 5 门、自然科学 6 门，与学校页"共 N 门"一致）。
 
 **未执行**：真机验收清单全部（含 UI 2.0 的快速连点、滚动恢复与旋转/分屏、返回手势、关动画、320dp）；2.5.8.6 真机覆盖安装与学业页回归；真实支付用水、MobSF、签名轮换、旧版升级兼容。详见 [`known-issues.md`](known-issues.md)。
 

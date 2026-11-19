@@ -8,12 +8,27 @@
 - 已提交并 push、尚未发版：`2.5.8.1`（versionCode `199`，Git HEAD `6406500`）。
 - 已提交、尚未发版：`2.5.8.2`–`2.5.8.6`（最新 versionCode `204`），含学业情况查询与 UI-1/UI-2 第一轮。
 - 已提交并 push 的主线：`16cec29`（UI-1 / UI-2 / UI-3 转场竞态 + 滚动恢复 + 回本周整屏滑页）。
-- 已提交到主线、尚未发版：数据与隐私 / 使用公告改版 + 移除未使用的 Wi-Fi 权限；应用内更新日志；使用公告入口去重 + 课表圆角默认 20dp（versionCode `205`）。
-- 已合并到主线、尚未发版：学业情况少课修复（计划内 / 计划外课组按学校 `jdkcsx` 分流取课端点）。
+- 已提交到主线、尚未发版：数据与隐私 / 使用公告改版 + 移除未使用的 Wi-Fi 权限；应用内更新日志；使用公告入口去重 + 课表圆角默认 20dp（versionCode `205`）；学业情况少课修复（计划内 / 计划外课组按学校 `jdkcsx` 分流取课端点）。
+- 已构建、尚未发版的最新包：`2.5.8.8`（versionCode `206`，2026-11-19），在合并后的主线上重建。
 - 核心断言：合并后实跑 `python scripts/test_core.py` → **1278 项全过**（2026-11-19）；UI 守卫 **213 锚点全过**。
 - **未建 tag / Release、未发版、未同步下载站。**
 
 更早版本的发布说明见 [`delivery/release-*.md`](delivery/)。
+
+---
+
+## [未发布 · 2.5.8.8] — versionCode 206，合并后主线重建
+
+> 只有版本号比 2.5.8.7 变化，源码与合并后主线一致。存在的意义是把少课修复真正打进安装包，并在 dex 层面证明它在里面。
+
+### 说明
+- `2.5.8.7`（205）是在主线 `16cec29` 上构建的。当时少课修复只存在于并行分支 `agent2/parallel-dev`，尚未进入主线，所以那个包的 dex 里**不含** `cxJxzxjhxfyqFKcxx` / `planCourses` / `opensCourses` —— 这就是装 2.5.8.7 后第二课堂仍然少课的原因，与修复本身是否有效无关。
+- `2.5.8.8`（206）在合并后的主线上重建，dex 反查 `cxJxzxjhxfyqFKcxx` = 1、`cxJxzxjhxfyqKcxx` = 1、`planCourses` = 1、`opensCourses` = 1、`jdkcsx` = 3 处；同一检查在 2.5.8.7 上三项均为 0。
+
+### 验证
+- 合并后四级测试实跑：`test_core` **1278**、`test_build_config` **5**、`test_webview_policy` **5**、`test_ui_contract` **213**，全绿；`check_doc_sync` exit 0。
+- 产物：`delivery/科信小助手-2.5.8.8.apk`，5 404 538 B，SHA-256 `aadbe23e40aad432771c65ac08832af2db4ffa2e6bd3ac463535384420fd5e80`（以同目录 `.build.json` 为准）；`aapt2 dump badging` 实测 `versionCode=206` / `versionName=2.5.8.8`，权限 4 项，`apksigner` 验签 v2 / v3 均为 true；只读包 dex 中 7 条水控端点与 2 个水控类名命中数全为 0。
+- **未做**：真机验收（第二课堂逐课组展开、覆盖安装、圆角观感）。
 
 ---
 

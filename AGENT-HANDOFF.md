@@ -16,19 +16,18 @@
 | 线上正式版 / 下载站 | **2.5.7** | `delivery/update/update.json`，versionCode `197`，2026-11-18 |
 | 线上 APK | `campuskit-2.5.7.apk` | 5,359,482 字节，SHA-256 `33851ee1…5728bc`；带 `?sharecode=BZD63HRP4B` |
 | 已提交并 push | 2.5.8.1（versionCode 199） | HEAD `6406500`；`git status` 显示与 `origin/main` 同步（0/0） |
-| 已提交（未 push） | **2.5.8.7**（versionCode 205，`4139aec`） | 产物 `delivery/科信小助手-2.5.8.7.apk`；与 `origin/main` 已分叉，见下方「同步状态」 |
+| 已提交（本地 `main`，合并后重建） | **2.5.8.8**（versionCode 206） | 产物 `delivery/科信小助手-2.5.8.8.apk`；主线已含少课修复，dex 反查通过，详见「同步状态」 |
+| 上一版未发版包 | 2.5.8.7（versionCode 205） | 产物仍在 `delivery/`，**不含少课修复**，仅作历史对照 |
 | 最新 Git tag | `v2.5.7` | 尚无 2.5.8.x 的 tag 与 Release |
 | GitHub Release | 最新为 v2.5.7 | 2.5.8.1 / 2.5.8.4 **未建 Release** |
 
-## 二之二、同步状态（2026-11-19 22:40 实测 `git fetch` 后）
+## 二之二、同步状态（2026-11-19 22:45 合并完成）
 
-- 本地 `main`：在 `16cec29` 之上有未 push 的提交（`4139aec` = 2.5.8.7/205 及其后的文档回填）。
-- `origin/main`：`8fe5e6e`，比本地多 3 个提交：
-  - `9c9bfbf` 学业页从 F 端点取课组外课程（改 `EduAcademic` / `EduClient` / `AcademicStatusActivity` / `CoreTests`，**同时改 `CHANGELOG.md`**）
-  - `98933db` 记录重建的 APK（改 `CHANGELOG.md` 1 行）
-  - `8fe5e6e` 把 `delivery/release-*.md` 纳入版本库供 changelog 检查使用（改 `.gitignore` + 5 个 release notes）
-- 结论：**push 会被拒，必须先对齐**。两边都动了 `CHANGELOG.md`，rebase 到这个文件必然冲突；合并时以远端结构为准，只把本地新增的「2.5.8.7」段插到最前，不要整段覆盖。
-- 远端那 3 个提交尚未合入本地，因此**本地构建的 2.5.8.7 不含 `9c9bfbf` 的学业页修复**；若要让 2.5.8.7 带上它，需先 rebase 再重新出包（versionCode 需再递增）。
+- 本地 `main` 已 rebase 到 `origin/main`（`8fe5e6e`，含 `9c9bfbf` 少课修复），原 `4139aec` / `a8e0efe` 两个提交被重放为 `4bded0c` / `e59f1d2`，本地与远端重新回到线性、无分叉。
+- rebase 冲突只有 4 个文件：`CHANGELOG.md`、`docs/agent-handoff.md`、`docs/ui-navigation.md`（`scripts/test_ui_contract.py` 自动合并）。三处均按**合并后实跑的真值**填写，没有照抄任一方：核心断言 **1278**、UI 守卫 **213**（不是分支上的 212，也不是主线的 208）。
+- 冲突内容取舍：`CHANGELOG` 事实基准改为合并后视角并保留双方的版本段；`ui-navigation` 的公告守卫取主线较新的「唯一入口在 `PrivacyActivity`」措辞，同时保留本轮的学业页端点守卫。
+- 关键教训：**2.5.8.7 的包是在 `16cec29` 上构建的，那时少课修复还在并行分支上**，dex 里 `cxJxzxjhxfyqFKcxx` / `planCourses` / `opensCourses` 命中数均为 0，所以装 2.5.8.7 看第二课堂仍然少课。合并后的 2.5.8.8 三项均为 1（`jdkcsx` 3 处），已确认修复真的在安装包里。
+- 结论：**出包前先确认 `git log` 里有修复提交**，光看"已经合并"不等于本地工作区拿到了代码。
 
 ## 三、开发进度
 
