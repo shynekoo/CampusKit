@@ -10,13 +10,13 @@
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ client/android  (67 个受管 Java 文件)                    │
+│ client/android  (77 个受管 Java 文件)                    │
 │   Activity / Page / View / 主题 / 平台 SDK 适配           │
 │   TimetableActivity, EduClient, LifeDeviceApi, UpdateCheck │
 └───────────────┬─────────────────────────────────────────┘
                 │ 纯 Java 调用，无 Android 依赖
 ┌───────────────▼─────────────────────────────────────────┐
-│ client/core  (44 个受管 Java 文件)                       │
+│ client/core  (45 个受管 Java 文件)                       │
 │   会话 / 协议解析 / 状态机 / 导航 / 课程模型 / 决策规则     │
 │   MainNavigator, Course, RefreshDecision, TrustedUrlPolicy│
 │   UseSession, PendingUse, UpdateManifest, 4_000_000 上限  │

@@ -176,6 +176,9 @@ public final class MoreActivity extends Page {
         // 使用公告单列一条：它是一份独立文本，不该只在隐私页里当作附属品出现。
         entry(card, "today", "使用公告", "独立开发的第三方工具，使用前请读", true,
             () -> startActivity(new Intent(this, NoticeActivity.class)));
+        // 更新日志挨着「检查更新」的入口放：想知道这版改了什么的人，先找的通常是这里。
+        entry(card, "refresh", "更新日志", "查看版本更新与历史记录", true,
+            () -> startActivity(new Intent(this, ChangelogActivity.class)));
         // 日志只在测试版出现：发布版里这段被 javac 删掉，读者看不到一个自己用不上的入口。
         if (BuildFlags.DIAGNOSTICS) {
             entry(card, "today", "日志", "这次启动走了哪几步，可复制发给开发者", true,

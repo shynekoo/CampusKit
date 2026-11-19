@@ -8,10 +8,43 @@
 - 已提交并 push、尚未发版：`2.5.8.1`（versionCode `199`，Git HEAD `6406500`）。
 - 已提交、尚未发版：`2.5.8.2`–`2.5.8.6`（最新 versionCode `204`），含学业情况查询与 UI-1/UI-2 第一轮。
 - 已提交并 push 的 HEAD：`f86ed11`（UI-1 / UI-2 / UI-3 转场竞态 + 滚动恢复 + 回本周整屏滑页）。
-- 工作区（未提交）：「数据与隐私 / 使用公告」文案与展示专项（versionCode 仍为 `204`），**未 push、未发版**。
-- 核心断言：当前工作区实跑 `python scripts/test_core.py` → **1262 项全过**（2026-11-19）；UI 守卫 **187 锚点全过**。
+- 已提交（未 push）：`6b619ab`（数据与隐私 / 使用公告改版 + 移除未使用的 Wi-Fi 权限）。
+- 工作区（未提交）：应用内更新日志（versionCode 仍为 `204`），**未 push、未发版**。
+- 核心断言：当前工作区实跑 `python scripts/test_core.py` → **1262 项全过**（2026-11-19）；UI 守卫 **207 锚点全过**。
 
 更早版本的发布说明见 [`delivery/release-*.md`](delivery/)。
+
+---
+
+## [未发布 · 应用内更新日志] — 工作区未提交（versionCode 仍为 204）
+
+> 新增「更多 → 更新日志」整页，数据随包内置、离线可读。参考岱宗盒子的版本列表组织方式（`update/AppChangelog.kt` 只放数据，真正渲染在 `update/UpdateDialogs.kt` 的堆叠式 What's New 弹窗与 settings 宿主的 `ChangelogEntry` 列表里），**没有复制其代码、素材或主题**；版式、配色、动效按 UI-1/UI-2/UI-3 的 token 重做。核心 1262 断言、UI 守卫 207 锚点全绿，普通版 APK 已构建并验签。
+
+### 新增
+- **`AppChangelog.java`**：更新日志唯一数据源。`Entry(version, code, date, known[], items…)` + `Item(Kind, text)`，`Kind` 分 新增 / 优化 / 修复 / 其他；`released()` 过滤未发布版本，`current(versionName)` 决定谁挂「当前版本」。数据只收**已正式发布**的版本（2.5.7 / 2.5.6 / 2.5.5 / 2.5.0 / 2.3.10），取自 `delivery/release-*.md`、`delivery/update/update.json` 与 `CHANGELOG.md`，日期与版本代码照抄，没有推测。
+- **`ChangelogActivity.java`**：`extends Page`，顶部返回 + 标题 + 「当前安装 x（code）」；每个版本一张卡片，标题 `CARD_TITLE` 粗体、日期 `BODY_SMALL` + `MUTED`、当前版本挂 `SOFT` 胶囊；每条变化前是类别图标（`plus` / `torch` / `check` / `info`，颜色只取 `AppUi`）；已知问题用 `AppUi.DANGER`。最新一版与当前安装版默认展开，历史版本点击展开/收起。
+
+### 变更
+- **`MoreActivity`**：设置卡片新增「更新日志 · 查看版本更新与历史记录」一行，复用 `entry()` 的图标/箭头/分隔线样式。
+- **`MotionSpec`**：新增 `LIST_TOGGLE_DURATION`(220ms) 与 `settle()`（减速曲线），展开动画的时长与曲线只有一个来源。
+- **`AndroidManifest.xml`**：注册 `.ChangelogActivity`，`exported=false`、`configChanges` 与其他子页一致；未新增任何权限。
+
+### 交互与竞态
+- 展开只动两样东西：内容高度与箭头角度，同一动画驱动；系统关动画（`MotionSpec.shouldAnimate`）时直接落到终态（展开回 `WRAP_CONTENT`）。
+- 连续点击：每张卡片自带 `running` 与 `generation`，新点击先 `cancel()` 上一条并从**当前高度**继续，过期回调被 `generation` 拦下，不会两条动画抢同一个 `LayoutParams.height`。
+- 开发包（2.5.8.6）匹配不到条目：**不**给任何正式版打「当前版本」，改为顶部说明「此版本尚未正式发布」。
+- `Page` / `CardLayer` / 主屏与 Tab 转场 / 课表 / 教务 / 支付 / 水控 / `UpdateCheck` 均未改动。
+
+### 自动化校验（`scripts/test_ui_contract.py`，187 → 207 锚点）
+版本号唯一、版本代码严格递减、日期合法、**最新条目必须等于 `delivery/update/update.json` 的 version/versionCode**（发版忘写日志即红）、任何版本代码大于线上版本即红（开发记录不得混入）、每条版本必须有 `delivery/release-*.md` 或 `CHANGELOG.md` 记录、页面只取 `released()`、展开动画取 `MotionSpec`、关动画走终态、连点 `cancel` 与 `generation` 守卫、入口存在、`exported=false` 注册、两文件不含 WebView / 网络调用。
+
+### 未做（第二阶段）
+- 升级后「本次更新」弹窗、`lastSeen` 记忆、`NoticeDialog`/`UpdateCheck` 的启动时序协调。数据结构已按 `code` 预留区间取用的可能，但**未实现任何自动弹出**，`UpdateCheck` 的下载/校验/安装流程一行未改。
+
+### 验证
+- `test_core` 1262 / `test_build_config` 5 / `test_webview_policy` 5 / `test_ui_contract` **207** 全绿。
+- APK `delivery/科信小助手-2.5.8.6.apk`，5 404 538 B，SHA-256 `88fb77eb2ff566475996273a6a5996a3a815f45c0a4b07a5d6613a5d755c051d`，权限实测 4 项，v2/v3 验签通过；dex 内含 `更新日志`、`当前版本`、`ChangelogActivity` 与各版本说明。
+- **未做**：真机 L1–L8（展开手感、连点、320dp / 大字体、深色、飞行模式、开发包不误标当前版本）。
 
 ---
 

@@ -78,6 +78,8 @@
         <activity android:name=".PrivacyActivity" android:exported="false" android:configChanges="orientation|screenSize" />
         <!-- 使用公告的整篇阅读页；首次启动仍由 NoticeDialog 负责「不再提醒」的选择。 -->
         <activity android:name=".NoticeActivity" android:exported="false" android:configChanges="orientation|screenSize" />
+        <!-- 更新日志：读取随包内置的 AppChangelog，不联网、不导出。 -->
+        <activity android:name=".ChangelogActivity" android:exported="false" android:configChanges="orientation|screenSize" />
         <activity android:name=".FeedbackActivity" android:exported="false" android:configChanges="orientation|screenSize" />
         <activity android:name=".MoreActivity" android:exported="false" android:configChanges="orientation|screenSize" />
         <activity android:name=".AppearanceActivity" android:exported="false" android:configChanges="orientation|screenSize" />

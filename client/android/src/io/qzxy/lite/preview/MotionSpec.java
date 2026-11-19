@@ -4,6 +4,7 @@ import android.animation.ValueAnimator;
 import android.content.Context;
 import android.os.Build;
 import android.provider.Settings;
+import android.view.animation.DecelerateInterpolator;
 import android.view.animation.Interpolator;
 import android.view.animation.PathInterpolator;
 
@@ -22,6 +23,8 @@ final class MotionSpec {
     static final int TAB_OFFSET_DP = 8;
     /** 周次滑页：‹ › 松手归位与跨周跳转共用同一个时长，两处不一致就会像两块板在打架。 */
     static final long WEEK_SLIDE_DURATION = 190L;
+    /** 更新日志里版本卡片的展开/收起：高度与箭头旋转同一时长，箭头不会比内容跑得快。 */
+    static final long LIST_TOGGLE_DURATION = 220L;
 
     private static final Interpolator INDICATOR = new PathInterpolator(0.2f, 0f, 0f, 1f);
 
@@ -29,6 +32,9 @@ final class MotionSpec {
 
     /** 胶囊指示器用的快出慢入曲线，全局共享同一个实例。 */
     static Interpolator indicator() { return INDICATOR; }
+
+    /** 列表展开用的减速曲线：开头快、末尾轻，收尾不显得"顶"一下。 */
+    static Interpolator settle() { return new DecelerateInterpolator(1.6f); }
 
     /** 系统动画被关闭（无障碍「移除动画」或动画缩放为 0）时返回 false。 */
     static boolean shouldAnimate(Context context) {

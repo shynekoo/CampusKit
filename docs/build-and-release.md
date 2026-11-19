@@ -14,7 +14,7 @@ python scripts/bootstrap_android.py            # 首次准备 SDK
 python scripts/test_core.py                    # 1262 项 core 断言
 python scripts/test_build_config.py            # 构建开关 5 项
 python scripts/test_webview_policy.py          # WebView 守卫 5 项
-python scripts/test_ui_contract.py             # UI 契约 141 锚点
+python scripts/test_ui_contract.py             # UI 契约 207 锚点
 python scripts/build_preview.py                # 普通只读版出包（默认跑前 3 个测试）
 ```
 
@@ -46,7 +46,8 @@ python scripts/build_preview.py                # 普通只读版出包（默认�
 2. GitHub 同步：`git push`、`tag vX.Y.Z`、建 Release 上传 APK、更新 README（版本表 / 下载链接 / SHA-256 / 更新日志）。
 3. 下载站同步：新 APK 复制到 `delivery/update/`，`update.json` 更新为新版本，重新发布 sites 站点（目录 `delivery/update`；每次重发布需用户当次明确同意）。
 4. 发布后核对线上页面与 APK 直链均返回 200。
-5. 同步更新 `CHANGELOG.md` 与 [`agent-handoff.md`](agent-handoff.md)；核对版本号与对应 Git Commit；检查无敏感信息写入文档。
+5. **在 `AppChangelog.java` 顶部追加本版条目**（版本号、版本代码、发布日期、面向用户的 2–5 条说明），否则 `test_ui_contract.py` 会以「最新条目与 `update.json` 不一致」失败——这是「发版忘了写更新日志」的自动拦截。
+6. 同步更新 `CHANGELOG.md` 与 [`agent-handoff.md`](agent-handoff.md)；核对版本号与对应 Git Commit；检查无敏感信息写入文档。
 
 分发链接的具体参数见 `README.md` 下载章节（去掉后会 403）。主源为 WorkBuddy 托管，备源为 GitHub Releases。网络安全约束见 [`security.md`](security.md)。
 

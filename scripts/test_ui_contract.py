@@ -472,6 +472,82 @@ def main():
         if "WebView" in body or "loadUrl" in body or "openConnection" in body:
             failures.append("%s: 法律文本页面必须离线可读，不得加载网页或发起请求" % name)
 
+    # --- 更新日志：数据只能来自已发布的版本，页面必须离线、只读 ---------------------------
+    changelog_path = PREVIEW / "ChangelogActivity.java"
+    changelog = changelog_path.read_text(encoding="utf-8") if changelog_path.exists() else ""
+    data_path = PREVIEW / "AppChangelog.java"
+    data = data_path.read_text(encoding="utf-8") if data_path.exists() else ""
+    more_src = (PREVIEW / "MoreActivity.java").read_text(encoding="utf-8")
+
+    require(data, "static final Entry[] ENTRIES", "AppChangelog", "更新日志必须只有一个数据源")
+    require(data, "static Entry[] released()", "AppChangelog", "页面要按 released 过滤，未发布的版本不上屏")
+    require(data, "static Entry current(String versionName)", "AppChangelog",
+            "「当前版本」只能由安装版本号匹配得出")
+
+    import datetime
+    import json
+    import re
+
+    entries = re.findall(r'new Entry\("([^"]+)",\s*(\d+),\s*"(\d{4}-\d{2}-\d{2})"', data)
+    checks += 1
+    if len(entries) < 3:
+        failures.append("AppChangelog: 至少要收录 3 个已发布版本（找到 %d）" % len(entries))
+    versions = [row[0] for row in entries]
+    codes = [int(row[1]) for row in entries]
+    checks += 1
+    if len(set(versions)) != len(versions):
+        failures.append("AppChangelog: 版本号有重复 %s" % versions)
+    checks += 1
+    if codes != sorted(codes, reverse=True):
+        failures.append("AppChangelog: 版本必须按版本代码从新到旧排列 %s" % codes)
+    checks += 1
+    for version, _code, day in entries:
+        try:
+            datetime.date.fromisoformat(day)
+        except ValueError:
+            failures.append("AppChangelog: %s 的发布日期不是合法日期（%s）" % (version, day))
+
+    # 与线上正式清单对齐：最新一条必须是 update.json 指向的那一版。发版忘了加日志、
+    # 或者把还没发布的版本写进来，这里都会红。
+    online = json.loads((ROOT / "delivery/update/update.json").read_text(encoding="utf-8"))
+    checks += 1
+    if entries and (versions[0] != online["version"] or codes[0] != int(online["versionCode"])):
+        failures.append("AppChangelog: 最新条目（%s / %s）与线上 update.json（%s / %s）不一致"
+                        % (versions[0] if versions else "-", codes[0] if codes else "-",
+                           online["version"], online["versionCode"]))
+    checks += 1
+    leaked = [v for v, c in zip(versions, codes) if c > int(online["versionCode"])]
+    if leaked:
+        failures.append("AppChangelog: 这些版本还没发布，不能写进更新日志：%s" % ", ".join(leaked))
+
+    # 每条都要有发布记录可查，免得日志里出现一段没人发过的版本。
+    changelog_md = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    checks += 1
+    undocumented = [v for v in versions
+                    if ("## [%s]" % v) not in changelog_md
+                    and not (ROOT / ("delivery/release-%s.md" % v)).exists()]
+    if undocumented:
+        failures.append("AppChangelog: 这些版本找不到发布记录：%s" % ", ".join(undocumented))
+
+    require(changelog, "extends Page", "ChangelogActivity", "返回沿用 Page 的机制")
+    require(changelog, "AppChangelog.released()", "ChangelogActivity", "页面只展示正式发布的版本")
+    require(changelog, "AppChangelog.current(", "ChangelogActivity", "「当前版本」按安装版本号匹配")
+    require(changelog, "MotionSpec.LIST_TOGGLE_DURATION", "ChangelogActivity",
+            "展开/收起时长取自 MotionSpec")
+    require(changelog, "MotionSpec.shouldAnimate(this)", "ChangelogActivity",
+            "系统关动画时必须直接到终态")
+    require(changelog, "card.running.cancel()", "ChangelogActivity",
+            "连续点击要先停掉上一条动画，不能两条抢同一个高度")
+    require(changelog, "generation != card.generation", "ChangelogActivity",
+            "过期的动画回调不得改状态")
+    require(more_src, "ChangelogActivity.class", "MoreActivity", "更多页要有更新日志入口")
+    require(manifest, 'android:name=".ChangelogActivity" android:exported="false"', "AndroidManifest",
+            "更新日志页必须注册且不导出")
+    checks += 1
+    if "WebView" in code_lines(changelog) or "openConnection" in code_lines(changelog) \
+            or "openConnection" in code_lines(data):
+        failures.append("更新日志必须离线可读，不得加载网页或发起请求")
+
     if failures:
         print("UI CONTRACT FAILED (%d/%d checks):" % (len(failures), checks))
         for f in failures:

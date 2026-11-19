@@ -67,6 +67,15 @@
 
 `ScheduleWidget` / `ScheduleWidgetMedium` / `ScheduleWidgetWide` 三种尺寸，`AppWidgetProvider` 实现，课表变动后刷新。
 
+## 更新日志页（`ChangelogActivity`）
+
+- 入口：校园 → 账号 → 更多 → 更新日志（`MoreActivity` 卡片里，位于「使用公告」之后）。**没有**底部 Tab，主屏结构不变。
+- 数据：`AppChangelog.ENTRIES` 随包内置，新到旧；页面只取 `released()`，`current(versionName)` 决定谁挂「当前版本」。开发包（如 `2.5.8.6`）匹配不到条目，因此**不会**给任何正式版误打标记，改为在顶部说明「此版本尚未正式发布」。
+- 版式：每版一张卡片（`UiTokens.CARD_RADIUS`），标题 `v版本号` 用 `CARD_TITLE` + 粗体，日期用 `BODY_SMALL` + `MUTED`，当前版本另挂一枚 `SOFT` 底的小胶囊；每条变化前是类别图标（新增 `plus` / 优化 `torch` / 修复 `check` / 其他 `info`），图标色只取 `AppUi.ACCENT` 或 `MUTED`；已知问题用 `AppUi.DANGER`。配色不写死任何色值。
+- 交互：只做展开/收起。最新一版与当前安装版默认展开，历史版本收起；展开时标题由 `MUTED` 转 `INK`、箭头旋转 180°，动画只改「内容高度 + 箭头角度」，时长取 `MotionSpec.LIST_TOGGLE_DURATION`(220ms) + `MotionSpec.settle()`，系统关动画时直接给终态（展开回 `WRAP_CONTENT`）。
+- 连点：每张卡片自带 `generation` 与 `running`，新点击先 `cancel()` 上一条动画并从**当前高度**接着走，过期回调直接被 `generation` 拦下，不会两条动画抢同一个 `LayoutParams.height`。
+- 返回走 `Page` 既有机制，未改 `Page` / `CardLayer`。
+
 ## 自动化守卫的边界
 
-`scripts/test_ui_contract.py` 当前有 **187 个静态锚点**：底部导航三项、WeekBoard onMeasure、滚动保存恢复、CardLayer 手势与快照、S4 策略、A3 就地更新分支、三个 Screen 存在、学业情况入口与卡片单一挂载点、教务卡 tile 顺序，以及 UI-1 的 token 常量、UI-2 的 shell/底栏不重建与转场防旧回调守卫、底栏外观修正的房屋图标/固定尺寸图标图标槽/胶囊只包图标的 64×32dp 守卫、UI-3 的转场参数（alpha 0.7→1 / ±8dp / 220ms 进 180ms 出）、快速连点竞态守卫（快照 cancel、各动画自带 end 清理、4 处 generation 守卫），以及 UI-3 收尾的滚动恢复守卫（恢复带 generation、同屏重建才搬运滚动、`OnPreDrawListener` 布局后恢复、stale 恢复不得落到别的 tab、离场页移出无障碍树）与跨周跳转守卫（回本周走 jumpWeek、先落周次再整页滑入、保留滚动位置；两处共用 WEEK_SLIDE_DURATION；Pager 滑出位移只取一屏），以及「数据与隐私 / 使用公告」守卫（文案只在 `LegalText`、待填项必须存在、教务密码与 AES 表述、不得声称充值、manifest 权限逐项披露、两处入口与弹窗同源、`NoticeDialog.VERSION = 3`、两页不得加载网页或发请求）。**它是静态守卫，不验证视觉/手势/真机效果**；UI 2.0 的真机清单（快速切换、320dp、主题、滚动恢复、返回手势、关动画、今日 60s）本轮未实测，D/E 组真机清单未完成前不得发布。
+`scripts/test_ui_contract.py` 当前有 **207 个静态锚点**：底部导航三项、WeekBoard onMeasure、滚动保存恢复、CardLayer 手势与快照、S4 策略、A3 就地更新分支、三个 Screen 存在、学业情况入口与卡片单一挂载点、教务卡 tile 顺序，以及 UI-1 的 token 常量、UI-2 的 shell/底栏不重建与转场防旧回调守卫、底栏外观修正的房屋图标/固定尺寸图标图标槽/胶囊只包图标的 64×32dp 守卫、UI-3 的转场参数（alpha 0.7→1 / ±8dp / 220ms 进 180ms 出）、快速连点竞态守卫（快照 cancel、各动画自带 end 清理、4 处 generation 守卫），以及 UI-3 收尾的滚动恢复守卫（恢复带 generation、同屏重建才搬运滚动、`OnPreDrawListener` 布局后恢复、stale 恢复不得落到别的 tab、离场页移出无障碍树）与跨周跳转守卫（回本周走 jumpWeek、先落周次再整页滑入、保留滚动位置；两处共用 WEEK_SLIDE_DURATION；Pager 滑出位移只取一屏），「数据与隐私 / 使用公告」守卫（文案只在 `LegalText`、待填项必须存在、教务密码与 AES 表述、不得声称充值、manifest 权限逐项披露、两处入口与弹窗同源、`NoticeDialog.VERSION = 3`、两页不得加载网页或发请求），以及更新日志守卫（版本号唯一、版本代码严格递减、日期合法、最新条目必须等于 `delivery/update/update.json`、不得出现尚未发布的版本、每版都要有发布记录可查、页面只取 `released()`、展开动画取 `MotionSpec`、连点 cancel 与 generation 守卫、入口与 exported=false 注册、离线可读）。**它是静态守卫，不验证视觉/手势/真机效果**；UI 2.0 的真机清单（快速切换、320dp、主题、滚动恢复、返回手势、关动画、今日 60s）本轮未实测，D/E 组真机清单未完成前不得发布。
