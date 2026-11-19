@@ -15,6 +15,7 @@ import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.ArrayAdapter;
 import android.widget.TextView;
+import io.qzxy.lite.core.MainNavigator;
 import io.qzxy.lite.core.PendingUse;
 import io.qzxy.lite.core.TimetableIndex;
 import java.text.SimpleDateFormat;
@@ -43,13 +44,13 @@ public final class TimetableActivity extends Page implements App.Themed {
     private void refreshClock(){
         boolean changed=!todayIso().equals(lastDay);lastDay=todayIso();
         if(changed)week=Math.max(1,Math.min(CoursePickers.LAST_WEEK,currentWeek()));
-        if(root!=null&&(changed||tab==0)){
+        if(root!=null&&(changed||nav.tab()==0)){
             int scroll=0;for(int i=0;i<root.getChildCount();i++)if(root.getChildAt(i) instanceof ScrollView)scroll=root.getChildAt(i).getScrollY();
             render();final int y=scroll;for(int i=0;i<root.getChildCount();i++)if(root.getChildAt(i) instanceof ScrollView){View v=root.getChildAt(i);v.post(()->v.scrollTo(0,y));}
         }
     }
     @Override protected void onPause(){accountVisible=false;clockHandler.removeCallbacks(clockTick);super.onPause();}
-    @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);if(intent.getBooleanExtra("showToday",false)){tab=0;render();}}
+    @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);if(intent.getBooleanExtra("showToday",false)){nav.selectTab(0);render();}}
 
     private String monday = "";
     private boolean unreadable;
@@ -57,10 +58,8 @@ public final class TimetableActivity extends Page implements App.Themed {
     private boolean importing;
     /** Which side the next board should animate in from: +1 from the right, -1 from the left, 0 none. */
     private WeekBoard.Pager pager;
-    /** 0 = 今日, 1 = 课表, 2 = 趣智校园. Parallel tabs of this activity, not separate screens. */
-    private int tab;
-    /** Inside 趣智校园: 0 = the entry list, 1 = the records view. */
-    private int campusView;
+    /** Navigation state lives in core so the back order is unit-tested; views read it via nav. */
+    private MainNavigator nav = new MainNavigator();
     private String pendingNote;
     private boolean signedIn;
     private boolean accountVisible,sessionChecking,expiredNotice;
@@ -102,11 +101,10 @@ public final class TimetableActivity extends Page implements App.Themed {
      * 返回先收内部状态：校区页 → 校区列表 → 今日，之后才是关页面。按当前状态作答，回到今日
      * 首页时返回就真的关页面，那一页才用得上系统的跟手缩小。
      */
-    @Override protected boolean backMayStay() { return tab != 0 || campusView == 1; }
+    @Override protected boolean backMayStay() { return nav.tab() != 0 || nav.campusView() == 1; }
 
     @Override public void onBackPressed() {
-        if (tab == 2 && campusView == 1) { campusView = 0; render(); return; }
-        if (tab != 0) { tab = 0; campusView = 0; render(); return; }
+        if (nav.consumeBack()) { render(); return; }
         super.onBackPressed();
     }
 
@@ -132,7 +130,7 @@ public final class TimetableActivity extends Page implements App.Themed {
                 if (isDestroyed() || isFinishing()) return;
                 boolean changed = signedIn != loadedSignedIn || !loadedNote.equals(pendingNote == null ? "" : pendingNote);
                 signedIn = loadedSignedIn; pendingNote = loadedNote;
-                if (changed && (tab == 2 || tab == 0)) render();
+                if (changed && (nav.tab() == 2 || nav.tab() == 0)) render();
             });
         });
     }
@@ -361,8 +359,7 @@ public final class TimetableActivity extends Page implements App.Themed {
         int current = currentWeek();
         week = saved == null ? Math.max(1, Math.min(CoursePickers.LAST_WEEK, current)) : Math.max(1, Math.min(CoursePickers.LAST_WEEK, saved.getInt("week", 1)));
         if (saved != null) {
-            tab = Math.max(0, Math.min(2, saved.getInt("tab")));
-            campusView = Math.max(0, Math.min(1, saved.getInt("campusView")));
+            nav = new MainNavigator(saved.getInt("tab"), saved.getInt("campusView"));
             pendingNote = saved.getString("pendingNote");
         }
         render();
@@ -375,7 +372,7 @@ public final class TimetableActivity extends Page implements App.Themed {
     }
     @Override protected void onSaveInstanceState(Bundle out) {
         out.putString("lastDay",lastDay);
-        out.putInt("week", week); out.putInt("tab", tab); out.putInt("campusView", campusView);
+        out.putInt("week", week); out.putInt("tab", nav.tab()); out.putInt("campusView", nav.campusView());
         out.putString("pendingNote", pendingNote);
         super.onSaveInstanceState(out);
     }
@@ -733,7 +730,7 @@ public final class TimetableActivity extends Page implements App.Themed {
         // One header shape for all three tabs, so 今日 / 课表 / 趣智校园 read as views of the same app.
         LinearLayout header=new LinearLayout(this);header.setGravity(android.view.Gravity.CENTER_VERTICAL);header.setPadding(dp(8),0,dp(8),0);
         LinearLayout heading=column();
-        if(tab==1){
+        if(nav.tab()==1){
             // Only the name and its caret are the button. The header row behind them stays inert, so a
             // tap on the empty space to the right no longer opens the picker by accident.
             LinearLayout picker=new LinearLayout(this);
@@ -756,26 +753,26 @@ public final class TimetableActivity extends Page implements App.Themed {
             AppUi.press(picker,0x00ffffff,8);
             picker.setContentDescription("当前课表 "+TimetableStore.currentName(this)+"，点按切换或重命名");
             heading.addView(picker);
-        } else heading.addView(bold(tab==0?"今日":"账号",28));
+        } else heading.addView(bold(nav.tab()==0?"今日":"账号",28));
         String subtitle;
-        if(tab==0)subtitle=DAYS[todayIndex()]+" · "+todayIso()+(currentWeek()>=1&&currentWeek()<=CoursePickers.LAST_WEEK?" · 第 "+currentWeek()+" 周":"");
-        else if(tab==1)subtitle=monday.isEmpty()?"设置开学日期，自动定位本周":(dayDate(0).replace(" · ",""))+" — "+dayDate(6).replace(" · ","");
+        if(nav.tab()==0)subtitle=DAYS[todayIndex()]+" · "+todayIso()+(currentWeek()>=1&&currentWeek()<=CoursePickers.LAST_WEEK?" · 第 "+currentWeek()+" 周":"");
+        else if(nav.tab()==1)subtitle=monday.isEmpty()?"设置开学日期，自动定位本周":(dayDate(0).replace(" · ",""))+" — "+dayDate(6).replace(" · ","");
         else subtitle="校园服务账号";
         TextView caption=text(subtitle,12);caption.setTextColor(AppUi.MUTED);caption.setPadding(0,0,0,dp(6));heading.addView(caption);
-        if(tab==1&&monday.isEmpty()&&!unreadable)caption.setOnClickListener(v->semester());
+        if(nav.tab()==1&&monday.isEmpty()&&!unreadable)caption.setOnClickListener(v->semester());
         header.addView(heading,new LinearLayout.LayoutParams(0,-2,1));
-        if(tab==1){Button settings=weekAction(importing?"识别中…":"管理",this::manage);settings.setEnabled(!unreadable&&!importing);header.addView(settings,new LinearLayout.LayoutParams(dp(76),dp(48)));}
-        else if(tab==2&&campusView==1){TextView back=text("‹ 返回",14);back.setTextColor(AppUi.ACCENT);back.setPadding(dp(10),dp(10),0,dp(10));back.setOnClickListener(v->{campusView=0;render();});header.addView(back);}
+        if(nav.tab()==1){Button settings=weekAction(importing?"识别中…":"管理",this::manage);settings.setEnabled(!unreadable&&!importing);header.addView(settings,new LinearLayout.LayoutParams(dp(76),dp(48)));}
+        else if(nav.tab()==2&&nav.campusView()==1){TextView back=text("‹ 返回",14);back.setTextColor(AppUi.ACCENT);back.setPadding(dp(10),dp(10),0,dp(10));back.setOnClickListener(v->{nav.openCampusList();render();});header.addView(back);}
         root.addView(header);
-        if(tab==0)todayContent();else if(tab==1)timetableContent();else campusContent();
+        if(nav.tab()==0)todayContent();else if(nav.tab()==1)timetableContent();else campusContent();
         LinearLayout holder=column();holder.setPadding(dp(8),dp(2),dp(8),dp(8));
         // No elevation: the cast shadow is offset downward, so a rounded white bar shows a dark smudge
         // under the two bottom corners while the top corners stay clean. The hairline border alone
         // separates the bar from the page, evenly on all four corners.
         LinearLayout bar=new LinearLayout(this);bar.setBackground(AppUi.outlined(this,AppUi.SURFACE,24,AppUi.LINE));bar.setPadding(dp(5),dp(5),dp(5),dp(5));
-        bar.addView(tabItem("今日",tab==0,()->{if(tab!=0){tab=0;campusView=0;render();}}),new LinearLayout.LayoutParams(0,-2,1));
-        bar.addView(tabItem("课表",tab==1,()->{if(tab!=1){tab=1;campusView=0;render();}}),new LinearLayout.LayoutParams(0,-2,1));
-        bar.addView(tabItem("账号",tab==2,()->{if(tab!=2){tab=2;render();}}),new LinearLayout.LayoutParams(0,-2,1));
+        bar.addView(tabItem("今日",nav.tab()==0,()->{if(nav.tab()!=0){nav.selectTab(0);render();}}),new LinearLayout.LayoutParams(0,-2,1));
+        bar.addView(tabItem("课表",nav.tab()==1,()->{if(nav.tab()!=1){nav.selectTab(1);render();}}),new LinearLayout.LayoutParams(0,-2,1));
+        bar.addView(tabItem("账号",nav.tab()==2,()->{if(nav.tab()!=2){nav.selectTab(2);render();}}),new LinearLayout.LayoutParams(0,-2,1));
         holder.addView(bar,new LinearLayout.LayoutParams(-1,-2));root.addView(holder,new LinearLayout.LayoutParams(-1,-2));
         setContentView(root);root.requestApplyInsets();
     }
@@ -807,7 +804,7 @@ public final class TimetableActivity extends Page implements App.Themed {
     private void todayCourses(LinearLayout parent) {
         LinearLayout card=whiteCard();
         int todayWeek=currentWeek();
-        cardHeader(card,"今天的课","查看课表",()->{tab=1;week=Math.max(1,Math.min(CoursePickers.LAST_WEEK,currentWeek()));render();});gap(card,10);
+        cardHeader(card,"今天的课","查看课表",()->{nav.selectTab(1);week=Math.max(1,Math.min(CoursePickers.LAST_WEEK,currentWeek()));render();});gap(card,10);
         if(unreadable) {
             card.addView(body("本机课表无法完整读取，已保留原数据。"));
         } else if(monday.isEmpty()) {

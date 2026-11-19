@@ -1320,6 +1320,36 @@ public final class CoreTests {
         equal(false, SnapshotPolicy.allows(""));
         System.out.println("PASS: sensitive pages are excluded from back-animation snapshots");
 
+        // A1: navigation state is a pure state machine. Back consumes internal state before the
+        // activity closes; tab/scope values are clamped so a restored bundle cannot put the UI in an
+        // impossible state. Kept in core so the exact back order is locked by tests, not by a UI tap.
+        MainNavigator nav = new MainNavigator();
+        equal(0, nav.tab()); equal(0, nav.campusView());
+        equal(false, nav.backMayStay());         // tab 0, scope 0 -> back closes the page
+        equal(false, nav.consumeBack());          // so nothing is consumed internally
+        nav.selectTab(2); nav.openCampusRecords();
+        equal(true, nav.backMayStay());
+        equal(true, nav.consumeBack()); equal(2, nav.tab()); equal(0, nav.campusView());
+        equal(true, nav.consumeBack()); equal(0, nav.tab());
+        equal(false, nav.consumeBack());
+        nav.selectTab(1); equal(true, nav.backMayStay());
+        equal(true, nav.consumeBack()); equal(0, nav.tab());
+        // Switching a tab always leaves the campus records view.
+        nav.selectTab(2); nav.openCampusRecords(); nav.selectTab(1);
+        equal(0, nav.campusView());
+        // Restored values are clamped to the valid ranges.
+        MainNavigator restored = new MainNavigator(99, 88);
+        equal(2, restored.tab()); equal(1, restored.campusView());
+        MainNavigator negative = new MainNavigator(-5, -3);
+        equal(0, negative.tab()); equal(0, negative.campusView());
+        // The activity saves these two ints into a bundle and rebuilds from them; the round trip
+        // must land on the same screen (including the campus records scope).
+        MainNavigator saved = new MainNavigator(2, 1);
+        MainNavigator reborn = new MainNavigator(saved.tab(), saved.campusView());
+        equal(2, reborn.tab()); equal(1, reborn.campusView());
+        equal(true, reborn.consumeBack()); equal(0, reborn.campusView());
+        System.out.println("PASS: navigation back-stack consumes scope then tab before closing");
+
         System.out.println("All " + assertions + " assertions passed. Live API/Bluetooth compatibility is not tested here.");
     }
 
