@@ -39,12 +39,16 @@ public final class TimetableActivity extends Page implements App.Themed {
     private String lastDay="";
     private android.graphics.Bitmap backgroundImage;
     private final android.os.Handler clockHandler=new android.os.Handler(android.os.Looper.getMainLooper());
+    private io.qzxy.lite.core.ClockRedraw clockRedraw=new io.qzxy.lite.core.ClockRedraw();
     private final Runnable clockTick=new Runnable(){public void run(){if(hasWindowFocus())refreshClock();clockHandler.postDelayed(this,30000);}};
     private final SharedPreferences.OnSharedPreferenceChangeListener timetableChanged=(prefs,key)->ScheduleWidget.updateAll(this);
     private void refreshClock(){
-        boolean changed=!todayIso().equals(lastDay);lastDay=todayIso();
-        if(changed)week=Math.max(1,Math.min(CoursePickers.LAST_WEEK,currentWeek()));
-        if(root!=null&&(changed||nav.tab()==0)){
+        String today=todayIso();
+        boolean dayChanged=!today.equals(lastDay);lastDay=today;
+        if(dayChanged)week=Math.max(1,Math.min(CoursePickers.LAST_WEEK,currentWeek()));
+        // Rebuild only when the date changed or the live 今日 tab needs its current-class marker.
+        // The decision is unit-tested in core; scroll position is preserved across the rebuild.
+        if(root!=null&&clockRedraw.tick(today,nav.tab())){
             int scroll=0;for(int i=0;i<root.getChildCount();i++)if(root.getChildAt(i) instanceof ScrollView)scroll=root.getChildAt(i).getScrollY();
             render();final int y=scroll;for(int i=0;i<root.getChildCount();i++)if(root.getChildAt(i) instanceof ScrollView){View v=root.getChildAt(i);v.post(()->v.scrollTo(0,y));}
         }
@@ -354,6 +358,7 @@ public final class TimetableActivity extends Page implements App.Themed {
         // 0.7.7 and earlier stored a hand-typed pickup code here; the feature is gone, so drop it.
         getSharedPreferences("campus-v1", MODE_PRIVATE).edit().remove("pickup_code").apply();
         lastDay=saved==null?todayIso():saved.getString("lastDay",todayIso());
+        clockRedraw=new io.qzxy.lite.core.ClockRedraw(lastDay);
         store.registerOnSharedPreferenceChangeListener(timetableChanged);
         reload();
         int current = currentWeek();

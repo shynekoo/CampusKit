@@ -1378,6 +1378,18 @@ public final class CoreTests {
         rejects(() -> CourseJsonMapper.fromFields(fields("name", "x", "day", "1", "first", "3", "last", "2")));
         System.out.println("PASS: Course model round-trips all fields including extension data");
 
+        // A3: the 30s clock tick must rebuild the page only when the day (hence the week and the
+        // "today" highlight) actually changes, or when the page is the live 今日 tab. A tick on
+        // another tab with the same date does nothing. Pure decision, testable without a view.
+        ClockRedraw redraw = new ClockRedraw();
+        equal(true, redraw.tick("2026-11-19", 0));    // today tab: renders, preserving scroll
+        equal(false, redraw.tick("2026-11-19", 1));   // schedule tab, same day: no rebuild
+        equal(false, redraw.tick("2026-11-19", 2));   // account tab, same day: no rebuild
+        equal(true, redraw.tick("2026-11-20", 1));    // new day anywhere: week/highlight changes
+        equal(false, redraw.tick("2026-11-20", 1));   // second tick same new day: nothing
+        equal(true, redraw.tick("2026-11-20", 0));    // today tab always live
+        System.out.println("PASS: clock tick rebuilds only on a new day or on the live today tab");
+
         System.out.println("All " + assertions + " assertions passed. Live API/Bluetooth compatibility is not tested here.");
     }
 
