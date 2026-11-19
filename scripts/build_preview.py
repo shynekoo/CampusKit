@@ -109,6 +109,7 @@ def main():
     if "--skip-tests" not in sys.argv:
         run([sys.executable, ROOT / "scripts/test_core.py"])
         run([sys.executable, ROOT / "scripts/test_build_config.py"])
+        run([sys.executable, ROOT / "scripts/test_webview_policy.py"])
     properties = subprocess.run(["java", "-XshowSettings:properties", "-version"], capture_output=True, text=True, errors="replace", check=True)
     found = re.search(r"java.home\s*=\s*(.+)", properties.stderr)
     if found is None:

@@ -16,6 +16,8 @@ import android.webkit.WebViewClient;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import io.qzxy.lite.core.TrustedUrlPolicy;
+
 /**
  * The school's own login page, kept apart from the query screens.
  *
@@ -26,6 +28,10 @@ import android.widget.TextView;
 public final class EduLoginActivity extends Page {
     private static final String HOST = "jwglxxfwpt.hebeu.edu.cn";
     private static final String LOGIN = "https://" + HOST + "/xtgl/login_slogin.html";
+    /** Same admission as the other academic WebViews: HTTPS, school host, default/443 only. */
+    private static final TrustedUrlPolicy SITE = new TrustedUrlPolicy(
+        java.util.Collections.singletonList("hebeu.edu.cn"),
+        java.util.Collections.singletonList(443));
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private TextView status;
@@ -66,9 +72,8 @@ public final class EduLoginActivity extends Page {
         CookieManager.getInstance().setAcceptThirdPartyCookies(web, false);
         web.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                String host = request.getUrl().getHost();
-                if (host != null && (host.equals("hebeu.edu.cn") || host.endsWith(".hebeu.edu.cn"))) return false;
-                status.setText("该跳转不属于学校网站，未在此页打开。");
+                if (SITE.allowsInApp(request.getUrl().toString())) return false;
+                status.setText("该跳转不属于学校 HTTPS 网站，未在此页打开。");
                 return true;
             }
             @Override public void onPageFinished(WebView view, String url) {
