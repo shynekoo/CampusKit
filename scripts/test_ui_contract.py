@@ -91,6 +91,17 @@ def main():
         failures.append("TimetableActivity: old unconditional clockRedraw.tick rebuild is still present")
     checks += 1
 
+    # --- A1 staged Screen extraction -------------------------------------------------------
+    # Screens are nested static classes of the activity so they can reuse its private UI helpers
+    # with byte-for-byte identical behaviour - no visibility widening, no Context confusion.
+    require(activity, "new CampusScreen(this)", "TimetableActivity",
+            "render() must delegate the campus tab to CampusScreen")
+    require(activity, "class CampusScreen", "TimetableActivity", "CampusScreen extracted")
+    require(activity, "检查更新", "CampusScreen block", "campus content moved out of render path")
+    # The old inline method body must be gone: campus rows are built in the Screen, not here.
+    if "private void campusContent() {" in activity:
+        failures.append("TimetableActivity still owns campusContent() inline (not extracted)")
+
     if failures:
         print("UI CONTRACT FAILED (%d/%d checks):" % (len(failures), checks))
         for f in failures:

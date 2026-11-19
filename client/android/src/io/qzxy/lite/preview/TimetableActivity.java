@@ -748,22 +748,6 @@ public final class TimetableActivity extends Page implements App.Themed {
     private TextView bold(String value,int size){TextView view=text(value,size);view.setTypeface(null,android.graphics.Typeface.BOLD);return view;}
 
     /** One row of the 趣智校园 list: badge, title, description, chevron. */
-    private void campusEntry(LinearLayout parent,String icon,int tint,String title,String subtitle,Runnable action,boolean divider) {
-        LinearLayout line=new LinearLayout(this);line.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        line.setPadding(dp(16),dp(14),dp(14),dp(14));
-        line.setOnClickListener(v->action.run());line.setFocusable(true);
-        android.widget.ImageView mark=new android.widget.ImageView(this);mark.setImageDrawable(AppUi.icon(this,icon,AppUi.ACCENT,24));mark.setBackground(AppUi.shape(this,AppUi.SOFT,12));mark.setPadding(dp(8),dp(8),dp(8),dp(8));mark.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);line.addView(mark,new LinearLayout.LayoutParams(dp(40),dp(40)));AppUi.press(line,AppUi.SURFACE,8);
-        LinearLayout labels=column();labels.setPadding(dp(14),0,0,0);
-        labels.addView(bold(title,16));
-        TextView caption=text(subtitle,12);caption.setTextColor(AppUi.MUTED);caption.setPadding(0,dp(2),0,0);labels.addView(caption);
-        line.addView(labels,new LinearLayout.LayoutParams(0,-2,1));
-        TextView chevron=text("›",20);chevron.setTextColor(0xffb3bcc9);line.addView(chevron);
-        line.setContentDescription(title+"，"+subtitle);
-        parent.addView(line,new LinearLayout.LayoutParams(-1,-2));
-        if(divider){View rule=new View(this);rule.setBackgroundColor(AppUi.LINE);
-            LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,Math.max(1,dp(1)));
-            params.setMargins(dp(70),0,0,0);parent.addView(rule,params);}
-    }
     private TextView tabItem(String label,boolean selected,Runnable action) {
         TextView item=bold(label,12);
         item.setTextColor(selected?AppUi.ACCENT:AppUi.MUTED);
@@ -828,7 +812,7 @@ public final class TimetableActivity extends Page implements App.Themed {
         if(nav.tab()==1){Button settings=weekAction(importing?"识别中…":"管理",this::manage);settings.setEnabled(!unreadable&&!importing);header.addView(settings,new LinearLayout.LayoutParams(dp(76),dp(48)));}
         else if(nav.tab()==2&&nav.campusView()==1){TextView back=text("‹ 返回",14);back.setTextColor(AppUi.ACCENT);back.setPadding(dp(10),dp(10),0,dp(10));back.setOnClickListener(v->{nav.openCampusList();render();});header.addView(back);}
         root.addView(header);
-        if(nav.tab()==0)todayContent();else if(nav.tab()==1)timetableContent();else campusContent();
+        if(nav.tab()==0)todayContent();else if(nav.tab()==1)timetableContent();else new CampusScreen(this).build();
         LinearLayout holder=column();holder.setPadding(dp(8),dp(2),dp(8),dp(8));
         // No elevation: the cast shadow is offset downward, so a rounded white bar shows a dark smudge
         // under the two bottom corners while the top corners stay clean. The hairline border alone
@@ -1031,27 +1015,6 @@ public final class TimetableActivity extends Page implements App.Themed {
         if(intent==null){notice("请先安装趣智校园原版应用。");return;}
         try{startActivity(intent);}catch(Exception e){notice("无法打开趣智校园，请检查原版是否已安装并启用。");}
     }
-    private void campusContent() {
-        ScrollView scroll=new ScrollView(this);LinearLayout content=column();scroll.addView(content);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
-        LinearLayout card=whiteCard();
-        campusEntry(card,"scan",AppUi.ACCENT,"趣智校园","浴室、吹风机",()->startActivity(new Intent(this,AccountInfoActivity.class)),true);
-        campusEntry(card,"water",AppUi.ACCENT,"慧生活798","饮水",()->startActivity(new Intent(this,AccountInfoActivity.class).putExtra("life798",true)),true);
-        // 教务系统指向本应用自己的教务页（自动登录 + 网页登录两条路都在里面），不是学校的空白登录表单：
-        // 没存账号时那一页会直接把教务账号页拉起来，等于先看到登录，再看到系统。
-        campusEntry(card,"cap",AppUi.ACCENT,"教务系统","成绩、空教室与自动登录",()->startActivity(new Intent(this,EduPortalActivity.class)),true);
-        // 数据与隐私 已移到「更多」：它讲的是这个应用本身存了什么，不是一项校园服务。
-        // Feedback sits above the update check: both are about the app itself rather than about an
-        // account, and a reader who came here to complain should not have to scroll past 检查更新.
-        campusEntry(card,"mail",AppUi.ACCENT,"意见反馈","邮箱与 QQ 群",()->startActivity(new Intent(this,FeedbackActivity.class)),true);
-        // The start-up check is silent by design, so the manual one sits in the list next to the
-        // other things that answer a question about the app itself, rather than on a footer line.
-        // 外观与主题 和 意见反馈、检查更新 同类：它讲的是这个应用该长什么样，不是一项校园服务。
-        campusEntry(card,"theme",AppUi.ACCENT,"外观与主题","深色模式、主题色与课表配色",()->startActivity(new Intent(this,AppearanceActivity.class)),true);
-        campusEntry(card,"refresh",AppUi.ACCENT,"检查更新","当前 "+AppUi.version(this)+"，点按查询新版本",()->UpdateCheck.checkManually(this),true);
-        campusEntry(card,"more",AppUi.ACCENT,"更多","数据与隐私、源码与许可证",()->startActivity(new Intent(this,MoreActivity.class)),false);
-        gap(card,10);card.addView(body("科信小助手 "+AppUi.version(this)+" · 第三方校园客户端"));content.addView(card);
-    }
-
     private void records(LinearLayout parent) {
         if(pendingNote!=null&&!pendingNote.isEmpty()) {
             // A warning keeps its warm tint in both themes, but the tint itself has to be the dark
@@ -1222,4 +1185,51 @@ public final class TimetableActivity extends Page implements App.Themed {
             } catch (Exception invalid) { error.setText("请输入有效的周一日期，格式为 年-月-日。"); }
         })); dialog.show();
     }
+
+    /** 趣智校园 tab: app-level services, settings and about entries. Extracted as a screen so the
+     *  activity no longer owns its view assembly; kept as a nested class to reuse the activity's
+     *  private UI helpers with identical behaviour (no visibility widening, no Context confusion). */
+    static final class CampusScreen {
+        private final TimetableActivity a;
+        CampusScreen(TimetableActivity activity) { this.a = activity; }
+
+        void build() {
+            ScrollView scroll=new ScrollView(a);LinearLayout content=a.column();scroll.addView(content);a.root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+            LinearLayout card=a.whiteCard();
+            entry(card,"scan","趣智校园","浴室、吹风机",()->a.startActivity(new Intent(a,AccountInfoActivity.class)),true);
+            entry(card,"water","慧生活798","饮水",()->a.startActivity(new Intent(a,AccountInfoActivity.class).putExtra("life798",true)),true);
+            // 教务系统指向本应用自己的教务页（自动登录 + 网页登录两条路都在里面），不是学校的空白登录表单：
+            // 没存账号时那一页会直接把教务账号页拉起来，等于先看到登录，再看到系统。
+            entry(card,"cap","教务系统","成绩、空教室与自动登录",()->a.startActivity(new Intent(a,EduPortalActivity.class)),true);
+            // 数据与隐私 已移到「更多」：它讲的是这个应用本身存了什么，不是一项校园服务。
+            // Feedback sits above the update check: both are about the app itself rather than about an
+            // account, and a reader who came here to complain should not have to scroll past 检查更新.
+            entry(card,"mail","意见反馈","邮箱与 QQ 群",()->a.startActivity(new Intent(a,FeedbackActivity.class)),true);
+            // The start-up check is silent by design, so the manual one sits in the list next to the
+            // other things that answer a question about the app itself, rather than on a footer line.
+            // 外观与主题 和 意见反馈、检查更新 同类：它讲的是这个应用该长什么样，不是一项校园服务。
+            entry(card,"theme","外观与主题","深色模式、主题色与课表配色",()->a.startActivity(new Intent(a,AppearanceActivity.class)),true);
+            entry(card,"refresh","检查更新","当前 "+AppUi.version(a)+"，点按查询新版本",()->UpdateCheck.checkManually(a),true);
+            entry(card,"more","更多","数据与隐私、源码与许可证",()->a.startActivity(new Intent(a,MoreActivity.class)),false);
+            a.gap(card,10);card.addView(a.body("科信小助手 "+AppUi.version(a)+" · 第三方校园客户端"));content.addView(card);
+        }
+
+        private void entry(LinearLayout parent,String icon,String title,String subtitle,Runnable action,boolean divider) {
+            LinearLayout line=new LinearLayout(a);line.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            line.setPadding(a.dp(16),a.dp(14),a.dp(14),a.dp(14));
+            line.setOnClickListener(v->action.run());line.setFocusable(true);
+            android.widget.ImageView mark=new android.widget.ImageView(a);mark.setImageDrawable(AppUi.icon(a,icon,AppUi.ACCENT,24));mark.setBackground(AppUi.shape(a,AppUi.SOFT,12));mark.setPadding(a.dp(8),a.dp(8),a.dp(8),a.dp(8));mark.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);line.addView(mark,new LinearLayout.LayoutParams(a.dp(40),a.dp(40)));AppUi.press(line,AppUi.SURFACE,8);
+            LinearLayout labels=a.column();labels.setPadding(a.dp(14),0,0,0);
+            labels.addView(a.bold(title,16));
+            TextView caption=a.text(subtitle,12);caption.setTextColor(AppUi.MUTED);caption.setPadding(0,a.dp(2),0,0);labels.addView(caption);
+            line.addView(labels,new LinearLayout.LayoutParams(0,-2,1));
+            TextView chevron=a.text("›",20);chevron.setTextColor(0xffb3bcc9);line.addView(chevron);
+            line.setContentDescription(title+"，"+subtitle);
+            parent.addView(line,new LinearLayout.LayoutParams(-1,-2));
+            if(divider){View rule=new View(a);rule.setBackgroundColor(AppUi.LINE);
+                LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,Math.max(1,a.dp(1)));
+                params.setMargins(a.dp(70),0,0,0);parent.addView(rule,params);}
+        }
+    }
+
 }
