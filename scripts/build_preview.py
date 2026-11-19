@@ -82,6 +82,15 @@ def write_build_flags(field_water, device_tests, diagnostics):
     return source
 
 
+def diagnostics_enabled(argv):
+    """诊断代码只在显式 --diagnostics 时编入。
+
+    用水控制版曾默认编入诊断（并在运行期默认开），正式包因此可能静默抓 SDK 日志。
+    现在两种正式包（普通、用水）都不编入；内部排障必须显式加 --diagnostics。
+    """
+    return "--diagnostics" in argv
+
+
 def option(name):
     """--name value 或 --name=value，找不到就返回 None。"""
     for index, value in enumerate(sys.argv):
@@ -95,10 +104,11 @@ def option(name):
 def main():
     device_tests = "--device-tests" in sys.argv
     field_water = "--field-water" in sys.argv
-    # 日志随测试版走；发布版要让位给体积与「不记录东西」这条承诺，除非显式要求。
-    diagnostics = "--diagnostics" in sys.argv or (field_water and "--no-diagnostics" not in sys.argv)
+    # 诊断默认不编入：正式包（含用水版）都不带这条分支，测试构建显式 --diagnostics 才开。
+    diagnostics = diagnostics_enabled(sys.argv)
     if "--skip-tests" not in sys.argv:
         run([sys.executable, ROOT / "scripts/test_core.py"])
+        run([sys.executable, ROOT / "scripts/test_build_config.py"])
     properties = subprocess.run(["java", "-XshowSettings:properties", "-version"], capture_output=True, text=True, errors="replace", check=True)
     found = re.search(r"java.home\s*=\s*(.+)", properties.stderr)
     if found is None:

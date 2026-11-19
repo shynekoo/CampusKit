@@ -1273,6 +1273,15 @@ public final class CoreTests {
             UpdateUrls.MAX_REDIRECTS));
         System.out.println("PASS: update redirects stay on HTTPS, are bounded and loop-free, and drop query on a new host");
 
+        // Diagnostics must be opt-in at runtime even when compiled into a release variant. The
+        // default is a policy, not an accident of a null context or a failed SharedPreferences read.
+        equal(false, DiagPolicy.ENABLED_BY_DEFAULT);
+        equal(false, DiagPolicy.defaultEnabled(null));
+        equal(false, DiagPolicy.defaultEnabled(""));
+        equal(true, DiagPolicy.explicitlyEnabled(true));
+        equal(false, DiagPolicy.explicitlyEnabled(false));
+        System.out.println("PASS: diagnostics stay off by default; only an explicit turn-on enables them");
+
         System.out.println("All " + assertions + " assertions passed. Live API/Bluetooth compatibility is not tested here.");
     }
 

@@ -22,17 +22,20 @@ import java.util.TimeZone;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import io.qzxy.lite.core.DiagPolicy;
+
 /**
- * 日志：只在测试版存在，回答「哪一环断了」这一个问题。
+ * 日志：只在显式开启时记录，回答「哪一环断了」这一个问题。
  *
  * <p>它记的不是全量日志，而是能自己算结论的字段：一次开机的机器快照（机型、ROM、空间号、
  * 支付宝版本、WebView 版本、时区），加上授权与登录两步的时间点和返回码。看日志的人不需要
  * 知道代码在哪，只要看最后一行停在哪，就知道断在唤起、回调、还是服务端。</p>
  *
- * <p>三条自我约束。**不联网、不上报**：写进应用私有目录，只有本机这个页面读得到，交出去靠
- * 使用者自己复制。**不记隐私**：手机号、token、授权码原文、设备标识一律不进文件，授权码只留
- * 前六位用于对齐服务器日志。**不抛异常**：日志写失败就静默放弃，绝不能让排查手段本身成为
- * 新的故障点。</p>
+ * <p>三条自我约束。**默认不记录**：即使诊断编进了正式包，运行期默认也是关的，只有使用者
+ * 在日志页明确点「开启记录」才开始；不联网、不上报：写进应用私有目录，只有本机这个页面读得到，
+ * 交出去靠使用者自己复制。**不记隐私**：手机号、token、授权码原文、Cookie、设备标识一律不进文件，
+ * 授权码只留前六位用于对齐服务器日志。**不抛异常**：日志写失败就静默放弃，绝不能让排查手段本身
+ * 成为新的故障点。</p>
  *
  * <p>写在文件而不是内存里是有原因的：卡死时使用者会杀掉进程再看日志，进程一死，内存里的记录
  * 就没了——而那正是最需要留下的几行。文件保留上一次会话的尾部，加上一条「进程启动」分隔线，
@@ -52,22 +55,27 @@ final class Diag {
     private static final Object LOCK = new Object();
     private static File file;
     private static boolean installed;
-    /** 运行期开关：测试同学在别人手机上跑一整天时，得能就地关掉，不必重编译。 */
+    private static boolean sdkHooked;
+    /** 运行期开关：默认关，只有使用者在日志页明确开启才记录。 */
     private static Context app;
     private static final String PREFS = "diag";
-    private static final String KEY_ON = "on";
+    /** 新键：升级时旧版的 "on=true" 不被继承，正式包一律从关闭开始。 */
+    private static final String KEY_MODE = "mode";
+    private static final String MODE_ON = "on";
 
     private Diag() { }
 
-    /** 编译期开关之外再叠一层运行期开关；默认开。 */
+    /** 编译期开关之外再叠一层运行期开关；默认关。 */
     static boolean enabled() {
         if (!ON) return false;
         Context context = app;
-        if (context == null) return true;
+        if (context == null) return DiagPolicy.ENABLED_BY_DEFAULT;
         try {
-            return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_ON, true);
+            String mode = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getString(KEY_MODE, "");
+            return DiagPolicy.defaultEnabled(mode);
         } catch (Throwable unknown) {
-            return true;
+            return DiagPolicy.ENABLED_BY_DEFAULT;
         }
     }
 
@@ -76,15 +84,19 @@ final class Diag {
         Context context = app;
         if (context == null) return;
         try {
-            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_ON, value).apply();
-            if (value) append(clock() + " [主] 记录 已恢复记录");
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                .putString(KEY_MODE, value ? MODE_ON : "off").apply();
+            if (value) {
+                append(clock() + " [主] 记录 已恢复记录");
+                captureSdk();   // 只有明确开启后才接 SDK 日志
+            }
         } catch (Throwable ignored) {
         }
     }
 
     /**
-     * 开机记一次快照，并把支付宝 SDK 的内部日志接过来。重复调用无副作用：多个入口都会叫它，
-     * 谁先到谁初始化。
+     * 开机只建文件、装崩溃兜底。SDK 内部日志默认不接——接上就等于正式包在用户不知情时
+     * 持续抓支付宝的回调原文，那正是要避免的。只有日志页明确开启时才调用 captureSdk()。
      */
     static void install(Context context) {
         if (!ON) return;
@@ -107,8 +119,9 @@ final class Diag {
                 // A log that cannot be written is not a reason to fail a login.
             }
         }
-        captureSdk();
         captureCrash();
+        // 历史会话若已显式开启，恢复 SDK 抓取；默认关闭时这里什么都不做。
+        if (enabled()) captureSdk();
     }
 
     /**
@@ -192,9 +205,17 @@ final class Diag {
         return code.substring(0, 6) + "…(len=" + code.length() + ")";
     }
 
-    /** SDK 返回串里这几项都指到具体账户或一次授权，值一律只留前六位。 */
+    /** 授权码留前六位可与服务端日志对齐；其余凭据一律整段抹掉。 */
+    private static final Set<String> CHAIN_CODES =
+        new HashSet<>(Arrays.asList("auth_code", "access_token", "refresh_token", "token"));
     private static final Set<String> CHAIN_SECRETS =
-        new HashSet<>(Arrays.asList("auth_code", "alipay_open_id", "user_id", "target_id"));
+        new HashSet<>(Arrays.asList("alipay_open_id", "user_id", "target_id", "cookie", "session",
+            "sessionid", "phone", "mobile", "account", "username", "email", "password", "passwd", "utdid"));
+
+    /** 整段抹掉，连长度都不留：口令/Cookie 的前六位也可能是可读的真实值。 */
+    static String maskSecret(String value) {
+        return value == null ? "null" : "…(已隐藏,len=" + value.length() + ")";
+    }
 
     /**
      * 把 SDK 返回的 a=b&amp;c=d 里带机密的几项摘掉值。整串照抄会把一次有效授权写进日志文件，
@@ -208,8 +229,10 @@ final class Diag {
         for (int i = 0; i < pairs.length; i++) {
             String pair = pairs[i];
             int split = pair.indexOf('=');
-            if (split > 0 && CHAIN_SECRETS.contains(pair.substring(0, split))) {
+            if (split > 0 && CHAIN_CODES.contains(pair.substring(0, split))) {
                 out.append(pair, 0, split + 1).append(maskCode(pair.substring(split + 1)));
+            } else if (split > 0 && CHAIN_SECRETS.contains(pair.substring(0, split))) {
+                out.append(pair, 0, split + 1).append(maskSecret(pair.substring(split + 1)));
             } else {
                 out.append(pair);
             }
@@ -219,14 +242,16 @@ final class Diag {
         return text.length() > 300 ? text.substring(0, 300) + "…" : text;
     }
 
-    /** SDK 原文里带值的敏感键：授权码能换会话，open_id/user_id 能对上某个支付宝账户。 */
+    /** SDK 原文里带值的敏感键：凭据能换会话，标识能对上某个具体账户。 */
     private static final Pattern SDK_SECRET = Pattern.compile(
-        "(?i)(auth_code|alipay_open_id|user_id|target_id|ap_link_token|access_token|utdid)"
+        "(?i)(auth_code|alipay_open_id|user_id|target_id|ap_link_token|access_token|refresh_token"
+            + "|token|cookie|set-cookie|session|sessionid|jsessionid|phone|mobile|account|username"
+            + "|email|idcard|bankcard|password|passwd|utdid)"
             + "(\"?\\s*[=:]\\s*\"?)([^&\"',\\s\\]]+)");
 
-    /** 没有键名可抓的裸 token：链路 token 与设备指纹，SDK 有时单独打出来。 */
+    /** 没有键名可抓的裸 token、设备指纹与 11 位手机号：SDK 有时单独打出来。 */
     private static final Pattern SDK_BARE_TOKEN =
-        Pattern.compile("\\b(EP[0-9a-fA-F]{16,}_[0-9]+|avwr[A-Za-z0-9+/=]{8,})\\b");
+        Pattern.compile("\\b(EP[0-9a-fA-F]{16,}_[0-9]+|avwr[A-Za-z0-9+/=]{8,}|1[3-9]\\d{9})\\b");
 
     /**
      * SDK 回调原文出文件之前先过一遍：它逐字带上 {@code auth_code}、{@code alipay_open_id}、
@@ -238,16 +263,25 @@ final class Diag {
         Matcher found = SDK_SECRET.matcher(line);
         StringBuffer out = new StringBuffer();
         while (found.find()) {
+            String key = found.group(1).toLowerCase(Locale.US);
             String value = found.group(3);
-            String head = value.length() > 6 ? value.substring(0, 6) : "";
+            String shown;
+            if (CHAIN_CODES.contains(key)) {
+                shown = (value.length() > 6 ? value.substring(0, 6) : "") + "…";
+            } else {
+                shown = "…(已隐藏)";
+            }
             found.appendReplacement(out,
-                Matcher.quoteReplacement(found.group(1) + found.group(2) + head + "…"));
+                Matcher.quoteReplacement(found.group(1) + found.group(2) + shown));
         }
         found.appendTail(out);
         return SDK_BARE_TOKEN.matcher(out.toString()).replaceAll("…");
     }
 
+    /** 只在显式开启后接一次，重复开关不重复注册回调。 */
     private static void captureSdk() {
+        if (sdkHooked) return;
+        sdkHooked = true;
         try {
             com.alipay.sdk.interior.Log.setupLogCallback(line -> step("sdk", maskSdk(line)));
         } catch (Throwable unavailable) {
