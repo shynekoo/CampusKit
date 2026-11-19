@@ -1350,6 +1350,34 @@ public final class CoreTests {
         equal(true, reborn.consumeBack()); equal(0, reborn.campusView());
         System.out.println("PASS: navigation back-stack consumes scope then tab before closing");
 
+        // A2: a Course is a typed, immutable value object; the mapper round-trips the persisted
+        // field set (including multi-range weeks and unknown extension fields) without loss. Kept
+        // on a String-map boundary so it is testable in core with no org.json dependency.
+        java.util.Map<String, String> courseFields = new java.util.LinkedHashMap<>();
+        courseFields.put("name", "高等数学"); courseFields.put("room", "教三-201");
+        courseFields.put("teacher", "张老师"); courseFields.put("day", "2");
+        courseFields.put("first", "3"); courseFields.put("last", "4");
+        courseFields.put("weeks", "1,3,5,7-9"); courseFields.put("from", "1");
+        courseFields.put("to", "9"); courseFields.put("parity", "0"); courseFields.put("color", "5");
+        courseFields.put("legacyExtra", "keep-me");
+        Course course = CourseJsonMapper.fromFields(courseFields);
+        equal("高等数学", course.name); equal("教三-201", course.room);
+        equal("张老师", course.teacher); equal(2, course.day);
+        equal(3, course.first); equal(4, course.last); equal(5, course.color);
+        equal(true, course.weeks().contains(3)); equal(true, course.weeks().contains(8));
+        equal(false, course.weeks().contains(4)); equal(false, course.weeks().contains(10));
+        java.util.Map<String, String> roundTrip = CourseJsonMapper.toFields(course, courseFields);
+        equal("教三-201", roundTrip.get("room"));
+        // Weeks are normalised to an explicit list; the set, not the spelling, must survive.
+        equal(true, Course.runsOn(CourseJsonMapper.fromFields(roundTrip), 3));
+        equal(true, Course.runsOn(CourseJsonMapper.fromFields(roundTrip), 8));
+        equal(false, Course.runsOn(CourseJsonMapper.fromFields(roundTrip), 4));
+        equal("keep-me", roundTrip.get("legacyExtra"));   // unknown fields survive a round trip
+        rejects(() -> CourseJsonMapper.fromFields(fields("name", "", "day", "1", "first", "1", "last", "2")));
+        rejects(() -> CourseJsonMapper.fromFields(fields("name", "x", "day", "7", "first", "1", "last", "2")));
+        rejects(() -> CourseJsonMapper.fromFields(fields("name", "x", "day", "1", "first", "3", "last", "2")));
+        System.out.println("PASS: Course model round-trips all fields including extension data");
+
         System.out.println("All " + assertions + " assertions passed. Live API/Bluetooth compatibility is not tested here.");
     }
 
