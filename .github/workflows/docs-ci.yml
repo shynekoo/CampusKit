@@ -1,0 +1,97 @@
+name: Docs & Tests
+
+# Advisory CI: runs the existing Python test entry points and checks that key docs exist.
+# It does NOT build, sign, publish, deploy, push, tag, or create a Release.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'  # tests compile core with --release 8; no APK build here
+
+      - name: Run core assertions
+        run: python scripts/test_core.py
+
+      - name: Run build-config guards
+        run: python scripts/test_build_config.py
+
+      - name: Run WebView policy guards
+        run: python scripts/test_webview_policy.py
+
+      - name: Run UI behaviour contract guards
+        run: python scripts/test_ui_contract.py
+
+      - name: Check key documentation exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
+            AGENTS.md README.md CHANGELOG.md AGENT-HANDOFF.md
+            docs/architecture.md
+            docs/modules.md
+            docs/build-and-release.md
+            docs/security.md
+            docs/ui-navigation.md
+            docs/data-interfaces.md
+            docs/known-issues.md
+            docs/agent-handoff.md
+            docs/back-gesture.md
+            docs/real-device-acceptance.md
+            docs/rectification-acceptance.md
+            docs/security-audit-network-sdk.md
+            docs/security-audit-payment-water.md
+            client/THIRD_PARTY.md
+            .github/workflows/docs-ci.yml
+          )
+          missing=0
+          for f in "${files[@]}"; do
+            if [[ ! -s "$f" ]]; then
+              echo "::error::Missing or empty key doc: $f"
+              missing=1
+            fi
+          done
+          for shot in icon.png today.png timetable.png timetable-menu.png; do
+            if [[ ! -s "docs/screenshots/$shot" ]]; then
+              echo "::error::Missing screenshot: docs/screenshots/$shot"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Doc-sync reminder (advisory)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        shell: bash
+        run: |
+          git fetch --no-tags origin "$BASE_SHA"
+          python scripts/check_doc_sync.py --base "$BASE_SHA"
+
+      - name: Doc-sync reminder on push (advisory)
+        if: github.event_name == 'push'
+        shell: bash
+        run: python scripts/check_doc_sync.py --base HEAD~1

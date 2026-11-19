@@ -49,7 +49,7 @@
 | 技术栈 | Java + 原生 View；无 Gradle、无第三方 UI 框架 |
 | 第三方库 | ZXing 3.5.3、PDFBox-Android 2.0.27.0、Bouncy Castle 1.72、支付宝 SDK 15.8.42 |
 | 代码量 | 约 1.5 万行 Java（110 个受版本管理的文件）+ 约 1000 行 Python 构建脚本 |
-| 测试 | 出包流程内跑 1073 项核心断言，全过才生成 APK |
+| 测试 | 出包流程内跑 1228 项核心断言，全过才生成 APK |
 
 ## 界面
 
@@ -178,7 +178,7 @@ python scripts/build_preview.py --field-water
 `build_preview.py` 会先跑核心测试，再调用官方 `aapt2`、`d8`、`zipalign`、`apksigner` 出包：
 
 - 产出 `delivery/科信小助手-<版本>.apk`（约 5.1 MB）与同名 `.build.json`（体积、SHA-256、逐文件源码哈希、权限清单）
-- 1034 项核心断言全通过才会生成 APK
+- 1228 项核心断言全通过才会生成 APK
 
 环境：JDK 24（生成 Java 8 字节码）、Python 3；当前在 Windows 上验证。
 
