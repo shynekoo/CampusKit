@@ -1390,6 +1390,31 @@ public final class CoreTests {
         equal(true, redraw.tick("2026-11-20", 0));    // today tab always live
         System.out.println("PASS: clock tick rebuilds only on a new day or on the live today tab");
 
+        // A4: the session check runs on every onResume. It must de-duplicate concurrent requests,
+        // cache a known-good result briefly so fast tab switches do not hit the network, and never
+        // mistake a network failure for a logged-out session. shouldStart() atomically claims the
+        // check when it returns true, so a second onResume during the first cannot start a duplicate.
+        SessionCheck check = new SessionCheck(1000L);
+        equal(true, check.shouldStart(0));            // nothing known yet, claim it
+        equal(false, check.shouldStart(0));           // in flight: a second onResume joins, not repeats
+        check.finishNetworkError(100);
+        equal(true, check.shouldStart(1100));         // errors aren't cached; retry after a gap
+        check.finishValid(1100);
+        equal(false, check.shouldStart(1200));        // fresh success is cached
+        equal(true, check.shouldStart(2101));         // cache expired
+        check.finishExpired(2200);
+        equal(false, check.isSignedIn());
+        equal(true, check.consumeExpiryNotice());     // notice shown once
+        equal(false, check.consumeExpiryNotice());
+        // A network error while a known session exists must not mark it logged out.
+        equal(true, check.shouldStart(3300));
+        check.finishValid(3400);
+        equal(true, check.isSignedIn());
+        equal(true, check.shouldStart(4401));         // cache expired, re-check allowed
+        check.finishNetworkError(4500);
+        equal(true, check.isSignedIn());              // still signed in; only the check failed
+        System.out.println("PASS: session checks dedupe, cache, and separate network error from logout");
+
         System.out.println("All " + assertions + " assertions passed. Live API/Bluetooth compatibility is not tested here.");
     }
 

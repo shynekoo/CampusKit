@@ -66,7 +66,10 @@ public final class TimetableActivity extends Page implements App.Themed {
     private MainNavigator nav = new MainNavigator();
     private String pendingNote;
     private boolean signedIn;
-    private boolean accountVisible,sessionChecking,expiredNotice;
+    private boolean accountVisible;
+    /** De-dupes onResume checks, caches a good result briefly, and keeps network errors distinct
+     * from a real logout. Time source is monotonic elapsedRealtime, not the wall clock. */
+    private final io.qzxy.lite.core.SessionCheck sessionCheck = new io.qzxy.lite.core.SessionCheck(30000L);
     private static final String CAINIAO_PACKAGE = "com.cainiao.wireless";
     private static final String CAINIAO_HOME_ACTIVITY = "com.cainiao.wireless.homepage.view.activity.HomePageActivity";
     /** 菜鸟裹裹's router path for the same page; only its exported host can be started with it. */
@@ -90,14 +93,24 @@ public final class TimetableActivity extends Page implements App.Themed {
     }
 
     /** Session expiry is not a question: take them to the 趣智校园 login page itself. */
-    private void showExpiredNotice(){if(!accountVisible||!expiredNotice||isDestroyed()||isFinishing())return;expiredNotice=false;startActivity(new Intent(this,AccountActivity.class).putExtra("returnToAccountInfo",true));}
+    private void showExpiredNotice(){if(!accountVisible||isDestroyed()||isFinishing())return;if(!sessionCheck.consumeExpiryNotice())return;startActivity(new Intent(this,AccountActivity.class).putExtra("returnToAccountInfo",true));}
     private void checkQzxySession(){
-        showExpiredNotice();if(sessionChecking)return;sessionChecking=true;
-        backgroundWorker.execute(()->{io.qzxy.lite.core.AccountSession checked=null;boolean expired=false;
+        showExpiredNotice();
+        long now=android.os.SystemClock.elapsedRealtime();
+        if(!sessionCheck.shouldStart(now))return;
+        backgroundWorker.execute(()->{io.qzxy.lite.core.AccountSession checked=null;boolean expired=false;boolean networkError=false;
             try{checked=new AccountVault(this).load();if(checked!=null)SmsAccountApi.profile(checked);}
             catch(HttpForm.SessionExpired e){try{expired=AccountVault.clearExpired(this,checked);}catch(Exception ignored){}}
-            catch(Exception unavailable){/* A network or parsing error is not proof of logout. */}
-            final boolean invalid=expired;runOnUiThread(()->{sessionChecking=false;if(isDestroyed()||isFinishing())return;if(invalid){signedIn=false;expiredNotice=true;showExpiredNotice();}});
+            catch(Exception unavailable){networkError=true;/* A network or parsing error is not proof of logout. */}
+            final boolean invalid=expired, failed=networkError;
+            runOnUiThread(()->{
+                long at=android.os.SystemClock.elapsedRealtime();
+                if(invalid)sessionCheck.finishExpired(at);
+                else if(failed)sessionCheck.finishNetworkError(at);
+                else sessionCheck.finishValid(at);
+                if(isDestroyed()||isFinishing())return;
+                if(invalid){signedIn=false;showExpiredNotice();}
+            });
         });
     }
 
