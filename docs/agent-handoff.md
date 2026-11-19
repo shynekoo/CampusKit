@@ -8,9 +8,9 @@
 | :-- | :-- |
 | 技术栈 | Java + 原生 Android View + Python 构建；无 Kotlin / Compose / Gradle |
 | 线上正式版 | 2.5.7 / versionCode 197（`delivery/update/update.json`） |
-| 已提交 HEAD | `ffaf933`（`ui: add tab content transitions`），与 `origin/main` 同步 |
+| 已提交 HEAD | `fce95bc`（`ui: fix tab scroll restore and animate 回本周`），**本地领先 origin/main 一个提交** |
 | 最新 tag / Release | `v2.5.7`；2.5.8.x 未建 tag / Release |
-| 工作区 | 2.5.8.5 / 2.5.8.6 已入库；**UI-3 收尾（滚动恢复）在工作区未提交** |
+| 工作区 | 干净；UI-3 收尾（滚动恢复 + 回本周动画）已提交 `fce95bc` |
 | 核心断言 | 实测 **1262 项全过**；UI 契约守卫 **150 锚点全过** |
 | 发布状态 | 2.5.8.x 代码已推送，**未建 tag / Release、未发版、未同步下载站** |
 
@@ -36,7 +36,7 @@
 | :-- | :-- | :-- |
 | UI-1 视觉/动效 token | 已完成（`7a8083d`） | `UiTokens` / `MotionSpec` |
 | UI-2 常驻 shell + 动画底栏 | 已完成（`7a8083d`，外观修正 `20c2ffa`） | `MainShell` / `AnimatedNavBar` |
-| UI-3 页面切换动画 | 已完成（`ffaf933` 转场 + 竞态修复；本轮滚动恢复/残留清理在工作区未提交） | `TimetableActivity.renderContent` |
+| UI-3 页面切换动画 | 已完成（`ffaf933` 转场 + 竞态修复；`fce95bc` 滚动恢复/残留清理/回本周滑动） | `TimetableActivity.renderContent` |
 | UI-4 视觉圆角与卡片 | 未开始 | — |
 | UI-5 | 未开始 | — |
 
