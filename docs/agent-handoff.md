@@ -8,7 +8,7 @@
 | :-- | :-- |
 | 技术栈 | Java + 原生 Android View + Python 构建；无 Kotlin / Compose / Gradle |
 | 线上正式版 | 2.5.7 / versionCode 197（`delivery/update/update.json`） |
-| 已提交 HEAD | `b53b2c5`（`ui: commit 回本周 before the transition, not after it`），**本地领先 origin/main 两个提交** |
+| 已提交 HEAD | `b53b2c5`（`ui: commit 回本周 before the transition, not after it`），**本地领先 origin/main 4 个提交** |
 | 最新 tag / Release | `v2.5.7`；2.5.8.x 未建 tag / Release |
 | 工作区 | 干净；UI-3 收尾（滚动恢复 + 回本周转场）已提交 `fce95bc` / `b53b2c5` |
 | 核心断言 | 实测 **1262 项全过**；UI 契约守卫 **152 锚点全过** |
