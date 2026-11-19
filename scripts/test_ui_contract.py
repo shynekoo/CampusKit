@@ -62,11 +62,19 @@ def main():
     jw_block = activity[jw_start:activity.find("\n    private ", jw_start + 1)] if jw_start >= 0 else ""
     require(jw_block, "week=next;", "jumpWeek", "the target week is committed before the transition")
     require(jw_block, "renderContent(true,", "jumpWeek",
-            "the new board must fade in during the transition, not appear after it")
+            "the new board must be on screen during the transition, not appear after it")
+    require(jw_block, "true);", "jumpWeek",
+            "a multi-week jump must travel a full page like a swipe, not use the tab crossfade")
     require(jw_block, "tabScroll[nav.tab()]=scroll", "jumpWeek",
             "a multi-week jump keeps the vertical reading position")
     require(board, "-(delta>0?getWidth():-getWidth())", "WeekBoard.Pager",
             "a multi-week slide must move exactly one page, not |delta| pages")
+    require(board, "MotionSpec.WEEK_SLIDE_DURATION", "WeekBoard.Pager",
+            "the pager's slide must share the one week-slide duration token")
+    sw_start = activity.find("private void selectWeek()")
+    sw_block = activity[sw_start:activity.find("\n    private ", sw_start + 1)] if sw_start >= 0 else ""
+    require(sw_block, "Math.abs(delta)==1", "selectWeek",
+            "an adjacent week picked in the sheet uses the pager's existing page, not a rebuild")
 
     # --- scroll position preserved across a rebuild ---------------------------------------
     require(activity, "getScrollY()", "TimetableActivity", "capture scroll before rebuild")
@@ -328,7 +336,7 @@ def main():
     require(activity, "if (nav.consumeBack()) { render(); return; }", "TimetableActivity",
             "back uses non-animated render, no race with system gesture")
     # Rapid tab switching must clear stale transition views so contentHost never keeps >1 finished page.
-    rc_start = activity.find("private void renderContent(boolean animate, int direction)")
+    rc_start = activity.find("private void renderContent(boolean animate, int direction, final boolean slide)")
     rc_block = activity[rc_start:activity.find("\n    private ", rc_start + 1)] if rc_start >= 0 else ""
     require(rc_block, "getChildCount() > 1", "renderContent",
             "stale transition views from a cancelled switch must be removed")
@@ -337,11 +345,21 @@ def main():
     require(rc_block, "generation != transitionGeneration", "renderContent",
             "late animation callbacks must not delete the newest page")
     # UI-3 crossfade parameters: alpha 0.7->1 + +/-8dp offset in 220ms, old alpha 1->0 in 180ms.
-    require(rc_block, "next.setAlpha(.7f)", "renderContent", "new page starts at alpha 0.7")
+    require(rc_block, "next.setAlpha(slide ? 1f : .7f)", "renderContent",
+            "tab crossfade starts the new page at alpha 0.7; the slide stays opaque")
     require(rc_block, ".7f + .3f*t", "renderContent", "new page fades up to alpha 1")
     require(rc_block, "MotionSpec.TAB_ENTER_DURATION", "renderContent", "enter uses 220ms")
     require(rc_block, "MotionSpec.TAB_EXIT_DURATION", "renderContent", "exit uses 180ms")
     require(rc_block, "MotionSpec.TAB_OFFSET_DP", "renderContent", "horizontal offset uses the 8dp token")
+    # 跨周跳转走 slide 分支：一屏位移、两页同向同行、时长与 Pager 共用 token、旧页不淡出。
+    require(rc_block, "slide ? pageWidth() * direction", "renderContent",
+            "a week jump travels one full page, not the 8dp tab offset")
+    require(rc_block, "MotionSpec.WEEK_SLIDE_DURATION", "renderContent",
+            "a week jump shares the pager's slide duration")
+    require(rc_block, "old.setTranslationX(-offset * t)", "renderContent",
+            "the leaving board travels with the incoming one instead of fading in place")
+    require(rc_block, "if (!slide) next.setAlpha(.7f + .3f*t)", "renderContent",
+            "the full-page slide must not fade; alpha belongs to the tab crossfade only")
     require(rc_block, "next.setAlpha(1f); next.setTranslationX(0f);", "renderContent",
             "new page is forced to final alpha/translationX after transition")
     # Rapid-switch race: the 180ms exit ends before the 220ms enter. Clearing the animator list in

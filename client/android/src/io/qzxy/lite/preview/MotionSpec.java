@@ -20,6 +20,8 @@ final class MotionSpec {
     static final long TAB_ENTER_DURATION = 220L;
     static final long TAB_EXIT_DURATION = 180L;
     static final int TAB_OFFSET_DP = 8;
+    /** 周次滑页：‹ › 松手归位与跨周跳转共用同一个时长，两处不一致就会像两块板在打架。 */
+    static final long WEEK_SLIDE_DURATION = 190L;
 
     private static final Interpolator INDICATOR = new PathInterpolator(0.2f, 0f, 0f, 1f);
 

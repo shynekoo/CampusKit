@@ -746,16 +746,26 @@ public final class TimetableActivity extends Page implements App.Themed {
         root.announceForAccessibility("第 "+week+" 周");
     }
     private void selectWeek() {
-        CoursePickers.selectWeek(this,week,selected->{int delta=selected-week;if(delta!=0)jumpWeek(delta);});
+        CoursePickers.selectWeek(this,week,selected->{
+            int delta=selected-week;if(delta==0)return;
+            // 相邻一周在 Pager 里就有现成的页，直接滑那一页，不重建整屏；跨多周才走 jumpWeek。
+            if(Math.abs(delta)==1)shiftWeek(delta);else jumpWeek(delta);
+        });
     }
     /**
      * A jump of several weeks at once (回本周 / 选周次). There is no adjacent page to slide in —
-     * the origin week has no board for the destination — so the old "slide out, then rebuild"
-     * order showed a blank board and then snapped to the new week the moment the animation ended.
+     * the pager only ever holds three consecutive weeks — so the swap has to be done at the screen
+     * level.
      *
-     * <p>Instead the week is committed first and the swap plays the same content transition the
-     * tabs use: the previous board fades out while this week's board fades/drifts into place, so by
-     * the time the animation finishes the screen has already been showing the target week.</p>
+     * <p>Order matters, and it is the opposite of what felt wrong on device:</p>
+     * <ul>
+     *   <li>"slide out, then rebuild" ended the movement on a blank board and snapped to the new
+     *       week on the last frame.</li>
+     *   <li>The week is therefore committed first, then both boards travel a full page sideways
+     *       ({@link #renderContent(boolean,int,boolean)} with {@code slide}) — the incoming board
+     *       already <em>is</em> the target week, so the movement lands on it instead of revealing it
+     *       afterwards. Same duration and curve as ‹ › / swipe, so it reads as one motion.</li>
+     * </ul>
      */
     private void jumpWeek(int delta) {
         int next=Math.max(1,Math.min(CoursePickers.LAST_WEEK,week+delta));if(next==week)return;
@@ -764,8 +774,8 @@ public final class TimetableActivity extends Page implements App.Themed {
         // Hand the reading position to renderContent's restore, which runs after the new board is
         // laid out; keeping it on the old pager would leave the new one at the top.
         tabScroll[nav.tab()]=scroll;
-        renderHeader();                     // 周次标签与「回本周」按钮先落到新的一周
-        renderContent(true,delta>0?1:-1);   // 旧板面淡出、本周板面淡入到位（generation 守卫，连点安全）
+        renderHeader();                             // 周次标签与「回本周」按钮先落到新的一周
+        renderContent(true,delta>0?1:-1,true);      // 与 ‹ › 同一条滑页动效，落地帧即为本周
         root.announceForAccessibility("第 "+week+" 周");
     }
     private void goCurrentWeek() {
@@ -906,6 +916,16 @@ public final class TimetableActivity extends Page implements App.Themed {
     /** Replace the contentHost child. With animate=false (ordinary render) the swap is immediate;
      *  selectTab passes animate=true to play the isolated content crossfade. */
     private void renderContent(boolean animate, int direction) {
+        renderContent(animate, direction, false);
+    }
+
+    /**
+     * @param slide true for a multi-week jump (回本周 / 选周次). The pager holds three consecutive
+     *              weeks, so a jump of several weeks has no neighbouring page to bring in; instead
+     *              both screens travel a full page sideways, exactly like ‹ › / swipe do — the week
+     *              is already committed, so the frame the movement stops on is the target week.
+     */
+    private void renderContent(boolean animate, int direction, final boolean slide) {
         final int generation = ++transitionGeneration;
         // 快照遍历：动画的 onAnimationEnd 会从 contentAnimators 里移除自己，直接遍历活跃列表会
         // ConcurrentModificationException。cancel 会同步触发 end 回调，但 generation 已递增，
@@ -940,33 +960,41 @@ public final class TimetableActivity extends Page implements App.Themed {
         // 交叉淡化期间两页同时在树里：把正在离开的那页从无障碍树摘掉，否则读屏会把旧内容当成
         // 仍在页面上一起朗读。它马上就会被移除，不需要恢复。
         old.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
-        final float offset = dp(MotionSpec.TAB_OFFSET_DP) * direction;
-        next.setAlpha(.7f);
+        // 跨周跳转不是淡入而是整页平移：位移取一屏（而不是 8dp token），两页同向同行地滑，
+        // 时长与曲线跟 Pager 的滑页完全一致，观感才是「同一块板在移动」。
+        final float offset = slide ? pageWidth() * direction : dp(MotionSpec.TAB_OFFSET_DP) * direction;
+        next.setAlpha(slide ? 1f : .7f);
         next.setTranslationX(offset);
         ValueAnimator enter = ValueAnimator.ofFloat(0f,1f);
-        enter.setDuration(MotionSpec.TAB_ENTER_DURATION);
+        enter.setDuration(slide ? MotionSpec.WEEK_SLIDE_DURATION : MotionSpec.TAB_ENTER_DURATION);
+        if (slide) enter.setInterpolator(new android.view.animation.DecelerateInterpolator());
         enter.addUpdateListener(a -> {
             if (generation != transitionGeneration) return;   // stale frame: page already replaced
             float t = (Float) a.getAnimatedValue();
-            next.setAlpha(.7f + .3f*t);
+            if (!slide) next.setAlpha(.7f + .3f*t);
             next.setTranslationX(offset * (1f - t));
+            if (slide) old.setTranslationX(-offset * t);      // 两页同时走，不留空白也不叠住
         });
-        ValueAnimator exit = ValueAnimator.ofFloat(1f,0f);
-        exit.setDuration(MotionSpec.TAB_EXIT_DURATION);
-        exit.addUpdateListener(a -> {
-            if (generation != transitionGeneration) return;
-            old.setAlpha((Float) a.getAnimatedValue());
-        });
-        // exit(180ms) 先于 enter(220ms) 结束：它只淡出并移除旧页、把自己从追踪表移除，绝不
-        // clear 整个列表——否则仍在运行的 enter 会脱离追踪，下一次快速切换时 cancel 不到它。
-        exit.addListener(new AnimatorListenerAdapter() {
-            @Override public void onAnimationEnd(Animator anim) {
-                contentAnimators.remove(anim);
+        // 淡出只属于 Tab 转场：滑页里两页都不透明，旧页由 enter 的位移带出去，同一时长收尾。
+        ValueAnimator exit = null;
+        if (!slide) {
+            exit = ValueAnimator.ofFloat(1f,0f);
+            exit.setDuration(MotionSpec.TAB_EXIT_DURATION);
+            exit.addUpdateListener(a -> {
                 if (generation != transitionGeneration) return;
-                if (old.getParent() == shell.contentHost) shell.contentHost.removeView(old);
-            }
-        });
-        // 时长更长的 enter 负责最终归位：此时 exit 必然已结束，旧页已移除，只剩新页。
+                old.setAlpha((Float) a.getAnimatedValue());
+            });
+            // exit(180ms) 先于 enter(220ms) 结束：它只淡出并移除旧页、把自己从追踪表移除，绝不
+            // clear 整个列表——否则仍在运行的 enter 会脱离追踪，下一次快速切换时 cancel 不到它。
+            exit.addListener(new AnimatorListenerAdapter() {
+                @Override public void onAnimationEnd(Animator anim) {
+                    contentAnimators.remove(anim);
+                    if (generation != transitionGeneration) return;
+                    if (old.getParent() == shell.contentHost) shell.contentHost.removeView(old);
+                }
+            });
+        }
+        // 负责最终归位的是 enter：Tab 转场里它最长，滑页里两页同长、旧页由它带出去。
         enter.addListener(new AnimatorListenerAdapter() {
             @Override public void onAnimationEnd(Animator anim) {
                 contentAnimators.remove(anim);
@@ -975,9 +1003,15 @@ public final class TimetableActivity extends Page implements App.Themed {
                 next.setAlpha(1f); next.setTranslationX(0f);
             }
         });
-        contentAnimators.add(enter); contentAnimators.add(exit);
-        enter.start(); exit.start();
+        contentAnimators.add(enter); if (exit != null) contentAnimators.add(exit);
+        enter.start(); if (exit != null) exit.start();
         restoreScroll(nav.tab(), tabScroll[nav.tab()], generation);
+    }
+
+    /** One page of content, i.e. the width a slide-in has to travel. */
+    private int pageWidth() {
+        int width = shell == null ? 0 : shell.contentHost.getWidth();
+        return width > 0 ? width : getResources().getDisplayMetrics().widthPixels;
     }
 
     /** Ordinary full rebuild (data / theme / course change / back). Never animates a tab entrance. */

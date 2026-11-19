@@ -10,8 +10,8 @@
 | 线上正式版 | 2.5.7 / versionCode 197（`delivery/update/update.json`） |
 | 已提交 HEAD | `b53b2c5`（`ui: commit 回本周 before the transition, not after it`），**本地领先 origin/main 4 个提交** |
 | 最新 tag / Release | `v2.5.7`；2.5.8.x 未建 tag / Release |
-| 工作区 | 干净；UI-3 收尾（滚动恢复 + 回本周转场）已提交 `fce95bc` / `b53b2c5` |
-| 核心断言 | 实测 **1262 项全过**；UI 契约守卫 **152 锚点全过** |
+| 工作区 | 「回本周改整屏滑页」在工作区，**未提交**；UI-3 收尾（滚动恢复）已提交 `fce95bc` / `b53b2c5` |
+| 核心断言 | 实测 **1262 项全过**；UI 契约守卫 **159 锚点全过** |
 | 发布状态 | 2.5.8.x 代码已推送，**未建 tag / Release、未发版、未同步下载站** |
 
 ## 二、已提交但未发布（2.5.8.1）
@@ -36,15 +36,15 @@
 | :-- | :-- | :-- |
 | UI-1 视觉/动效 token | 已完成（`7a8083d`） | `UiTokens` / `MotionSpec` |
 | UI-2 常驻 shell + 动画底栏 | 已完成（`7a8083d`，外观修正 `20c2ffa`） | `MainShell` / `AnimatedNavBar` |
-| UI-3 页面切换动画 | 已完成（`ffaf933` 转场 + 竞态修复；`fce95bc`+`jumpWeek` 滚动恢复/残留清理/回本周转场） | `TimetableActivity.renderContent` |
+| UI-3 页面切换动画 | 已完成（`ffaf933` 转场 + 竞态修复；`fce95bc`+`jumpWeek` 滚动恢复/残留清理/回本周整屏滑页） | `TimetableActivity.renderContent` |
 | UI-4 视觉圆角与卡片 | 未开始 | — |
 | UI-5 | 未开始 | — |
 
-UI-3 本轮修 5 处：滚动恢复带 generation 且改为布局后（pre-draw）执行；`render()` 仅在同屏重建时搬运当前滚动；被取消入场的残留页先归位再离场；离场页在交叉淡化期间移出无障碍树；跨多周（回本周 / 选周次）改走 `jumpWeek`：先落周次再播内容转场，动画内即为本周。**未改**转场参数、`MotionSpec`/`UiTokens`、`MainNavigator`、`Page`、`CardLayer`；`WeekBoard` 只动 `animateOutThen` 的位移，手势/测量/周次提交未改。
+UI-3 本轮修 5 处：滚动恢复带 generation 且改为布局后（pre-draw）执行；`render()` 仅在同屏重建时搬运当前滚动；被取消入场的残留页先归位再离场；离场页在交叉淡化期间移出无障碍树；跨多周（回本周 / 选周次）改走 `jumpWeek`：先落周次，再用 `renderContent(true, ±1, true)` 的 slide 分支整屏滑一屏，落地帧即为本周（不淡入）。**未改**转场参数、`UiTokens`、`MainNavigator`、`Page`、`CardLayer`；`MotionSpec` 新增 `WEEK_SLIDE_DURATION`(190ms) 供 Pager 与跨周共用，`WeekBoard` 只动 `animateOutThen` 的位移与 `settle` 取 token（数值不变），手势/测量/周次提交未改。
 
 ## 四、验证状态（如实）
 
-**已执行**：`test_core` 1262、`test_build_config` 5、`test_webview_policy` 5、`test_ui_contract` 152，全部通过；2.5.8.6 普通版 APK 已构建并通过 v2/v3 验签；真实账号端到端拉取学业数据成功（GPA 2.9875、37 节点 5 层、16 课组 94 门课）。
+**已执行**：`test_core` 1262、`test_build_config` 5、`test_webview_policy` 5、`test_ui_contract` 159，全部通过；2.5.8.6 普通版 APK 已构建并通过 v2/v3 验签；真实账号端到端拉取学业数据成功（GPA 2.9875、37 节点 5 层、16 课组 94 门课）。
 
 **未执行**：真机验收清单全部（含 UI 2.0 的快速连点、滚动恢复与旋转/分屏、返回手势、关动画、320dp）；2.5.8.6 真机覆盖安装与学业页回归；真实支付用水、MobSF、签名轮换、旧版升级兼容。详见 [`known-issues.md`](known-issues.md)。
 

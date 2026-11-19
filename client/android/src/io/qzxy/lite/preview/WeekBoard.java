@@ -403,7 +403,7 @@ final class WeekBoard extends android.view.ViewGroup {
         }
         private void settle(float target,Runnable done) {
             if(motion!=null)motion.cancel();animating=true;
-            motion=android.animation.ValueAnimator.ofFloat(offset,target);motion.setDuration(190);
+            motion=android.animation.ValueAnimator.ofFloat(offset,target);motion.setDuration(MotionSpec.WEEK_SLIDE_DURATION);
             motion.setInterpolator(new android.view.animation.DecelerateInterpolator());
             motion.addUpdateListener(a->position((Float)a.getAnimatedValue()));
             motion.addListener(new android.animation.AnimatorListenerAdapter(){
