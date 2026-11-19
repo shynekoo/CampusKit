@@ -7,7 +7,7 @@
 - 线上正式版与下载站：`2.5.7`（versionCode `197`，2026-11-18，`delivery/update/update.json`）。
 - 已提交并 push、尚未发版：`2.5.8.1`（versionCode `199`，Git HEAD `6406500`）。
 - 已提交、尚未发版：`2.5.8.2`–`2.5.8.6`（最新 versionCode `204`），含学业情况查询与 UI-1/UI-2 第一轮。
-- 已提交 HEAD：`b53b2c5`（UI-1 / UI-2 / UI-3 转场竞态 + 滚动恢复 + 回本周转场）；其上的「回本周改整屏滑页」在工作区，**未提交、未 push、未发版**。
+- 已提交并 push 的 HEAD：`f86ed11`（UI-1 / UI-2 / UI-3 转场竞态 + 滚动恢复 + 回本周整屏滑页）；工作区干净，**未建 tag / Release、未发版、未同步下载站**。
 - 核心断言：当前工作区实跑 `python scripts/test_core.py` → **1262 项全过**（2026-11-19）；UI 守卫 **159 锚点全过**。
 
 更早版本的发布说明见 [`delivery/release-*.md`](delivery/)。

@@ -8,9 +8,9 @@
 | :-- | :-- |
 | 技术栈 | Java + 原生 Android View + Python 构建；无 Kotlin / Compose / Gradle |
 | 线上正式版 | 2.5.7 / versionCode 197（`delivery/update/update.json`） |
-| 已提交 HEAD | `b53b2c5`（`ui: commit 回本周 before the transition, not after it`），**本地领先 origin/main 4 个提交** |
+| 已提交 HEAD | `f86ed11`（`ui: slide the whole board on a multi-week jump`），**与 origin/main 同步** |
 | 最新 tag / Release | `v2.5.7`；2.5.8.x 未建 tag / Release |
-| 工作区 | 「回本周改整屏滑页」在工作区，**未提交**；UI-3 收尾（滚动恢复）已提交 `fce95bc` / `b53b2c5` |
+| 工作区 | 干净；UI-3 收尾依次为 `fce95bc` / `b53b2c5` / `f86ed11`（回本周最终为整屏滑页） |
 | 核心断言 | 实测 **1262 项全过**；UI 契约守卫 **159 锚点全过** |
 | 发布状态 | 2.5.8.x 代码已推送，**未建 tag / Release、未发版、未同步下载站** |
 
