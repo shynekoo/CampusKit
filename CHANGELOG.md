@@ -28,7 +28,7 @@
 ### 验证
 - 真实账号端到端复验（按新规则逐叶子请求）：24 个叶子节点中，人文科学 **5 门**（学校页显示"共 (5) 门"）、自然科学 **6 门**（"共 (6) 门"）、公共艺术某课组 **2 门**，其余计划内课组条数与修复前一致；`parseCourses()` 读计划外返回无丢课。抓包数据与凭据用后即删，工作区无残留。
 - `test_core` **1278**（+16，含计划内/计划外分流、特殊节点 `qtkcxfyq`/`cxcyqkxfyq`、无标记页面回退）/ `test_build_config` 5 / `test_webview_policy` 5 / `test_ui_contract` **146**（+5，含两端点白名单与请求必须按节点选端点）全绿。
-- 只读版 APK 已构建：`delivery/科信小助手-2.5.8.6.apk`，5,392,250 B，SHA-256 `66576d665419bf8ede0d365dfc6bb54b0c44c644d0853b8d707735eff8d7cae5`，v2/v3 验签通过；dex 中已确认含 `cxJxzxjhxfyqFKcxx`/`planCourses`/`opensCourses`。**真机未验证**。
+- 只读版 APK 已构建（rebase 到 `4706903` 后重建，含最新主线 UI-3 收尾）：`delivery/科信小助手-2.5.8.6.apk`，5,392,250 B，SHA-256 `404872917325032a988205870212b746e3ae57663fda4c05bf7582add03ac7b1`（重发以同目录 `.build.json` 为准），v2/v3 验签通过；dex 中已确认含 `cxJxzxjhxfyqFKcxx`/`planCourses`/`opensCourses` 与主线 `WEEK_SLIDE_DURATION`/`jumpWeek`。**真机未验证**。
 
 ## [未发布 · 应用内更新日志] — 已提交 `9a9ccad`，未发版（versionCode 仍为 204）
 
