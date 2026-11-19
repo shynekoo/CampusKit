@@ -15,7 +15,7 @@
 
 ## [未发布 · UI 2.0 第一轮] — 工作区未提交（UI-1 + UI-2，未发版）
 
-> 尚未 commit、未发版。本轮只做 UI-1（设计/动效 token）与 UI-2（常驻主界面 + 动画底栏），不改视觉圆角数值、不动网络/账号/支付/水控/升级、不碰课表 JSON 与 WeekBoard。UI-3/4/5 未实施。核心 1262 断言、UI 守卫 **131 锚点**（原 60 + UI-1 的 20 + UI-2 的 40）全绿，普通版 APK 已构建并 v2/v3 验签（水控与诊断均为 false，控制路由 occurrence 全 0）。
+> 已提交（commit `7a8083d` / `cb3f859`），未发版。本轮只做 UI-1（设计/动效 token）与 UI-2（常驻主界面 + 动画底栏），不改视觉圆角数值、不动网络/账号/支付/水控/升级、不碰课表 JSON 与 WeekBoard。UI-3/4/5 未实施。核心 1262 断言、UI 守卫 **120 锚点**（原 60 + UI-1 的 20 + UI-2 的 40）全绿，普通版 APK 已构建并 v2/v3 验签（水控与诊断均为 false，控制路由 occurrence 全 0）。
 
 ### 新增
 - **`UiTokens.java`**：尺寸/字号单一来源，逻辑 dp/sp 数值，第一阶段取现有基线（卡片 18dp、底栏 24dp、胶囊 18dp、间距 4–24dp、触控 48dp、导航图标 22dp/文字 12sp、标题 28sp、卡片标题 16sp）。页面左右边距仍走 `AppUi.side()`，未硬编码。
@@ -30,12 +30,12 @@
 - `MainNavigator` 返回顺序、`Page`/`CardLayer`/`WeekBoard` 均未改动。
 
 ### 验证
-- `test_core` 1262 / `test_build_config` 5 / `test_webview_policy` 5 / `test_ui_contract` 131 全绿；构建 APK v2/v3 验签通过，普通版无诊断、无水控。
+- `test_core` 1262 / `test_build_config` 5 / `test_webview_policy` 5 / `test_ui_contract` 120 全绿；构建 APK v2/v3 验签通过，普通版无诊断、无水控。
 - **待真机验收**：无连接设备/模拟器，底栏快速点击、320dp 窄屏、深色/自定义主题、课表高度、滚动恢复、返回手势完成与取消、系统关动画、今日页 60s 无闪烁均未实测。
 
 ---
 
-## [未发布 · 底栏外观修正] — 未发版（UI-2 收尾）
+## [未发布 · 底栏外观修正] — 已提交 `20c2ffa`，未发版（UI-2 收尾）
 
 > 真机反馈底栏视觉比例失衡：选中胶囊铺满整格、底栏偏高、图标不可见。本轮只改底栏外观，不动 MainNavigator 状态管理、Tab 转场、课表与返回手势。核心 1262 断言、UI 守卫 131 锚点全绿，普通版 APK 已构建并 v2/v3 验签。
 
@@ -48,6 +48,26 @@
 ### 验证
 - `test_core` 1262 / `test_build_config` 5 / `test_webview_policy` 5 / `test_ui_contract` 131 全绿；APK v2/v3 验签通过，普通版无诊断、无水控。
 - **待真机验收**：胶囊位置/图标显示、320dp 窄屏、大字体、深色/自定义主题、快速连点无残影错位。
+
+---
+
+## [未发布 · UI-3 页面切换动画] — 未发版
+
+> 底栏视觉修复后继续 UI-3。淡入淡出 + 8dp 水平位移的 Tab 内容转场在 UI-2 阶段已落地（仅作用于 contentHost，Header/底栏/Activity 不参与），本轮修复快速连点时的动画竞态。核心 1262 断言、UI 守卫 141 锚点全绿，普通版 APK 已构建并 v2/v3 验签。
+
+### 修复
+- **快速连点竞态**：`exit`(180ms) 先于 `enter`(220ms) 结束，旧实现在 exit 的 end 回调里 `contentAnimators.clear()`，导致仍在运行的 enter 脱离追踪——180–220ms 窗口内再切 Tab 时 `cancel()` 遍历不到它，旧 enter 继续写已替换页面的 alpha/translationX，造成残影/错位。改为各动画结束时只从列表移除自己，由时长更长的 enter 负责最终归位与旧页移除。
+- **过期帧守卫**：enter/exit 的 update listener 与 end 回调全部加 `generation != transitionGeneration` 守卫，过期帧不再写入任何 View。
+- **快照 cancel**：`for (Animator : new ArrayList<>(contentAnimators)) cancel()`，因为 end 回调会修改活跃列表，直接遍历会 ConcurrentModificationException。
+
+### 未改（关键约束）
+- 转场参数保持：新页 alpha 0.7→1、translationX ±8dp→0、220ms；旧页 alpha 1→0、180ms；系统插值器、无缩放。
+- 只在用户 `selectTab` 时播放；`render()`、课程/主题刷新、A3 每 30s 局部更新均走 `renderContent(false, 0)` 不触发转场。
+- `WeekBoard.Pager` 手势/周次/滚动、`Page`/`CardLayer` 返回动画与快照隔离、`MainNavigator` 状态管理均未改动。系统关动画时 `!motion` 直接切换到终态。
+
+### 验证
+- `test_core` 1262 / `test_build_config` 5 / `test_webview_policy` 5 / `test_ui_contract` 141 全绿；APK v2/v3 验签通过，普通版无诊断、无水控、控制路由 occurrence 全 0。
+- **待真机验收**：快速连点无残影/错位、页面切换后滚动位置、课表周次滑动与自适应高度、返回手势完成与取消、系统关动画、今日页 60s 无闪烁。
 
 ---
 

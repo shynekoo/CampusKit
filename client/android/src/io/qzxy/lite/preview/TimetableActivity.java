@@ -862,7 +862,10 @@ public final class TimetableActivity extends Page implements App.Themed {
      *  selectTab passes animate=true to play the isolated content crossfade. */
     private void renderContent(boolean animate, int direction) {
         final int generation = ++transitionGeneration;
-        for (Animator running : contentAnimators) running.cancel();
+        // 快照遍历：动画的 onAnimationEnd 会从 contentAnimators 里移除自己，直接遍历活跃列表会
+        // ConcurrentModificationException。cancel 会同步触发 end 回调，但 generation 已递增，
+        // 旧回调全部被守卫挡下，不会误删新页。
+        for (Animator running : new ArrayList<>(contentAnimators)) running.cancel();
         contentAnimators.clear();
         // 连续快速切 Tab 时，上一次转场可能还留着「旧页 + 未完成的新页」两页。只保留最上层
         // 那一页作为本次 outgoing，其余过渡残留全部移除，保证 contentHost 不会叠出三页。
@@ -891,19 +894,33 @@ public final class TimetableActivity extends Page implements App.Themed {
         ValueAnimator enter = ValueAnimator.ofFloat(0f,1f);
         enter.setDuration(MotionSpec.TAB_ENTER_DURATION);
         enter.addUpdateListener(a -> {
+            if (generation != transitionGeneration) return;   // stale frame: page already replaced
             float t = (Float) a.getAnimatedValue();
             next.setAlpha(.7f + .3f*t);
             next.setTranslationX(offset * (1f - t));
         });
         ValueAnimator exit = ValueAnimator.ofFloat(1f,0f);
         exit.setDuration(MotionSpec.TAB_EXIT_DURATION);
-        exit.addUpdateListener(a -> old.setAlpha((Float) a.getAnimatedValue()));
+        exit.addUpdateListener(a -> {
+            if (generation != transitionGeneration) return;
+            old.setAlpha((Float) a.getAnimatedValue());
+        });
+        // exit(180ms) 先于 enter(220ms) 结束：它只淡出并移除旧页、把自己从追踪表移除，绝不
+        // clear 整个列表——否则仍在运行的 enter 会脱离追踪，下一次快速切换时 cancel 不到它。
         exit.addListener(new AnimatorListenerAdapter() {
             @Override public void onAnimationEnd(Animator anim) {
-                if (generation != transitionGeneration) return;   // stale callback: a newer tab won
+                contentAnimators.remove(anim);
+                if (generation != transitionGeneration) return;
+                if (old.getParent() == shell.contentHost) shell.contentHost.removeView(old);
+            }
+        });
+        // 时长更长的 enter 负责最终归位：此时 exit 必然已结束，旧页已移除，只剩新页。
+        enter.addListener(new AnimatorListenerAdapter() {
+            @Override public void onAnimationEnd(Animator anim) {
+                contentAnimators.remove(anim);
+                if (generation != transitionGeneration) return;
                 if (old.getParent() == shell.contentHost) shell.contentHost.removeView(old);
                 next.setAlpha(1f); next.setTranslationX(0f);
-                contentAnimators.clear();
             }
         });
         contentAnimators.add(enter); contentAnimators.add(exit);

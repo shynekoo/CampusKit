@@ -321,6 +321,27 @@ def main():
             "orphaned transition pages must be pruned before adding the new page")
     require(rc_block, "generation != transitionGeneration", "renderContent",
             "late animation callbacks must not delete the newest page")
+    # UI-3 crossfade parameters: alpha 0.7->1 + +/-8dp offset in 220ms, old alpha 1->0 in 180ms.
+    require(rc_block, "next.setAlpha(.7f)", "renderContent", "new page starts at alpha 0.7")
+    require(rc_block, ".7f + .3f*t", "renderContent", "new page fades up to alpha 1")
+    require(rc_block, "MotionSpec.TAB_ENTER_DURATION", "renderContent", "enter uses 220ms")
+    require(rc_block, "MotionSpec.TAB_EXIT_DURATION", "renderContent", "exit uses 180ms")
+    require(rc_block, "MotionSpec.TAB_OFFSET_DP", "renderContent", "horizontal offset uses the 8dp token")
+    require(rc_block, "next.setAlpha(1f); next.setTranslationX(0f);", "renderContent",
+            "new page is forced to final alpha/translationX after transition")
+    # Rapid-switch race: the 180ms exit ends before the 220ms enter. Clearing the animator list in
+    # exit's end callback lets the still-running enter escape cancellation on the next switch.
+    require(rc_block, "new ArrayList<>(contentAnimators)", "renderContent",
+            "cancel must iterate a snapshot; end callbacks remove from the live list")
+    require(rc_block, "enter.addListener", "renderContent",
+            "longer enter animation owns final cleanup, not the shorter exit")
+    require(rc_block, "exit.addListener", "renderContent",
+            "exit end removes only the outgoing page")
+    checks += 1
+    guards = rc_block.count("if (generation != transitionGeneration) return;")
+    if guards < 4:
+        failures.append("renderContent: need generation guards on both update listeners and both end "
+                        "callbacks (found %d)" % guards)
     require(page, "protected boolean backMayStay()", "Page", "Page back contract untouched")
     require(card, "static void clearPending()", "CardLayer", "CardLayer snapshot policy untouched")
     require(board, "protected void onMeasure", "WeekBoard", "WeekBoard adaptive measure untouched")

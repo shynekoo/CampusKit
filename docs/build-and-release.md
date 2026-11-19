@@ -14,7 +14,7 @@ python scripts/bootstrap_android.py            # 首次准备 SDK
 python scripts/test_core.py                    # 1262 项 core 断言
 python scripts/test_build_config.py            # 构建开关 5 项
 python scripts/test_webview_policy.py          # WebView 守卫 5 项
-python scripts/test_ui_contract.py             # UI 契约 131 锚点
+python scripts/test_ui_contract.py             # UI 契约 141 锚点
 python scripts/build_preview.py                # 普通只读版出包（默认跑前 3 个测试）
 ```
 
