@@ -864,6 +864,9 @@ public final class TimetableActivity extends Page implements App.Themed {
         final int generation = ++transitionGeneration;
         for (Animator running : contentAnimators) running.cancel();
         contentAnimators.clear();
+        // 连续快速切 Tab 时，上一次转场可能还留着「旧页 + 未完成的新页」两页。只保留最上层
+        // 那一页作为本次 outgoing，其余过渡残留全部移除，保证 contentHost 不会叠出三页。
+        while (shell.contentHost.getChildCount() > 1) shell.contentHost.removeViewAt(0);
         View outgoing = shell.contentHost.getChildCount() > 0 ? shell.contentHost.getChildAt(0) : null;
 
         LinearLayout next = column();

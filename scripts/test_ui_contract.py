@@ -297,6 +297,15 @@ def main():
             "non-today back step unchanged")
     require(activity, "if (nav.consumeBack()) { render(); return; }", "TimetableActivity",
             "back uses non-animated render, no race with system gesture")
+    # Rapid tab switching must clear stale transition views so contentHost never keeps >1 finished page.
+    rc_start = activity.find("private void renderContent(boolean animate, int direction)")
+    rc_block = activity[rc_start:activity.find("\n    private ", rc_start + 1)] if rc_start >= 0 else ""
+    require(rc_block, "getChildCount() > 1", "renderContent",
+            "stale transition views from a cancelled switch must be removed")
+    require(rc_block, "removeViewAt(0)", "renderContent",
+            "orphaned transition pages must be pruned before adding the new page")
+    require(rc_block, "generation != transitionGeneration", "renderContent",
+            "late animation callbacks must not delete the newest page")
     require(page, "protected boolean backMayStay()", "Page", "Page back contract untouched")
     require(card, "static void clearPending()", "CardLayer", "CardLayer snapshot policy untouched")
     require(board, "protected void onMeasure", "WeekBoard", "WeekBoard adaptive measure untouched")

@@ -42,7 +42,7 @@
 | `scripts/test_core.py` | core 源码 JVM 编译 + `CoreTests`（当前 1262 项） |
 | `scripts/test_build_config.py` | 5 种诊断开关组合 |
 | `scripts/test_webview_policy.py` | 5 处 WebView 导航 HTTPS 守卫 |
-| `scripts/test_ui_contract.py` | 117 个 UI 结构锚点（静态守卫，非真机测试；含 UI-1/UI-2 守卫） |
+| `scripts/test_ui_contract.py` | 120 个 UI 结构锚点（静态守卫，非真机测试；含 UI-1/UI-2 守卫） |
 
 ## 改动时的落点建议
 
