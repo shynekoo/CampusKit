@@ -16,9 +16,19 @@
 | 线上正式版 / 下载站 | **2.5.7** | `delivery/update/update.json`，versionCode `197`，2026-11-18 |
 | 线上 APK | `campuskit-2.5.7.apk` | 5,359,482 字节，SHA-256 `33851ee1…5728bc`；带 `?sharecode=BZD63HRP4B` |
 | 已提交并 push | 2.5.8.1（versionCode 199） | HEAD `6406500`；`git status` 显示与 `origin/main` 同步（0/0） |
-| 工作区未提交 | **2.5.8.7**（versionCode 205） | 产物 `delivery/科信小助手-2.5.8.7.apk`，见下方「开发进度」 |
+| 已提交（未 push） | **2.5.8.7**（versionCode 205，`4139aec`） | 产物 `delivery/科信小助手-2.5.8.7.apk`；与 `origin/main` 已分叉，见下方「同步状态」 |
 | 最新 Git tag | `v2.5.7` | 尚无 2.5.8.x 的 tag 与 Release |
 | GitHub Release | 最新为 v2.5.7 | 2.5.8.1 / 2.5.8.4 **未建 Release** |
+
+## 二之二、同步状态（2026-11-19 22:40 实测 `git fetch` 后）
+
+- 本地 `main`：在 `16cec29` 之上有未 push 的提交（`4139aec` = 2.5.8.7/205 及其后的文档回填）。
+- `origin/main`：`8fe5e6e`，比本地多 3 个提交：
+  - `9c9bfbf` 学业页从 F 端点取课组外课程（改 `EduAcademic` / `EduClient` / `AcademicStatusActivity` / `CoreTests`，**同时改 `CHANGELOG.md`**）
+  - `98933db` 记录重建的 APK（改 `CHANGELOG.md` 1 行）
+  - `8fe5e6e` 把 `delivery/release-*.md` 纳入版本库供 changelog 检查使用（改 `.gitignore` + 5 个 release notes）
+- 结论：**push 会被拒，必须先对齐**。两边都动了 `CHANGELOG.md`，rebase 到这个文件必然冲突；合并时以远端结构为准，只把本地新增的「2.5.8.7」段插到最前，不要整段覆盖。
+- 远端那 3 个提交尚未合入本地，因此**本地构建的 2.5.8.7 不含 `9c9bfbf` 的学业页修复**；若要让 2.5.8.7 带上它，需先 rebase 再重新出包（versionCode 需再递增）。
 
 ## 三、开发进度
 
@@ -27,7 +37,7 @@
 - 架构重构 A1–A4：导航状态机下沉 core、typed `Course` 模型、今日页真局部刷新（`RefreshDecision` / `TodayDynamic`）、会话检查去抖缓存与错误隔离。
 - 新增「使用码」（8 位码可不扫码开设备）、UI 结构静态守卫（当时 33 锚点，当前工作区 46）、真机验收清单。
 
-### 工作区未提交（2.5.8.4，WIP）
+### 已提交（2.5.8.2–2.5.8.6，未发版）
 - **新增学业情况查询**：`EduAcademic`（core 解析，绩点 / 统计 / 去重学分树）、`AcademicStatusActivity`（结果排版）；`EduClient` 增加 `/xsxy/` 只读页与 Referer 白名单；manifest 注册新 Activity，versionCode 199 → 202、versionName 2.5.8.1 → 2.5.8.4。
 - 外观页圆角预览按 dp 换算修复、文案调整、删除两段过时说明。
 - **2.5.8.4 修复**：学业页 `card()` 双重挂载导致闪退，改为唯一入口 `addCard()` 挂载；`screen.note()` 只在 `onCreate` 设置一次；教务卡顺序调为第一行 成绩/空教室/教务系统，第二行 学业情况/河工程官网/科信官网。

@@ -40,7 +40,7 @@
 | 数据与隐私 / 使用公告 | 已完成并提交（`6b619ab`：共享文案 `LegalText` + 排版 `LegalView` + 公告页 `NoticeActivity`；邮箱 `shynekoo@outlook.com`、生效日期 `2026年11月19日`；顺带移除未使用的 `ACCESS_WIFI_STATE`）。公告入口只留「数据与隐私」页末，「更多」里的重复条目已按发布者要求删除 | `PrivacyActivity` / `NoticeActivity` |
 | 应用内更新日志（第一阶段） | 已完成并提交 `9a9ccad`：`AppChangelog`（内置 5 个已发布版本）+ `ChangelogActivity`（展开式卡片）；第二阶段「升级后弹本次更新」未做 | `MoreActivity` → `ChangelogActivity` |
 | UI-4 视觉圆角与卡片 | 未开始 | — |
-| 课表圆角默认值 | 工作区未提交：`Theme.DEFAULT_RADIUS` 8 → 20dp（= `MAX_RADIUS` 满档）；`load()` 只对未保存过 `radius` 的设备生效，老用户不被重置 | `Theme` / `AppearanceActivity` |
+| 课表圆角默认值 | 已提交 `4139aec`：`Theme.DEFAULT_RADIUS` 8 → 20dp（= `MAX_RADIUS` 满档）；`load()` 只对未保存过 `radius` 的设备生效，老用户不被重置 | `Theme` / `AppearanceActivity` |
 | UI-5 | 未开始 | — |
 
 UI-3 本轮修 5 处：滚动恢复带 generation 且改为布局后（pre-draw）执行；`render()` 仅在同屏重建时搬运当前滚动；被取消入场的残留页先归位再离场；离场页在交叉淡化期间移出无障碍树；跨多周（回本周 / 选周次）改走 `jumpWeek`：先落周次，再用 `renderContent(true, ±1, true)` 的 slide 分支整屏滑一屏，落地帧即为本周（不淡入）。**未改**转场参数、`UiTokens`、`MainNavigator`、`Page`、`CardLayer`；`MotionSpec` 新增 `WEEK_SLIDE_DURATION`(190ms) 供 Pager 与跨周共用，`WeekBoard` 只动 `animateOutThen` 的位移与 `settle` 取 token（数值不变），手势/测量/周次提交未改。
