@@ -812,7 +812,7 @@ public final class TimetableActivity extends Page implements App.Themed {
         if(nav.tab()==1){Button settings=weekAction(importing?"识别中…":"管理",this::manage);settings.setEnabled(!unreadable&&!importing);header.addView(settings,new LinearLayout.LayoutParams(dp(76),dp(48)));}
         else if(nav.tab()==2&&nav.campusView()==1){TextView back=text("‹ 返回",14);back.setTextColor(AppUi.ACCENT);back.setPadding(dp(10),dp(10),0,dp(10));back.setOnClickListener(v->{nav.openCampusList();render();});header.addView(back);}
         root.addView(header);
-        if(nav.tab()==0)todayContent();else if(nav.tab()==1)timetableContent();else new CampusScreen(this).build();
+        if(nav.tab()==0)new HomeScreen(this).build();else if(nav.tab()==1)timetableContent();else new CampusScreen(this).build();
         LinearLayout holder=column();holder.setPadding(dp(8),dp(2),dp(8),dp(8));
         // No elevation: the cast shadow is offset downward, so a rounded white bar shows a dark smudge
         // under the two bottom corners while the top corners stay clean. The hairline border alone
@@ -839,73 +839,6 @@ public final class TimetableActivity extends Page implements App.Themed {
         card.addView(row,new LinearLayout.LayoutParams(-1,-2));return row;
     }
 
-    private void todayContent() {
-        ScrollView scroll=new ScrollView(this);scroll.setFillViewport(false);scroll.setVerticalScrollBarEnabled(false);
-        LinearLayout content=column();scroll.addView(content,new ScrollView.LayoutParams(-1,-2));
-        root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
-        shortcutsCard(content);gap(content,14);
-        todayCourses(content);gap(content,14);
-        academicCard(content);
-    }
-
-
-    private void todayCourses(LinearLayout parent) {
-        LinearLayout card=whiteCard();
-        int todayWeek=currentWeek();
-        cardHeader(card,"今天的课","查看课表",()->{nav.selectTab(1);week=Math.max(1,Math.min(CoursePickers.LAST_WEEK,currentWeek()));render();});gap(card,10);
-        if(unreadable) {
-            card.addView(body("本机课表无法完整读取，已保留原数据。"));
-        } else if(monday.isEmpty()) {
-            card.addView(body("还没设置开学日期，无法判断今天属于第几周。"));
-            gap(card,10);card.addView(cardAction("去设置开学日期 ›",this::semester));
-        } else if(todayWeek<1||todayWeek>CoursePickers.LAST_WEEK) {
-            card.addView(body("今天不在课表范围内（第 "+todayWeek+" 周，仅支持 1–"+CoursePickers.LAST_WEEK+" 周）。"));
-        } else {
-            List<JSONObject> todayList=new ArrayList<>();
-            for(JSONObject course:courses)if(course.optInt("day")==todayIndex()&&appears(course,todayWeek))todayList.add(course);
-            todayList.sort((a,b)->Integer.compare(a.optInt("first"),b.optInt("first")));
-            if(todayList.isEmpty()) {
-                card.addView(body("今天没有课程"));
-            } else {
-                TextView next=bold(ScheduleInfo.summary(todayList,ScheduleInfo.minutes()),14);next.setTextColor(AppUi.ACCENT);card.addView(next);gap(card,12);
-                todaySummary=next;   // kept so a clock tick can update the text in place
-                Map<String,Integer> auto=WeekBoard.autoColorsFor(courses);
-                for(int i=0;i<todayList.size();i++) {
-                    JSONObject course=todayList.get(i);
-                    if(i>0)gap(card,10);
-                    card.addView(courseRow(course,auto),new LinearLayout.LayoutParams(-1,-2));
-                }
-            }
-        }
-        parent.addView(card,new LinearLayout.LayoutParams(-1,-2));
-    }
-
-    /** One class on the 今日 tab: name plus section range, room and teacher, tinted with its own colour. */
-    private View courseRow(JSONObject course,Map<String,Integer> auto) {
-        int index=WeekBoard.colorIndexOf(course,auto),ink=WeekBoard.inkAt(index);
-        LinearLayout row=new LinearLayout(this);row.setGravity(android.view.Gravity.TOP);row.setPadding(dp(14),dp(12),dp(14),dp(12));row.setBackground(AppUi.shape(this,WeekBoard.fillAt(index),14));
-        String status=ScheduleInfo.status(course,ScheduleInfo.minutes());boolean ended=status.equals("已结束");
-        String time=ClassTimes.range(course.optInt("first"),course.optInt("last"));String[] span=time.split("[–—-]");
-        // The row is a coloured chip, so its text follows the chip's ink in both themes — the page ink
-        // is light in the dark theme, and light text on a pastel chip is exactly nothing at all.
-        LinearLayout times=column();TextView first=bold(span.length>0?span[0]:"",14);first.setTextColor(ink);times.addView(first);
-        if(span.length>1){TextView last=text(span[1],12);last.setTextColor(ink);last.setAlpha(.72f);times.addView(last);}
-        row.addView(times,new LinearLayout.LayoutParams(AppUi.compact(this)?dp(48):dp(56),-2));
-        View marker=new View(this);marker.setBackground(AppUi.shape(this,ink,2));LinearLayout.LayoutParams ml=new LinearLayout.LayoutParams(dp(3),dp(40));ml.setMargins(0,dp(2),dp(12),0);row.addView(marker,ml);
-        LinearLayout labels=column();TextView name=bold(course.optString("name"),16);name.setTextColor(ink);name.setMaxLines(2);name.setEllipsize(android.text.TextUtils.TruncateAt.END);if(ended)name.setPaintFlags(name.getPaintFlags()|android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);labels.addView(name);
-        String detail=course.optString("room")+" · 第 "+course.optInt("first")+"–"+course.optInt("last")+" 节";TextView room=text(detail,12);room.setTextColor(ink);room.setAlpha(.8f);room.setSingleLine(true);room.setEllipsize(android.text.TextUtils.TruncateAt.END);room.setPadding(0,dp(2),0,0);labels.addView(room);
-        // The live chip is always attached and toggled with visibility instead of being added/
-        // removed on the fly. GONE takes no space, so the visual output is identical to the old
-        // conditional addView, but a clock tick can now flip it without touching the view tree.
-        TextView current=bold("● 正在上课",12);current.setTextColor(ink);current.setPadding(0,dp(4),0,0);
-        current.setVisibility((!ended&&status.equals("正在上课"))?View.VISIBLE:View.GONE);labels.addView(current);
-        row.addView(labels,new LinearLayout.LayoutParams(0,-2,1));if(ended)row.setAlpha(.55f);
-        String label=course.optString("name")+"，"+time+"，"+detail;
-        row.setContentDescription(label+(ended?"，已结束":""));
-        todayRows.add(new TodayRow(course,name,row,current,label));   // handle for in-place clock updates
-        return row;
-    }
-
     private TextView body(String value) {
         TextView view=text(value,12);view.setTextColor(AppUi.MUTED);return view;
     }
@@ -915,50 +848,6 @@ public final class TimetableActivity extends Page implements App.Themed {
      * here — the label and the icon already say which service this is — so a second hue only made
      * one row look like it belonged to something else.
      */
-
-    /** Four compact daily actions, paired by purpose. */
-    private void shortcutsCard(LinearLayout parent) {
-        LinearLayout card=whiteCard();cardHeader(card,"校园生活",null,null);gap(card,8);
-        LinearLayout row=new LinearLayout(this);
-        row.addView(shortcutTile("water","慧生活","用水",this::openLife798),new LinearLayout.LayoutParams(0,-2,1));
-        row.addView(shortcutTile("scan","趣智校园","扫码",()->startActivity(new Intent(this,ScanActivity.class))),new LinearLayout.LayoutParams(0,-2,1));
-        row.addView(shortcutTile("pay","易校园","付款码",this::openCampusPayCode),new LinearLayout.LayoutParams(0,-2,1));
-        row.addView(shortcutTile("parcel","身份码","淘宝·菜鸟驿站",this::openPickupCode),new LinearLayout.LayoutParams(0,-2,1));
-        card.addView(row);parent.addView(card,new LinearLayout.LayoutParams(-1,-2));
-    }
-    /** Grades, empty classrooms, the auto-signed-in portal and the two official school sites. */
-    private void academicCard(LinearLayout parent) {
-        LinearLayout card=whiteCard();cardHeader(card,"教务",null,null);gap(card,8);
-        LinearLayout row=new LinearLayout(this);
-        row.addView(shortcutTile("score","成绩","查询",()->openEdu("grades")),new LinearLayout.LayoutParams(0,-2,1));
-        row.addView(shortcutTile("room","空教室","查询",()->openEdu("rooms")),new LinearLayout.LayoutParams(0,-2,1));
-        row.addView(shortcutTile("cap","教务系统","自动登录",()->startActivity(new Intent(this,EduPortalActivity.class))),new LinearLayout.LayoutParams(0,-2,1));
-        card.addView(row);
-        LinearLayout sites=new LinearLayout(this);
-        sites.addView(shortcutTile("school","河工程官网","hebeu.edu.cn",()->openSchoolSite("河北工程大学官网","https://www.hebeu.edu.cn/")),new LinearLayout.LayoutParams(0,-2,1));
-        sites.addView(shortcutTile("globe","科信官网","kexin.hebeu.edu.cn",()->openSchoolSite("科信学院官网","https://kexin.hebeu.edu.cn/")),new LinearLayout.LayoutParams(0,-2,1));
-        card.addView(sites);parent.addView(card,new LinearLayout.LayoutParams(-1,-2));
-    }
-    private void openEdu(String mode){
-        try{startActivity(new Intent(this,AcademicActivity.class).putExtra("mode",mode));}
-        catch(RuntimeException unavailable){notice("无法打开教务页面。");}
-    }
-    /** Official sites stay inside the app; the page itself offers a hand-off to the browser. */
-    private void openSchoolSite(String title,String url){
-        try{startActivity(new Intent(this,SchoolSiteActivity.class)
-            .putExtra(SchoolSiteActivity.EXTRA_URL,url)
-            .putExtra(SchoolSiteActivity.EXTRA_TITLE,title));}
-        catch(RuntimeException unavailable){notice("无法打开学校网站。");}
-    }
-    private View shortcutTile(String icon,String title,String subtitle,Runnable action) {
-        // Four of these share the width of the card. On a narrow phone they lose a little icon and
-        // a point of type rather than letting the labels wrap into uneven columns.
-        boolean compact=AppUi.compact(this);int size=compact?dp(40):dp(44);
-        LinearLayout tile=column();tile.setGravity(android.view.Gravity.CENTER);tile.setPadding(dp(3),dp(10),dp(3),dp(10));tile.setMinimumHeight(dp(96));AppUi.press(tile,AppUi.SURFACE,10);tile.setOnClickListener(v->action.run());
-        android.widget.ImageView mark=new android.widget.ImageView(this);mark.setImageDrawable(AppUi.icon(this,icon,AppUi.ACCENT,24));mark.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);mark.setBackground(AppUi.shape(this,AppUi.SOFT,22));mark.setPadding(dp(9),dp(9),dp(9),dp(9));tile.addView(mark,new LinearLayout.LayoutParams(size,size));
-        TextView name=bold(title,compact?12:13);name.setGravity(android.view.Gravity.CENTER);name.setPadding(0,dp(8),0,0);name.setMaxLines(2);name.setEllipsize(android.text.TextUtils.TruncateAt.END);tile.addView(name);
-        TextView hint=text(subtitle,compact?11:12);hint.setTextColor(AppUi.MUTED);hint.setGravity(android.view.Gravity.CENTER);hint.setMaxLines(2);hint.setEllipsize(android.text.TextUtils.TruncateAt.END);tile.addView(hint);tile.setContentDescription(title+"，"+subtitle);return tile;
-    }
 
     private Button weekAction(String label,Runnable action) {
         Button view=button(label,action);view.setTextColor(AppUi.INK);view.setTextSize(14);
@@ -1229,6 +1118,119 @@ public final class TimetableActivity extends Page implements App.Themed {
             if(divider){View rule=new View(a);rule.setBackgroundColor(AppUi.LINE);
                 LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,Math.max(1,a.dp(1)));
                 params.setMargins(a.dp(70),0,0,0);parent.addView(rule,params);}
+        }
+    }
+
+
+    /** 今日 tab: shortcuts, today's classes and academic entries. Extracted as a screen so the
+     *  activity no longer owns this page's view assembly. Nested so it reuses the activity's
+     *  private helpers byte-for-byte; the A3 in-place update handles are written back to the
+     *  activity's own fields, so refreshClock() keeps working untouched. */
+    static final class HomeScreen {
+        private final TimetableActivity a;
+        HomeScreen(TimetableActivity activity) { this.a = activity; }
+
+        void build() {
+            ScrollView scroll=new ScrollView(a);scroll.setFillViewport(false);scroll.setVerticalScrollBarEnabled(false);
+            LinearLayout content=a.column();scroll.addView(content,new ScrollView.LayoutParams(-1,-2));
+            a.root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+            shortcutsCard(content);a.gap(content,14);
+            todayCourses(content);a.gap(content,14);
+            academicCard(content);
+        }
+
+        private void todayCourses(LinearLayout parent) {
+            LinearLayout card=a.whiteCard();
+            int todayWeek=a.currentWeek();
+            a.cardHeader(card,"今天的课","查看课表",()->{a.nav.selectTab(1);a.week=Math.max(1,Math.min(CoursePickers.LAST_WEEK,a.currentWeek()));a.render();});a.gap(card,10);
+            if(a.unreadable) {
+                card.addView(a.body("本机课表无法完整读取，已保留原数据。"));
+            } else if(a.monday.isEmpty()) {
+                card.addView(a.body("还没设置开学日期，无法判断今天属于第几周。"));
+                a.gap(card,10);card.addView(a.cardAction("去设置开学日期 ›",a::semester));
+            } else if(todayWeek<1||todayWeek>CoursePickers.LAST_WEEK) {
+                card.addView(a.body("今天不在课表范围内（第 "+todayWeek+" 周，仅支持 1–"+CoursePickers.LAST_WEEK+" 周）。"));
+            } else {
+                List<JSONObject> todayList=new ArrayList<>();
+                for(JSONObject course:a.courses)if(course.optInt("day")==a.todayIndex()&&a.appears(course,todayWeek))todayList.add(course);
+                todayList.sort((x,y)->Integer.compare(x.optInt("first"),y.optInt("first")));
+                if(todayList.isEmpty()) {
+                    card.addView(a.body("今天没有课程"));
+                } else {
+                    TextView next=a.bold(ScheduleInfo.summary(todayList,ScheduleInfo.minutes()),14);next.setTextColor(AppUi.ACCENT);card.addView(next);a.gap(card,12);
+                    a.todaySummary=next;   // kept so a clock tick can update the text in place
+                    Map<String,Integer> auto=WeekBoard.autoColorsFor(a.courses);
+                    for(int i=0;i<todayList.size();i++) {
+                        JSONObject course=todayList.get(i);
+                        if(i>0)a.gap(card,10);
+                        card.addView(courseRow(course,auto),new LinearLayout.LayoutParams(-1,-2));
+                    }
+                }
+            }
+            parent.addView(card,new LinearLayout.LayoutParams(-1,-2));
+        }
+
+        /** One class on the 今日 tab: name plus section range, room and teacher, tinted with its own colour. */
+        private View courseRow(JSONObject course,Map<String,Integer> auto) {
+            int index=WeekBoard.colorIndexOf(course,auto),ink=WeekBoard.inkAt(index);
+            LinearLayout row=new LinearLayout(a);row.setGravity(android.view.Gravity.TOP);row.setPadding(a.dp(14),a.dp(12),a.dp(14),a.dp(12));row.setBackground(AppUi.shape(a,WeekBoard.fillAt(index),14));
+            String status=ScheduleInfo.status(course,ScheduleInfo.minutes());boolean ended=status.equals("已结束");
+            String time=ClassTimes.range(course.optInt("first"),course.optInt("last"));String[] span=time.split("[–—-]");
+            LinearLayout times=a.column();TextView first=a.bold(span.length>0?span[0]:"",14);first.setTextColor(ink);times.addView(first);
+            if(span.length>1){TextView last=a.text(span[1],12);last.setTextColor(ink);last.setAlpha(.72f);times.addView(last);}
+            row.addView(times,new LinearLayout.LayoutParams(AppUi.compact(a)?a.dp(48):a.dp(56),-2));
+            View marker=new View(a);marker.setBackground(AppUi.shape(a,ink,2));LinearLayout.LayoutParams ml=new LinearLayout.LayoutParams(a.dp(3),a.dp(40));ml.setMargins(0,a.dp(2),a.dp(12),0);row.addView(marker,ml);
+            LinearLayout labels=a.column();TextView name=a.bold(course.optString("name"),16);name.setTextColor(ink);name.setMaxLines(2);name.setEllipsize(android.text.TextUtils.TruncateAt.END);if(ended)name.setPaintFlags(name.getPaintFlags()|android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);labels.addView(name);
+            String detail=course.optString("room")+" · 第 "+course.optInt("first")+"–"+course.optInt("last")+" 节";TextView room=a.text(detail,12);room.setTextColor(ink);room.setAlpha(.8f);room.setSingleLine(true);room.setEllipsize(android.text.TextUtils.TruncateAt.END);room.setPadding(0,a.dp(2),0,0);labels.addView(room);
+            // The live chip is always attached and toggled with visibility instead of being added/
+            // removed on the fly. GONE takes no space, so the visual output is identical to the old
+            // conditional addView, but a clock tick can now flip it without touching the view tree.
+            TextView current=a.bold("● 正在上课",12);current.setTextColor(ink);current.setPadding(0,a.dp(4),0,0);
+            current.setVisibility((!ended&&status.equals("正在上课"))?View.VISIBLE:View.GONE);labels.addView(current);
+            row.addView(labels,new LinearLayout.LayoutParams(0,-2,1));if(ended)row.setAlpha(.55f);
+            String label=course.optString("name")+"，"+time+"，"+detail;
+            row.setContentDescription(label+(ended?"，已结束":""));
+            a.todayRows.add(new TodayRow(course,name,row,current,label));   // handle for in-place clock updates
+            return row;
+        }
+
+        private void shortcutsCard(LinearLayout parent) {
+            LinearLayout card=a.whiteCard();a.cardHeader(card,"校园生活",null,null);a.gap(card,8);
+            LinearLayout row=new LinearLayout(a);
+            row.addView(shortcutTile("water","慧生活","用水",a::openLife798),new LinearLayout.LayoutParams(0,-2,1));
+            row.addView(shortcutTile("scan","趣智校园","扫码",()->a.startActivity(new Intent(a,ScanActivity.class))),new LinearLayout.LayoutParams(0,-2,1));
+            row.addView(shortcutTile("pay","易校园","付款码",a::openCampusPayCode),new LinearLayout.LayoutParams(0,-2,1));
+            row.addView(shortcutTile("parcel","身份码","淘宝·菜鸟驿站",a::openPickupCode),new LinearLayout.LayoutParams(0,-2,1));
+            card.addView(row);parent.addView(card,new LinearLayout.LayoutParams(-1,-2));
+        }
+        private void academicCard(LinearLayout parent) {
+            LinearLayout card=a.whiteCard();a.cardHeader(card,"教务",null,null);a.gap(card,8);
+            LinearLayout row=new LinearLayout(a);
+            row.addView(shortcutTile("score","成绩","查询",()->openEdu("grades")),new LinearLayout.LayoutParams(0,-2,1));
+            row.addView(shortcutTile("room","空教室","查询",()->openEdu("rooms")),new LinearLayout.LayoutParams(0,-2,1));
+            row.addView(shortcutTile("cap","教务系统","自动登录",()->a.startActivity(new Intent(a,EduPortalActivity.class))),new LinearLayout.LayoutParams(0,-2,1));
+            card.addView(row);
+            LinearLayout sites=new LinearLayout(a);
+            sites.addView(shortcutTile("school","河工程官网","hebeu.edu.cn",()->openSchoolSite("河北工程大学官网","https://www.hebeu.edu.cn/")),new LinearLayout.LayoutParams(0,-2,1));
+            sites.addView(shortcutTile("globe","科信官网","kexin.hebeu.edu.cn",()->openSchoolSite("科信学院官网","https://kexin.hebeu.edu.cn/")),new LinearLayout.LayoutParams(0,-2,1));
+            card.addView(sites);parent.addView(card,new LinearLayout.LayoutParams(-1,-2));
+        }
+        private void openEdu(String mode){
+            try{a.startActivity(new Intent(a,AcademicActivity.class).putExtra("mode",mode));}
+            catch(RuntimeException unavailable){a.notice("无法打开教务页面。");}
+        }
+        private void openSchoolSite(String title,String url){
+            try{a.startActivity(new Intent(a,SchoolSiteActivity.class)
+                .putExtra(SchoolSiteActivity.EXTRA_URL,url)
+                .putExtra(SchoolSiteActivity.EXTRA_TITLE,title));}
+            catch(RuntimeException unavailable){a.notice("无法打开学校网站。");}
+        }
+        private View shortcutTile(String icon,String title,String subtitle,Runnable action) {
+            boolean compact=AppUi.compact(a);int size=compact?a.dp(40):a.dp(44);
+            LinearLayout tile=a.column();tile.setGravity(android.view.Gravity.CENTER);tile.setPadding(a.dp(3),a.dp(10),a.dp(3),a.dp(10));tile.setMinimumHeight(a.dp(96));AppUi.press(tile,AppUi.SURFACE,10);tile.setOnClickListener(v->action.run());
+            android.widget.ImageView mark=new android.widget.ImageView(a);mark.setImageDrawable(AppUi.icon(a,icon,AppUi.ACCENT,24));mark.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);mark.setBackground(AppUi.shape(a,AppUi.SOFT,22));mark.setPadding(a.dp(9),a.dp(9),a.dp(9),a.dp(9));tile.addView(mark,new LinearLayout.LayoutParams(size,size));
+            TextView name=a.bold(title,compact?12:13);name.setGravity(android.view.Gravity.CENTER);name.setPadding(0,a.dp(8),0,0);name.setMaxLines(2);name.setEllipsize(android.text.TextUtils.TruncateAt.END);tile.addView(name);
+            TextView hint=a.text(subtitle,compact?11:12);hint.setTextColor(AppUi.MUTED);hint.setGravity(android.view.Gravity.CENTER);hint.setMaxLines(2);hint.setEllipsize(android.text.TextUtils.TruncateAt.END);tile.addView(hint);tile.setContentDescription(title+"，"+subtitle);return tile;
         }
     }
 

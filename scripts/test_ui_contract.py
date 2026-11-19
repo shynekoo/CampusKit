@@ -102,6 +102,13 @@ def main():
     if "private void campusContent() {" in activity:
         failures.append("TimetableActivity still owns campusContent() inline (not extracted)")
 
+    # A1 stage 2: today screen extraction, must keep the A3 in-place update wiring intact.
+    require(activity, "new HomeScreen(this)", "TimetableActivity",
+            "render() must delegate the today tab to HomeScreen")
+    require(activity, "class HomeScreen", "TimetableActivity", "HomeScreen extracted")
+    if "private void todayContent() {" in activity:
+        failures.append("TimetableActivity still owns todayContent() inline (not extracted)")
+
     if failures:
         print("UI CONTRACT FAILED (%d/%d checks):" % (len(failures), checks))
         for f in failures:
