@@ -19,7 +19,7 @@
 
 测试：`client/core/test/.../CoreTests.java` —— 当前 1262 项断言，涵盖上述状态机、解析与策略。
 
-## client/android — 原生界面与平台适配（71 个文件）
+## client/android — 原生界面与平台适配（75 个文件）
 
 | 组 | 代表文件 | 职责 |
 | :-- | :-- | :-- |
@@ -28,8 +28,8 @@
 | 账号与凭据 | `AccountActivity`、`AccountVault`、`EduVault`、`LifeSessionVault`、`AccountProfile`、`AccountInfoActivity` | 登录入口、加密存储、账号资料 |
 | 教务 | `EduClient`、`EduLoginActivity`、`EduQueryActivity`、`EduResultActivity`、`EduPortalActivity`、`EduTimetableImportActivity`、`EduTables`、`EduTimetableReader`、`AcademicActivity`、`AcademicStatusActivity` | 教务会话、查询、导入、学业情况页（学分树 + 点击展开课程明细） |
 | 慧生活/水控 | `LifeLoginActivity`、`LifeDeviceActivity`、`LifeDeviceApi`、`LifeAuthApi`、`LifeDeviceProfile`、`DeviceDetails`、`DeviceLookup`、`ScanActivity`、`QrDecoder`、`WaterApi` | 登录、设备资料（只读）、扫码、订单状态 |
-| 趣智校园 | `SmsAccountApi`、`UseCodeApi`、`UseCodeActivity`、`QzxyAlipayActivity`、`AlipayLogin` | 使用码、支付宝授权/充值 |
-| 更新/隐私/其他 | `UpdateCheck`、`ApkProvider`、`PrivacyActivity`、`FeedbackActivity`、`MoreActivity`、`AppearanceActivity`、`DiagActivity`、`SchoolSiteActivity`、`TimetableWebActivity`、`WebBack`、`Diag`、`HttpForm`、`NoticeDialog`、`ColorDialog` | 应用内更新、隐私、外观、网页容器、网络与弹窗 |
+| 趣智校园 | `SmsAccountApi`、`UseCodeApi`、`UseCodeActivity`、`QzxyAlipayActivity`、`AlipayLogin` | 使用码、支付宝授权登录；充值/收银不在应用内，只把设备交给支付宝 |
+| 更新/隐私/其他 | `UpdateCheck`、`ApkProvider`、`PrivacyActivity`、`NoticeActivity`、`LegalText`、`LegalView`、`NoticeDialog`、`FeedbackActivity`、`MoreActivity`、`AppearanceActivity`、`DiagActivity`、`SchoolSiteActivity`、`TimetableWebActivity`、`WebBack`、`Diag`、`HttpForm`、`ColorDialog` | 应用内更新、数据与隐私页、使用公告（页面 + 首次启动弹窗，共用 `LegalText` 文案与 `LegalView` 排版）、外观、网页容器、网络与弹窗 |
 
 ## client/fieldtest — 用水控制（7 个文件，正式包不编入）
 

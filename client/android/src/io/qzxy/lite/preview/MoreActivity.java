@@ -173,6 +173,9 @@ public final class MoreActivity extends Page {
         // 数据与隐私 从校园页挪到这里：它回答的是「这个应用本身动了什么」，与源码、许可证同类，
         // 而不是像趣智校园/慧生活那样的一项校园服务。
         entry(card, "info", "数据与隐私", "本机存了什么、发到哪里、怎么清除", true, this::openPrivacy);
+        // 使用公告单列一条：它是一份独立文本，不该只在隐私页里当作附属品出现。
+        entry(card, "today", "使用公告", "独立开发的第三方工具，使用前请读", true,
+            () -> startActivity(new Intent(this, NoticeActivity.class)));
         // 日志只在测试版出现：发布版里这段被 javac 删掉，读者看不到一个自己用不上的入口。
         if (BuildFlags.DIAGNOSTICS) {
             entry(card, "today", "日志", "这次启动走了哪几步，可复制发给开发者", true,

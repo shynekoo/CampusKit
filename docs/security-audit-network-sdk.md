@@ -48,7 +48,8 @@
 - `usesCleartextTraffic="false"`：应用层禁用明文流量。
 - `allowBackup="false"`：禁止备份，配合凭据存于 `getNoBackupFilesDir()`。
 - 无 `android:debuggable`、无 `testOnly`。
-- 权限最小化：`INTERNET`、`ACCESS_NETWORK_STATE`、`ACCESS_WIFI_STATE`、`CAMERA`（required=false）、`REQUEST_INSTALL_PACKAGES`（仅用于向系统安装器递交用户已确认的更新包）。无短信/通讯录/定位等敏感权限。
+- 权限最小化：`INTERNET`、`ACCESS_NETWORK_STATE`、`CAMERA`（required=false）、`REQUEST_INSTALL_PACKAGES`（仅用于向系统安装器递交用户已确认的更新包）。无短信/通讯录/定位等敏感权限。
+- `ACCESS_WIFI_STATE` 已于 2.5.8.6 移除：全仓库无 `WifiManager` 调用，支付宝 SDK 也只用 `ConnectivityManager`（8 个类引用），不需要 Wi-Fi 状态。
 - 组件导出：App 自有 Activity 中仅 `TimetableActivity`（启动入口）为 exported；其余全部 `exported="false"`。4 个 exported 的 `com.alipay.sdk.app.*` 回调 Activity 为支付宝 SDK manifest 要求，反编译源（`client/build/jadx-sdk/sources/com/alipay/sdk/app/PayResultActivity.java:69-103`）显示其用进程内随机请求号比对回调，本项目不以其作为交易成功依据（见 S5 审计）。
 
 ## 三、构建产物 / 第三方依赖层

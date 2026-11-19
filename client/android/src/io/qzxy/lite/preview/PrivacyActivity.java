@@ -1,29 +1,24 @@
 package io.qzxy.lite.preview;
 
-import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Typeface;
-import android.os.Build;
 import android.os.Bundle;
-import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.CookieManager;
 import android.webkit.WebStorage;
 import android.widget.Button;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
 import android.widget.TextView;
 
 /**
- * 数据与隐私：what this app keeps on the phone, where the network requests go, and how to wipe it.
+ * 数据与隐私：完整的隐私说明，加上「本机怎么清」的那两个按钮。
  *
- * <p>The page exists because the app deliberately has no account server, so "your data" is entirely
- * local — which means the honest answer is a list of local files plus a delete button, not a policy
- * document. Anything that touches the keystore is deleted on a worker thread, matching
- * {@link AccountVault}'s requirement that its key operations never run on the main thread.</p>
+ * <p>正文来自 {@link LegalText#PRIVACY}，与「使用公告」共用同一套排版（{@link LegalView}）——
+ * 全部是打包进 APK 的静态文字，没有 WebView、没有网络请求，所以断网也能读。清除动作本身由
+ * {@link AccountVault} / {@link LifeSessionVault} / {@link EduVault} 在 worker 线程完成，
+ * 这部分逻辑未随文案改动。</p>
  */
 public final class PrivacyActivity extends Page {
     private static final int DANGER = 0xffb42318;
@@ -51,43 +46,6 @@ public final class PrivacyActivity extends Page {
         return view;
     }
 
-    private void gap(LinearLayout parent, int size) {
-        parent.addView(new View(this), new LinearLayout.LayoutParams(1, dp(size)));
-    }
-
-    private LinearLayout card() {
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(18), dp(16), dp(18), dp(16));
-        card.setBackground(AppUi.outlined(this, AppUi.SURFACE, 18, AppUi.LINE));
-        return card;
-    }
-
-    private TextView cardTitle(String value) {
-        TextView title = text(value, 16, AppUi.INK);
-        title.setTypeface(null, Typeface.BOLD);
-        title.setPadding(0, 0, 0, dp(2));
-        return title;
-    }
-
-    /** A label with its explanation underneath, separated by a hairline. */
-    private void row(LinearLayout card, String label, String detail, boolean divider) {
-        LinearLayout block = new LinearLayout(this);
-        block.setOrientation(LinearLayout.VERTICAL);
-        block.setPadding(0, dp(9), 0, dp(9));
-        block.addView(text(label, 14, AppUi.INK));
-        TextView note = text(detail, 12, AppUi.MUTED);
-        note.setPadding(0, dp(2), 0, 0);
-        block.addView(note);
-        card.addView(block, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT));
-        if (divider) {
-            View rule = new View(this);
-            rule.setBackgroundColor(AppUi.LINE);
-            card.addView(rule, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, dp(1))));
-        }
-    }
-
     private Button action(String label, boolean danger, Runnable task) {
         Button button = new Button(this);
         button.setText(label);
@@ -106,106 +64,70 @@ public final class PrivacyActivity extends Page {
         return button;
     }
 
-    @Override public void onCreate(Bundle saved) {
-        super.onCreate(saved);
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(AppUi.BG);
-        final int side = AppUi.side(this, 14);
-        root.setPadding(side, dp(8), side, 0);
-        if (Build.VERSION.SDK_INT >= 30) {
-            getWindow().setDecorFitsSystemWindows(false);
-            root.setOnApplyWindowInsetsListener((v, insets) -> {
-                android.graphics.Insets bars = insets.getInsets(android.view.WindowInsets.Type.systemBars());
-                v.setPadding(side + bars.left, dp(8) + bars.top, side + bars.right, bars.bottom);
-                return insets;
-            });
-        }
+    /** 清除卡片：说明 + 两个既有动作。文案改动不碰这里的行为。 */
+    private LinearLayout clearingCard() {
+        LinearLayout clearing = new LinearLayout(this);
+        clearing.setOrientation(LinearLayout.VERTICAL);
+        clearing.setPadding(dp(18), dp(16), dp(18), dp(16));
+        clearing.setBackground(AppUi.outlined(this, AppUi.SURFACE, 18, AppUi.LINE));
 
-        TextView back = text("‹ 返回", 15, AppUi.ACCENT);
-        back.setPadding(dp(2), dp(10), dp(2), dp(10));
-        back.setGravity(Gravity.CENTER_VERTICAL);
-        back.setMinHeight(dp(48));
-        back.setOnClickListener(v -> finish());
-        root.addView(back);
+        TextView title = text("清除本机数据", 16, AppUi.INK);
+        title.setTypeface(null, Typeface.BOLD);
+        title.setPadding(0, 0, 0, dp(2));
+        clearing.addView(title);
 
-        TextView heading = text("数据与隐私", 26, AppUi.INK);
-        heading.setTypeface(null, Typeface.BOLD);
-        root.addView(heading);
-        TextView caption = text("本机存了什么、发到哪里、怎么删", 12, AppUi.MUTED);
-        caption.setPadding(0, dp(2), 0, dp(12));
-        root.addView(caption);
-
-        ScrollView scroll = new ScrollView(this);
-        LinearLayout content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(0, 0, 0, dp(16));
-        scroll.addView(content);
-        root.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
-
-        LinearLayout stored = card();
-        stored.addView(cardTitle("保存在这台手机上"));
-        row(stored, "趣智校园登录会话",
-            "加密文件，只有这台手机的系统密钥能解开；不保存明文密码", true);
-        row(stored, "慧生活798 登录会话", "加密文件，同上", true);
-        row(stored, "教务系统账号",
-            "只在你主动保存过账号时存在；同样加密，学校拒绝过的密码会停止自动重试", true);
-        row(stored, "每个课表的课程、开学日期、背景", "应用设置；课表可以有多个，各自独立存储，卸载即删", true);
-        row(stored, "取件组件、公告偏好", "应用设置：桌面组件配置和「不再提醒」的选择", false);
-        content.addView(stored);
-        gap(content, 12);
-
-        LinearLayout network = card();
-        network.addView(cardTitle("不会离开这台手机"));
-        TextView noServer = text("没有账号服务器，没有统计和广告，也没有第三方 SDK。"
-            + "所有网络请求只发往下面这些地址：", 13, AppUi.MUTED);
-        noServer.setPadding(0, dp(4), 0, dp(2));
-        network.addView(noServer);
-        row(network, "v3-api.china-qzxy.cn", "趣智校园：登录、余额、设备状态与用水启停", true);
-        row(network, "i.ilife798.com", "慧生活798：登录、设备资料与用水启停", true);
-        row(network, "jwglxxfwpt.hebeu.edu.cn", "教务系统：课表、成绩、空教室", true);
-        row(network, "www.hebeu.edu.cn · kexin.hebeu.edu.cn", "学校官网，在应用内浏览", true);
-        row(network, "淘宝 / 菜鸟", "只在你点「身份码」时交给系统或淘宝打开，应用本身不访问", false);
-        content.addView(network);
-        gap(content, 12);
-
-        LinearLayout permissions = card();
-        permissions.addView(cardTitle("权限"));
-        row(permissions, "网络", "上面这些请求都需要它", true);
-        row(permissions, "相机", "只用于扫码取景：不拍照、不录像、不保存画面", false);
-        TextView none = text("没有申请位置、通讯录、短信读取和存储权限。", 12, AppUi.MUTED);
-        none.setPadding(0, dp(10), 0, 0);
-        permissions.addView(none);
-        content.addView(permissions);
-        gap(content, 12);
-
-        LinearLayout clearing = card();
-        clearing.addView(cardTitle("清除"));
-        TextView explain = text("清除登录状态只删三份会话，课表保留；清除全部会把课表、背景和组件设置一并删除，"
-            + "无法恢复，但课表之后可以从教务系统重新导入。", 13, AppUi.MUTED);
-        explain.setPadding(0, dp(4), 0, 0);
+        TextView explain = text("清除登录状态只删趣智校园、慧生活798、教务系统三份会话，课表保留；"
+            + "清除全部会把课表、背景和组件设置一并删除，无法恢复，但课表之后可以从教务系统重新导入。",
+            13, AppUi.MUTED);
+        explain.setPadding(0, 0, 0, 0);
         clearing.addView(explain);
+
         clearSessions = action("清除登录状态", true, () -> confirm(false));
         clearing.addView(clearSessions);
         clearAll = action("清除全部本机数据", true, () -> confirm(true));
         clearing.addView(clearAll);
+
         status = text("", 12, AppUi.MUTED);
         status.setPadding(0, dp(10), 0, 0);
         clearing.addView(status);
-        content.addView(clearing);
-        gap(content, 12);
+        return clearing;
+    }
 
-        LinearLayout notice = card();
-        notice.addView(cardTitle("使用公告"));
+    /** 使用公告的独立入口卡片：整篇公告在本页正文之后另开一页读，比塞进对话框好读。 */
+    private LinearLayout noticeCard() {
+        LinearLayout notice = new LinearLayout(this);
+        notice.setOrientation(LinearLayout.VERTICAL);
+        notice.setPadding(dp(18), dp(16), dp(18), dp(16));
+        notice.setBackground(AppUi.outlined(this, AppUi.SURFACE, 18, AppUi.LINE));
+
+        TextView title = text("使用公告", 16, AppUi.INK);
+        title.setTypeface(null, Typeface.BOLD);
+        title.setPadding(0, 0, 0, dp(2));
+        notice.addView(title);
+
         TextView remember = text("公告在每次打开时显示，勾选「以后不再提醒」后停止。这里可以随时再看一遍。",
             13, AppUi.MUTED);
-        remember.setPadding(0, dp(4), 0, 0);
         notice.addView(remember);
-        notice.addView(action("重新查看使用公告", false, () -> NoticeDialog.showForReading(this)));
-        content.addView(notice);
+        notice.addView(action("阅读使用公告", false,
+            () -> startActivity(new Intent(this, NoticeActivity.class))));
+        return notice;
+    }
 
-        setContentView(root);
-        root.requestApplyInsets();
+    @Override public void onCreate(Bundle saved) {
+        super.onCreate(saved);
+        LegalView.Screen screen = LegalView.screen(this, "数据与隐私",
+            "本机存了什么、发到哪里、怎么删");
+        LinearLayout content = screen.content;
+
+        for (String[] section : LegalText.PRIVACY) LegalView.section(this, content, section);
+        // 隐私说明在 §6 讲「怎么删」，这里是真正能按的两个按钮，紧跟在说明后面。
+        content.addView(clearingCard());
+        View gap = new View(this);
+        content.addView(gap, new LinearLayout.LayoutParams(1, dp(12)));
+        content.addView(noticeCard());
+
+        setContentView(screen.root);
+        screen.root.requestApplyInsets();
     }
 
     private void confirm(final boolean everything) {

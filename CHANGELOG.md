@@ -7,10 +7,44 @@
 - 线上正式版与下载站：`2.5.7`（versionCode `197`，2026-11-18，`delivery/update/update.json`）。
 - 已提交并 push、尚未发版：`2.5.8.1`（versionCode `199`，Git HEAD `6406500`）。
 - 已提交、尚未发版：`2.5.8.2`–`2.5.8.6`（最新 versionCode `204`），含学业情况查询与 UI-1/UI-2 第一轮。
-- 已提交并 push 的 HEAD：`f86ed11`（UI-1 / UI-2 / UI-3 转场竞态 + 滚动恢复 + 回本周整屏滑页）；工作区干净，**未建 tag / Release、未发版、未同步下载站**。
-- 核心断言：当前工作区实跑 `python scripts/test_core.py` → **1262 项全过**（2026-11-19）；UI 守卫 **159 锚点全过**。
+- 已提交并 push 的 HEAD：`f86ed11`（UI-1 / UI-2 / UI-3 转场竞态 + 滚动恢复 + 回本周整屏滑页）。
+- 工作区（未提交）：「数据与隐私 / 使用公告」文案与展示专项（versionCode 仍为 `204`），**未 push、未发版**。
+- 核心断言：当前工作区实跑 `python scripts/test_core.py` → **1262 项全过**（2026-11-19）；UI 守卫 **187 锚点全过**。
 
 更早版本的发布说明见 [`delivery/release-*.md`](delivery/)。
+
+---
+
+## [未发布 · 数据与隐私 / 使用公告专项] — 工作区未提交（versionCode 仍为 204）
+
+> 按发布者提供的新版文案重写这两份文本，并逐条对照代码核对。**只改文案与展示，不改安全机制与业务逻辑**；权限表仅按发布者确认移除一个从未使用的 `ACCESS_WIFI_STATE`。文案集中在 `LegalText`，排版集中在 `LegalView`，首次启动弹窗与新增的公告页读同一份文字。核心 1262 断言、UI 守卫 187 锚点全绿，普通版 APK 已构建并验签。
+
+### 新增
+- **`LegalText.java`**：两份文本的唯一来源（隐私 8 节、公告 7 节）。隐私联系邮箱填 `shynekoo@outlook.com`（与「意见反馈」公开地址同一个，不另设邮箱），生效日期 `2026年11月19日`；守卫会拦住任何残留的 `【…】` 占位符，并校验两处邮箱一致。
+- **`LegalView.java`**：两页共用排版（返回、标题、说明、可滚动正文、每节一张卡片）。字号用 sp，跟随系统字体缩放；颜色只读 `AppUi`，深浅色与自定义主题随动。
+- **`NoticeActivity.java`**：使用公告整篇阅读页（离线静态文本）。入口为「更多 → 使用公告」与「数据与隐私」页末卡片；首次启动仍由 `NoticeDialog` 负责「以后不再提醒」的选择，两者共用 `LegalText.NOTICE`。
+
+### 变更
+- **`PrivacyActivity`**：原先手写的「保存在这台手机上 / 不会离开这台手机 / 权限」三张卡片换成完整的隐私说明（8 节）；两个清除按钮及其行为、清除范围未变；末节入口改为「阅读使用公告」，进整篇页面（原先复用弹窗）。
+- **`MoreActivity`**：新增「使用公告」独立条目，两个入口相互独立。
+- **`NoticeDialog`**：正文改读 `LegalText.NOTICE`；`VERSION` 2 → 3，勾过「不再提醒」的人在文案改版后会再看一次。
+- **`AndroidManifest.xml`**：注册 `.NoticeActivity`（`exported="false"`，`configChanges` 与其他子页一致）；**移除 `ACCESS_WIFI_STATE`**（见下）。未新增任何权限。
+
+### 文案与代码核对（据此改了 5 处声明）
+1. **教务密码**：原文「不作为长期保存的密码写入本地加密存储」与 `EduVault` 不符——主动保存教务账号时，`账号\n密码` 会用 Keystore 中不可导出的密钥、以 AES-256-GCM 加密写入 `noBackupFilesDir/edu-account.bin`。已改为按实际行为描述。
+2. **支付与充值**：应用没有充值、收银或代下单；`AlipayLogin` 只调 `AuthTask.authV2` 取授权码，用水是把设备交给支付宝的 URI。原文的「支付、签约和扣费」改为「不提供充值/收银/代下单，也不接收支付密码；结算在支付宝内完成，应用只读取订单状态」。
+3. **权限**：清单里有 `ACCESS_WIFI_STATE`，但全仓库无 `WifiManager` 调用，支付宝 SDK 也只用 `ConnectivityManager`（8 个类引用）——该权限纯属声明负担。发布者确认后**从清单移除**，隐私文案第 5 节同步改为「网络状态：……应用自身的业务代码不读取该状态，所集成的支付宝 SDK 会用它判断网络可用性」，权限数量由 5 项降到 4 项。`ACCESS_NETWORK_STATE` 保留，因为 SDK 确实在用它。
+4. **第三方服务**：把「GitHub 或软件分发服务」落到具体来源（workbuddy 托管的版本清单，安装包按其指向的 HTTPS 地址，可能是 GitHub Releases），并列出四个端点。
+5. **使用公告 §4**：删掉应用并不存在的「充值」，改为余额查询与扫码用水。
+
+### 未改（边界）
+- 加密与存储（`AccountVault`/`EduVault`/`LifeSessionVault`/`PendingUseVault`）、清除逻辑与范围、更新校验、诊断日志、教务/支付/水控业务逻辑一行未动；权限只减不增（仅移除 `ACCESS_WIFI_STATE`，未新增任何权限）；未新增广告、统计、上传或追踪。
+- 两份文本均为打包进 APK 的静态文字，无 WebView、无网络请求，断网可读。
+
+### 验证
+- `test_core` 1262 / `test_build_config` 5 / `test_webview_policy` 5 / `test_ui_contract` **187**（+28 锚点：文案存在性、邮箱为真实公开地址且与「意见反馈」一致、无残留占位符、教务密码与 AES 表述、不得声称充值、manifest 权限逐项披露、两处入口与弹窗同源、`VERSION = 3`、离线可读）全绿。
+- APK `delivery/科信小助手-2.5.8.6.apk`，5 396 346 B，SHA-256 `be4903d575cf47a02a1da2dfc7eb49b8bcf7ebf0194dbe44b486b39aa249605e`，验签通过；dex 内确认文案已填充（`shynekoo@outlook.com` / `2026年11月19日`），无 `【…】` 残留，权限表实测 4 项。
+- **未做**：真机排版、系统大字体、320dp 换行、深浅色对比。发布信息（邮箱 / 生效日期）已填。
 
 ---
 

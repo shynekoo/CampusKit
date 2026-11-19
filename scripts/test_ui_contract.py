@@ -395,6 +395,83 @@ def main():
     require(card, "static void clearPending()", "CardLayer", "CardLayer snapshot policy untouched")
     require(board, "protected void onMeasure", "WeekBoard", "WeekBoard adaptive measure untouched")
 
+    # --- 数据与隐私 / 使用公告：文案必须仍然是代码里发生的事 -------------------------------
+    legal_path = PREVIEW / "LegalText.java"
+    legal = legal_path.read_text(encoding="utf-8") if legal_path.exists() else ""
+    privacy_src_path = PREVIEW / "PrivacyActivity.java"
+    privacy_src = privacy_src_path.read_text(encoding="utf-8") if privacy_src_path.exists() else ""
+    notice_page_path = PREVIEW / "NoticeActivity.java"
+    notice_page = notice_page_path.read_text(encoding="utf-8") if notice_page_path.exists() else ""
+    notice_dialog_path = PREVIEW / "NoticeDialog.java"
+    notice_dialog = notice_dialog_path.read_text(encoding="utf-8") if notice_dialog_path.exists() else ""
+    manifest = (ROOT / "client/android/AndroidManifest.xml").read_text(encoding="utf-8")
+
+    require(legal, "static final String[][] PRIVACY", "LegalText", "隐私文案只有一个来源")
+    require(legal, "static final String[][] NOTICE", "LegalText", "公告文案与隐私文案同源")
+    # 发布信息必须是真值：邮箱用「意见反馈」里那个公开地址，日期为发布当日，不能留占位符。
+    require(legal, 'CONTACT_EMAIL = "shynekoo@outlook.com"', "LegalText",
+            "隐私联系邮箱必须是真实可用的公开邮箱")
+    checks += 1
+    if "【" in legal:
+        failures.append("LegalText: 发版文案里不允许残留【…】占位符")
+    require(legal, "EFFECTIVE_DATE = \"20", "LegalText", "生效日期必须已填写")
+    # 与 EduVault 的事实对齐：主动保存时密码是加密落盘的，不能写成「不写入本地加密存储」。
+    require(legal, "如果您在应用中主动保存教务账号", "LegalText",
+            "教务密码的保存方式必须按 EduVault 的真实行为描述")
+    require(legal, "AES-256-GCM", "LegalText", "本地凭据的加密方式与各 Vault 一致")
+    # 应用没有充值/收银能力（AlipayLogin 只有 authV2，用水是交给支付宝的 URI）。
+    require(legal, "本应用不提供充值、收银或代下单功能", "LegalText",
+            "不得声称应用内可以充值或收银")
+    # 权限表：manifest 里的每个权限都必须在文案里被披露，避免加了权限没改文案。
+    # Wi-Fi 状态权限代码里从来没用过（Alipay SDK 只引用 ConnectivityManager），已从清单移除；
+    # 如果有人又把它加回来，这条会立刻失败，提醒同步文案。
+    disclosures = {
+        "android.permission.INTERNET": "网络访问",
+        "android.permission.ACCESS_NETWORK_STATE": "网络状态",
+        "android.permission.CAMERA": "相机",
+        "android.permission.REQUEST_INSTALL_PACKAGES": "安装应用请求权限",
+    }
+    checks += 1
+    declared = set(__import__("re").findall(
+        r'uses-permission android:name="([^"]+)"', manifest))
+    if declared != set(disclosures):
+        failures.append("manifest 权限表变了（%s），隐私文案与 disclosures 需要同步"
+                        % ", ".join(sorted(declared)))
+    for permission, keyword in disclosures.items():
+        require(legal, keyword, "LegalText",
+                "%s 必须在隐私文案里被披露" % permission.split(".")[-1])
+    # 同一邮箱，两处写法：隐私页与「意见反馈」不能各写各的。
+    checks += 1
+    feedback = (PREVIEW / "FeedbackActivity.java").read_text(encoding="utf-8")
+    if '"shynekoo@outlook.com"' not in feedback:
+        failures.append("LegalText 的隐私邮箱必须与 FeedbackActivity 的公开反馈邮箱一致")
+
+    # 两个独立入口 + 既有交互：入口卡片、公告页、弹窗读同一份文字、公告版本号已提升。
+    require(privacy_src, "LegalText.PRIVACY", "PrivacyActivity", "隐私页读共享文案")
+    require(privacy_src, "NoticeActivity.class", "PrivacyActivity", "隐私页仍能进入使用公告")
+    require(privacy_src, "clearSessions", "PrivacyActivity", "清除登录状态的既有动作保留")
+    require(privacy_src, "clearAll", "PrivacyActivity", "清除全部本机数据的既有动作保留")
+    require(privacy_src, '"edu-account-state"', "PrivacyActivity", "全部清除仍覆盖教务账号状态")
+    require(notice_page, "LegalText.NOTICE", "NoticeActivity", "公告页读共享文案")
+    require(notice_dialog, "LegalText.NOTICE", "NoticeDialog", "首次启动弹窗与公告页同源")
+    require(notice_dialog, "VERSION = 3", "NoticeDialog", "公告文案改版后应重新提醒一次")
+    require(manifest, 'android:name=".NoticeActivity"', "AndroidManifest",
+            "使用公告页需要注册，否则入口点了会崩")
+    require(manifest, 'android:name=".PrivacyActivity"', "AndroidManifest",
+            "数据与隐私页仍在清单里")
+    # 离线可读：这两页不许引入 WebView 或任何请求。注释里提到这些词不算（说明文里会解释
+    # 「不用 WebView」），只看真正的代码行。
+    def code_lines(text):
+        return "\n".join(line for line in text.splitlines()
+                         if not line.strip().startswith(("*", "//")))
+
+    for name, source in (("PrivacyActivity", privacy_src), ("NoticeActivity", notice_page),
+                         ("LegalText", legal), ("LegalView", (PREVIEW / "LegalView.java").read_text(encoding="utf-8"))):
+        checks += 1
+        body = code_lines(source)
+        if "WebView" in body or "loadUrl" in body or "openConnection" in body:
+            failures.append("%s: 法律文本页面必须离线可读，不得加载网页或发起请求" % name)
+
     if failures:
         print("UI CONTRACT FAILED (%d/%d checks):" % (len(failures), checks))
         for f in failures:
