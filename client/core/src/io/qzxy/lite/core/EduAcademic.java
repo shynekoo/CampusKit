@@ -36,9 +36,24 @@ public final class EduAcademic {
         public final boolean passed;
         /** 1 = top group (主修), 2 = its categories, and so on down the school's own tree. */
         public final int depth;
-        Node(String id, String name, String earned, String required, boolean passed, int depth) {
+        /**
+         * Which of the school's two course endpoints serves this row.
+         *
+         * <p>{@code true}: the plan endpoint ({@code cxJxzxjhxfyqKcxx}) — the courses the study
+         * plan lists for this group. {@code false}: the non-plan endpoint
+         * ({@code cxJxzxjhxfyqFKcxx}) — courses picked outside the plan (通识选修、公共艺术…), whose
+         * credits still count towards this group. The split is the school's own rule: its script
+         * compares {@code jdkcsx == '1'} and only takes the first branch when that holds.</p>
+         *
+         * <p>Sending the plan query to a non-plan group returns an empty array, which is exactly
+         * the "右边有学分、点开却没有课程" symptom. When the page carries no {@code jdkcsx} at all
+         * the old plan query is kept, so an older deployment behaves as before.</p>
+         */
+        public final boolean planCourses;
+        Node(String id, String name, String earned, String required, boolean passed, int depth,
+             boolean planCourses) {
             this.id = id; this.name = name; this.earned = earned; this.required = required;
-            this.passed = passed; this.depth = depth;
+            this.passed = passed; this.depth = depth; this.planCourses = planCourses;
         }
     }
 
@@ -98,6 +113,10 @@ public final class EduAcademic {
     private static final Pattern NODE = Pattern.compile(
         "<p\\s+class='title1'[^>]*id='p([^']+)'([^>]*)>(.{0,400}?)</p>",
         Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+    /** The school puts {@code jdkcsx} (a course-count marker) on the row's {@code <div class='title'>},
+     *  keyed there by {@code xfyqjd_id} — the same id the {@code <p>} carries as {@code p<id>}. */
+    private static final Pattern TITLE_DIV = Pattern.compile(
+        "<div\\s+class='title'([^>]*)>", Pattern.CASE_INSENSITIVE);
     /** The tree is built by jQuery, so a node's parent is the container its {@code <li>} is
      *  appended to: {@code .appendTo($("#ul父ID"))}. Root nodes append to the bare {@code #ul#start}. */
     private static final Pattern LIST_ITEM = Pattern.compile("<li\\s+id='li([^']*)'", Pattern.CASE_INSENSITIVE);
@@ -146,6 +165,12 @@ public final class EduAcademic {
         // branch, so the first complete copy wins.
         Map<String, Node> raw = new LinkedHashMap<String, Node>();
         List<String> order = new ArrayList<String>();
+        // The school marks each group with jdkcsx and picks the course endpoint by comparing it to
+        // '1'; anything else ("3", "0", empty) is served by the non-plan endpoint. Read it from both
+        // the <p> itself and its <div class='title'> parent: deployments put it on either. A page
+        // that carries no marker at all keeps the plan endpoint for every row.
+        Map<String, String> courseMarks = courseMarks(text);
+        boolean marked = !courseMarks.isEmpty();
         Matcher nodes = NODE.matcher(html);
         while (nodes.find() && raw.size() < MAX_NODES) {
             String id = nodes.group(1);
@@ -153,9 +178,14 @@ public final class EduAcademic {
             String attributes = nodes.group(2);
             String name = titleName(clean(nodes.group(3)));
             if (name.isEmpty() || name.equals("同学")) continue;
+            String ownMark = attribute(attributes, "jdkcsx").trim();
+            boolean ownMarked = Pattern.compile("\\bjdkcsx='[^']*'").matcher(attributes).find();
+            if (ownMarked) marked = true;
+            String mark = ownMarked ? ownMark : value(courseMarks.get(id));
             raw.put(id, new Node(id, name, credit(attribute(attributes, "yxxf")),
                 credit(attribute(attributes, "yqzdxf")),
-                "1".equals(attribute(attributes, "sftg").trim()), 1));
+                "1".equals(attribute(attributes, "sftg").trim()), 1,
+                planCourses(id, mark, marked)));
             order.add(id);
         }
         if (!raw.isEmpty()) buildTree(html, raw, order, report);
@@ -305,6 +335,43 @@ public final class EduAcademic {
     }
 
     /**
+     * Maps a row's {@code jdkcsx} to the endpoint the school itself would call.
+     *
+     * <p>Its script branches on {@code jdkcsx == '1'}: the plan endpoint for that value, the
+     * non-plan endpoint for everything else. Two synthetic rows (其它课程 / 创新创业) are special-cased
+     * by the school to the plan endpoint regardless of their marker. A page with no markers at all
+     * keeps the plan endpoint, which is what every earlier build used.</p>
+     */
+    private static boolean planCourses(String id, String mark, boolean marked) {
+        if ("qtkcxfyq".equals(id) || "cxcyqkxfyq".equals(id)) return true;
+        if (!marked) return true;
+        return "1".equals(mark == null ? "" : mark.trim());
+    }
+
+    /** A map value with {@code null} flattened to empty, so callers never test for null. */
+    private static String value(String raw) { return raw == null ? "" : raw; }
+
+    /**
+     * Node id → the school's raw {@code jdkcsx} marker for that row.
+     *
+     * <p>Collected from the {@code <div class='title'>} that owns the row, keyed by its
+     * {@code xfyqjd_id}; the value is kept as the school wrote it ("1", "3", "0", empty) because the
+     * endpoint choice is a comparison against "1", not a truthiness test.</p>
+     */
+    private static Map<String, String> courseMarks(String html) {
+        Map<String, String> marks = new LinkedHashMap<String, String>();
+        Matcher div = TITLE_DIV.matcher(html);
+        while (div.find()) {
+            String attrs = div.group(1);
+            String id = attribute(attrs, "xfyqjd_id").trim();
+            Matcher marker = Pattern.compile("\\bjdkcsx='([^']*)'").matcher(attrs);
+            if (id.isEmpty() || !marker.find()) continue;
+            if (!marks.containsKey(id)) marks.put(id, marker.group(1).trim());
+        }
+        return marks;
+    }
+
+    /**
      * Recovers the school's own hierarchy. Each {@code <li id='li…'>} is appended to its parent's
      * container ({@code #ul…} / {@code #li…}); the bare {@code #ul#start} means a root. Walking
      * that parent map gives every node a depth and a parent-first order, which is exactly what a
@@ -347,7 +414,8 @@ public final class EduAcademic {
         if (depth > MAX_DEPTH || seen.contains(id)) return;
         seen.add(id);
         Node node = raw.get(id);
-        out.add(new Node(node.id, node.name, node.earned, node.required, node.passed, depth));
+        out.add(new Node(node.id, node.name, node.earned, node.required, node.passed, depth,
+            node.planCourses));
         for (String child : children.get(id)) walk(child, depth + 1, raw, children, seen, out);
     }
 

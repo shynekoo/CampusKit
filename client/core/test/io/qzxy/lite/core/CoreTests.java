@@ -1456,6 +1456,7 @@ public final class CoreTests {
             + "<p class='title1' id='pBBB222' yxxf='24.5' yqzdxf='45' sftg='0'>\" + \"通识教育重复</p>";
         EduAcademic.Report flat = EduAcademic.parse(academic);
         equal(false, flat.layered);                     // no parent links on this page
+        for (EduAcademic.Node node : flat.nodes) equal(true, node.planCourses);  // no marker → plan query
         equal(3, flat.nodes.size());                    // duplicate id collapsed
         for (EduAcademic.Node node : flat.nodes) equal(1, node.depth);
         equal("主修", flat.nodes.get(0).name);
@@ -1506,6 +1507,50 @@ public final class CoreTests {
         equal(4, academicReport.nodes.get(3).depth);    // ordered by tree, not by document order
         equal("其他课程", academicReport.nodes.get(4).name);
         equal(1, academicReport.nodes.get(4).depth);    // orphan parent falls back to a root
+
+        // jdkcsx picks the endpoint, and it is a comparison, not a truthiness test: the school sends
+        // '1' to the plan query and everything else ('3', '', '0') to the non-plan query, which is
+        // where 通识选修 / 公共艺术 courses live. Treating any non-empty marker as "plan" made a group
+        // with 5 passed courses answer [] and look empty.
+        String flagged =
+            "<div role='alert'>某同学&nbsp;同学，您的课程修读情况："
+            + "计划总课程&nbsp;118&nbsp;门通过&nbsp;54&nbsp;门</div>"
+            + "$(\"<li id='liSEC'><div class='title' xfyqjd_id='SEC' jdkcsx=''>"
+            + "<p class='title1' id='pSEC' yxxf='4.0' yqzdxf='10' sftg='0'>\" + \"第二课堂</p></div>"
+            + "<ul id='ulSEC'></ul></li>\").appendTo($(\"#ul#start\"));"
+            + "$(\"<li id='liENG'><div class='title' xfyqjd_id='ENG' jdkcsx='1'>"
+            + "<p class='title1' id='pENG' yxxf='4.0' yqzdxf='16' sftg='0'>\" + \"大学英语</p></div></li>\")"
+            + ".appendTo($(\"#ulSEC\"));"
+            + "$(\"<li id='liHUM'><div class='title' xfyqjd_id='HUM' jdkcsx='3'>"
+            + "<p class='title1' id='pHUM' yxxf='2.5' yqzdxf='1' sftg='1'>\" + \"人文科学</p></div></li>\")"
+            + ".appendTo($(\"#ul#start\"));"
+            + "$(\"<li id='liPE'><div class='title' xfyqjd_id='PE' jdkcsx='1'>"
+            + "<p class='title1' id='pPE' yxxf='4.0' yqzdxf='4' sftg='1'>\" + \"体育课组</p></div></li>\")"
+            + ".appendTo($(\"#ul#start\"));";
+        EduAcademic.Report marked = EduAcademic.parse(flagged);
+        equal(true, marked.layered);
+        equal(4, marked.nodes.size());
+        equal("第二课堂", marked.nodes.get(0).name);
+        equal(false, marked.nodes.get(0).planCourses);   // marker '': non-plan endpoint
+        equal("大学英语", marked.nodes.get(1).name);
+        equal(true, marked.nodes.get(1).planCourses);    // '1': the plan endpoint
+        equal("人文科学", marked.nodes.get(2).name);
+        equal(false, marked.nodes.get(2).planCourses);   // '3': real courses, but the non-plan endpoint
+        equal("体育课组", marked.nodes.get(3).name);
+        equal(true, marked.nodes.get(3).planCourses);
+        // The marker may also sit on the <p> itself.
+        String selfFlagged = "<div role='alert'>计划总课程&nbsp;1&nbsp;门</div>"
+            + "<p class='title1' id='pPE' jdkcsx='1' yxxf='4.0' yqzdxf='4' sftg='1'>体育课组</p>";
+        EduAcademic.Report ownTag = EduAcademic.parse(selfFlagged);
+        equal(true, ownTag.nodes.get(0).planCourses);
+        // 其它课程 / 创新创业 are special-cased by the school to the plan endpoint whatever their mark.
+        String special = "<div role='alert'>计划总课程&nbsp;1&nbsp;门</div>"
+            + "<p class='title1' id='pqtkcxfyq' yxxf='0' yqzdxf='0' sftg='0'>其它课程</p>"
+            + "<p class='title1' id='pcxcyqkxfyq' yxxf='0' yqzdxf='0' sftg='0'>创新创业</p>";
+        EduAcademic.Report specials = EduAcademic.parse(special);
+        equal(true, specials.nodes.get(0).planCourses);
+        equal(true, specials.nodes.get(1).planCourses);
+
         rejects(() -> EduAcademic.parse(null));
         rejects(() -> EduAcademic.parse(""));
         rejects(() -> EduAcademic.parse("<html>not the academic page</html>"));

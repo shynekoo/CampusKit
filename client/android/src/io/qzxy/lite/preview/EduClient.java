@@ -65,6 +65,14 @@ final class EduClient {
      * fetched on demand by the school's own script, keyed by the group id.
      */
     private static final String ACADEMIC_COURSES = "/xsxy/xsxyqk_cxJxzxjhxfyqKcxx.html";
+    /**
+     * The same query for courses taken <em>outside</em> the study plan (通识选修、公共艺术…).
+     *
+     * <p>These still count towards a group's credits, but the plan endpoint answers them with an
+     * empty array. The school's script picks this one whenever {@code jdkcsx != '1'}; sending the
+     * plan query instead is what made a group with 5 passed courses look empty.</p>
+     */
+    private static final String ACADEMIC_COURSES_EXTRA = "/xsxy/xsxyqk_cxJxzxjhxfyqFKcxx.html";
     /** The hidden fields the course request has to echo, in the order the school's script sends them. */
     private static final String[] ACADEMIC_FORM = {
         "xh_id", "cjlrxn", "cjlrxq", "bkcjlrxn", "bkcjlrxq",
@@ -512,13 +520,17 @@ final class EduClient {
     /**
      * The courses inside one credit group.
      *
-     * <p>The academic page inlines only the credit tree; each group's courses sit behind this one
-     * endpoint, which is what the school's own script calls when a group is expanded. The request
-     * echoes the page's hidden term/student fields, kept from the tree read so expanding a group
-     * costs one small POST instead of another 1.7 MB page. It is a read-only query: no doType, no
-     * command, nothing that changes the plan.</p>
+     * <p>The academic page inlines only the credit tree; each group's courses sit behind a
+     * per-group read-only query, which is what the school's own script calls when a group is
+     * expanded. There are two of them and the choice is not cosmetic: the plan query answers only
+     * plan courses, while courses taken outside the plan (通识选修、公共艺术…) come from the
+     * {@code F} variant. The school branches on {@code jdkcsx == '1'}; {@link EduAcademic.Node}
+     * carries that decision as {@link EduAcademic.Node#planCourses}, so this method just follows it.
+     * The plan request echoes the page's hidden term/student fields, kept from the tree read, so
+     * expanding a group costs one small POST instead of another 1.7 MB page. Both are read-only
+     * queries: no doType, no command, nothing that changes the plan.</p>
      */
-    static List<EduAcademic.Course> academicCourses(String nodeId) throws IOException {
+    static List<EduAcademic.Course> academicCourses(String nodeId, boolean planCourses) throws IOException {
         String group = nodeId == null ? "" : nodeId.trim();
         if (group.isEmpty()) throw new IOException("这个课组没有编号，读不到课程。");
         if (!academicFormReady) rememberAcademicForm(fetch(ACADEMIC_PAGE, null));
@@ -526,12 +538,18 @@ final class EduClient {
         // fromXh_id is the school's own "whose plan" marker; empty means "the signed-in student".
         form.put("fromXh_id", "");
         form.put("xfyqjd_id", group);
-        for (String key : ACADEMIC_FORM) {
-            String value;
-            synchronized (academicForm) { value = academicForm.get(key); }
-            form.put(key, value == null ? "" : value);
+        String student;
+        synchronized (academicForm) { student = academicForm.get("xh_id"); }
+        form.put("xh_id", student == null ? "" : student);
+        if (planCourses) {
+            for (String key : ACADEMIC_FORM) {
+                if ("xh_id".equals(key)) continue;
+                String value;
+                synchronized (academicForm) { value = academicForm.get(key); }
+                form.put(key, value == null ? "" : value);
+            }
         }
-        return EduAcademic.parseCourses(fetch(ACADEMIC_COURSES, form));
+        return EduAcademic.parseCourses(fetch(planCourses ? ACADEMIC_COURSES : ACADEMIC_COURSES_EXTRA, form));
     }
 
     /** Reads the hidden fields the course request echoes; they are the same for every group. */
@@ -1030,8 +1048,10 @@ final class EduClient {
 
     private static void checkPath(String path) throws IOException {
         if (path.startsWith("/cdjy/") || path.startsWith("/cjcx/") || path.startsWith("/kbcx/")) return;
-        // 学生学业情况查询: one read-only page plus the per-group course query it expands into.
-        if (path.startsWith(ACADEMIC_PAGE) || path.startsWith(ACADEMIC_COURSES)) return;
+        // 学生学业情况查询: one read-only page plus the per-group course query it expands into —
+        // both the plan variant and the non-plan variant, which is a separate path.
+        if (path.startsWith(ACADEMIC_PAGE) || path.startsWith(ACADEMIC_COURSES)
+            || path.startsWith(ACADEMIC_COURSES_EXTRA)) return;
         // 正方's other grade module. Named one path, not the whole folder, so this stays as narrow as
         // the feature needs: two read-only modules, nothing else.
         if (path.startsWith("/kwgl/kscjcx_kscjcx.html")) return;

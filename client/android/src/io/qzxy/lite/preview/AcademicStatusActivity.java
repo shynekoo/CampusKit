@@ -174,11 +174,22 @@ public final class AcademicStatusActivity extends Page {
     }
 
     /**
+     * Whether a row opens a course list: only a group with no children does.
+     *
+     * <p>The school itself puts the expander on leaves — its script iterates
+     * {@code .treeview .title a.more}, and a parent row has no such link. Guessing from
+     * {@code jdkcsx} instead made parent rows tappable and painted an empty course block under a
+     * row that was never meant to hold courses.</p>
+     */
+    private boolean opensCourses(boolean hasChildren) {
+        return !hasChildren;
+    }
+
+    /**
      * Lays the school's own tree out: one card per 一级 / 二级分类 with its credits and a bar, then
-     * one indented row per deeper group. A row whose group has no children is where the school
-     * keeps the courses, so it becomes the tappable one; tapping it fetches that group's courses
-     * and drops them in underneath. A page that carries no parent links degrades to one card per
-     * node instead of an empty screen.
+     * one indented row per deeper group. A leaf row fetches its courses on tap; a row that owns
+     * children folds instead. A page with no parent links degrades to one card per node instead of
+     * an empty screen.
      */
     private void tree(List<EduAcademic.Node> nodes) {
         LinearLayout body = null;
@@ -201,14 +212,14 @@ public final class AcademicStatusActivity extends Page {
                 body = card;
                 addCard(card);
             }
-            body.addView(rowGroup(node, !hasChildren));
+            body.addView(rowGroup(node, opensCourses(hasChildren)));
         }
     }
 
     /**
      * A category card's head plus its foldable body. A category that owns children folds open and
-     * shut on tap; one that owns none is a leaf and opens its courses instead. The arrow is the
-     * only affordance, so it is always present and always reflects state.
+     * shut on tap; one without children opens its courses instead. The arrow is the only
+     * affordance, so it always reflects what a tap will do.
      */
     private LinearLayout categoryCard(LinearLayout card, EduAcademic.Node node, boolean hasChildren) {
         LinearLayout head = new LinearLayout(this);
@@ -228,7 +239,8 @@ public final class AcademicStatusActivity extends Page {
         arrow.setTextSize(12);
         arrow.setTextColor(AppUi.MUTED);
         arrow.setPadding(dp(8), 0, 0, 0);
-        arrow.setText(hasChildren ? "▾" : "▸");
+        boolean opens = opensCourses(hasChildren);
+        arrow.setText(opens ? "▸" : "▾");
         head.addView(arrow);
         card.addView(head);
 
@@ -245,7 +257,7 @@ public final class AcademicStatusActivity extends Page {
         card.addView(body);
 
         AppUi.press(head, 0x00ffffff, 8);
-        if (hasChildren) {
+        if (!opens) {
             head.setOnClickListener(v -> {
                 boolean shown = body.getVisibility() == View.VISIBLE;
                 body.setVisibility(shown ? View.GONE : View.VISIBLE);
@@ -354,7 +366,7 @@ public final class AcademicStatusActivity extends Page {
         final int ticket = generation;
         worker.execute(() -> {
             try {
-                List<EduAcademic.Course> list = EduClient.academicCourses(node.id);
+                List<EduAcademic.Course> list = EduClient.academicCourses(node.id, node.planCourses);
                 post(ticket, () -> {
                     loading.remove(node.id);
                     if (area.getParent() == null) return;

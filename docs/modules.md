@@ -14,10 +14,10 @@
 | 使用码 | `UseCode` | 8 位使用码（5+3）解析与校验 |
 | 更新 | `UpdateManifest`、`UpdateUrls` | 更新清单必填字段校验、HTTPS 逐跳重定向策略 |
 | 安全策略 | `TrustedUrlPolicy`、`SnapshotPolicy`、`DiagPolicy` | WebView 准入、敏感页快照、诊断默认关 |
-| 教务学业 | `EduAcademic` | 学生学业情况：GPA/统计/去重学分树解析（含 `appendTo` 层级还原），课程明细 JSON 解析（`parseCourses`） |
+| 教务学业 | `EduAcademic` | 学生学业情况：GPA/统计/去重学分树解析（含 `appendTo` 层级还原与 `jdkcsx` 端点分流），课程明细 JSON 解析（`parseCourses`） |
 | 其他 | `DailyQuote`、`AlipayWaterLink`、`PickupCodeLinks`、`RechargeSignature`、`NativeSigningV6528` | 文案、跳转链接、签名/协议辅助 |
 
-测试：`client/core/test/.../CoreTests.java` —— 当前 1262 项断言，涵盖上述状态机、解析与策略。
+测试：`client/core/test/.../CoreTests.java` —— 当前工作区实跑 1278 项断言（含 `jdkcsx` 课程端点分流），涵盖上述状态机、解析与策略。
 
 ## client/android — 原生界面与平台适配（77 个文件）
 
@@ -39,10 +39,10 @@
 
 | 脚本 | 检查内容 |
 | :-- | :-- |
-| `scripts/test_core.py` | core 源码 JVM 编译 + `CoreTests`（当前 1262 项） |
+| `scripts/test_core.py` | core 源码 JVM 编译 + `CoreTests`（当前工作区实跑 1278 项） |
 | `scripts/test_build_config.py` | 5 种诊断开关组合 |
 | `scripts/test_webview_policy.py` | 5 处 WebView 导航 HTTPS 守卫 |
-| `scripts/test_ui_contract.py` | 141 个 UI 结构锚点（静态守卫，非真机测试；含 UI-1/UI-2 守卫） |
+| `scripts/test_ui_contract.py` | 146 个 UI 结构锚点（当前工作区实跑；静态守卫，非真机测试；含 UI-1/UI-2 守卫与两个取课端点守卫） |
 
 ## 改动时的落点建议
 

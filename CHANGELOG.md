@@ -7,14 +7,28 @@
 - 线上正式版与下载站：`2.5.7`（versionCode `197`，2026-11-18，`delivery/update/update.json`）。
 - 已提交并 push、尚未发版：`2.5.8.1`（versionCode `199`，Git HEAD `6406500`）。
 - 已提交、尚未发版：`2.5.8.2`–`2.5.8.6`（最新 versionCode `204`），含学业情况查询与 UI-1/UI-2 第一轮。
-- 已提交并 push 的 HEAD：`f86ed11`（UI-1 / UI-2 / UI-3 转场竞态 + 滚动恢复 + 回本周整屏滑页）。
-- 已提交（未 push）：`6b619ab`（数据与隐私 / 使用公告改版 + 移除未使用的 Wi-Fi 权限）。
-- 已提交（未 push）：`9a9ccad`（应用内更新日志，versionCode 仍为 `204`）。
-- 核心断言：当前工作区实跑 `python scripts/test_core.py` → **1262 项全过**（2026-11-19）；UI 守卫 **207 锚点全过**。
+- 已提交并 push 的 HEAD：`16cec29`（UI-1 / UI-2 / UI-3 转场竞态 + 滚动恢复 + 回本周整屏滑页；数据与隐私 / 使用公告改版 + 移除未使用的 Wi-Fi 权限；应用内更新日志，versionCode 仍为 `204`）。
+- 学业情况少课修复：并行分支 `agent2/parallel-dev` 已 rebase 到 `16cec29`，**待合并、未发版**。
+- 核心断言：合并后实跑 `python scripts/test_core.py` → **1278 项全过**（2026-11-19）；UI 守卫 **212 锚点全过**。
+- **未建 tag / Release、未发版、未同步下载站。**
 
 更早版本的发布说明见 [`delivery/release-*.md`](delivery/)。
 
 ---
+
+## [未发布 · 学业情况少课修复] — 已提交于 agent2/parallel-dev（待合并，未发版）
+
+> 并行 worktree 内开发，未提交、未 push、未发版，未触碰主工作区。只改学业情况课程展示与取课端点选择，不动账号/支付/水控/升级。
+
+### 修复
+- **学业情况里"右边有学分、点开却显示这个课组还没有课程记录"**：学校把课组课程分成两个只读端点——计划内 `POST /xsxy/xsxyqk_cxJxzxjhxfyqKcxx.html`、计划外 `POST /xsxy/xsxyqk_cxJxzxjhxfyqFKcxx.html`，并按课组标签上的 `jdkcsx == '1'` 二选一（学校脚本原样如此）。此前 App 一律请求计划内端点，于是通识选修/公共艺术这类计划外课组（人文科学 5 门、自然科学 6 门）拿到 `[]`，界面显示"还没有课程记录"。现在 `EduAcademic.Node.planCourses` 携带该判定，`EduClient.academicCourses()` 按节点选端点，计划外请求只带学校自己发的字段（`fromXh_id`/`xfyqjd_id`/`xh_id`）。
+- **可点判定回归"叶子节点"**：学校只给叶子节点挂展开链接（脚本遍历 `.treeview .title a.more`），父行不该展开课程。此前按 `jdkcsx` 决定可点性，导致父行也可点、并渲染出空课程块；现在 `opensCourses(hasChildren)` 只在无子节点时可点。
+- 只读路径白名单补上计划外端点；`jdkcsx` 仍从 `<p>` 与 `<div class='title' xfyqjd_id=…>` 两处读取（两种部署位置都已断言）。
+
+### 验证
+- 真实账号端到端复验（按新规则逐叶子请求）：24 个叶子节点中，人文科学 **5 门**（学校页显示"共 (5) 门"）、自然科学 **6 门**（"共 (6) 门"）、公共艺术某课组 **2 门**，其余计划内课组条数与修复前一致；`parseCourses()` 读计划外返回无丢课。抓包数据与凭据用后即删，工作区无残留。
+- `test_core` **1278**（+16，含计划内/计划外分流、特殊节点 `qtkcxfyq`/`cxcyqkxfyq`、无标记页面回退）/ `test_build_config` 5 / `test_webview_policy` 5 / `test_ui_contract` **146**（+5，含两端点白名单与请求必须按节点选端点）全绿。
+- 只读版 APK 已构建：`delivery/科信小助手-2.5.8.6.apk`，5,392,250 B，SHA-256 `66576d665419bf8ede0d365dfc6bb54b0c44c644d0853b8d707735eff8d7cae5`，v2/v3 验签通过；dex 中已确认含 `cxJxzxjhxfyqFKcxx`/`planCourses`/`opensCourses`。**真机未验证**。
 
 ## [未发布 · 应用内更新日志] — 已提交 `9a9ccad`，未发版（versionCode 仍为 204）
 
@@ -78,6 +92,7 @@
 - `test_core` 1262 / `test_build_config` 5 / `test_webview_policy` 5 / `test_ui_contract` **187**（+28 锚点：文案存在性、邮箱为真实公开地址且与「意见反馈」一致、无残留占位符、教务密码与 AES 表述、不得声称充值、manifest 权限逐项披露、两处入口与弹窗同源、`VERSION = 3`、离线可读）全绿。
 - APK `delivery/科信小助手-2.5.8.6.apk`，5 396 346 B，SHA-256 `be4903d575cf47a02a1da2dfc7eb49b8bcf7ebf0194dbe44b486b39aa249605e`，验签通过；dex 内确认文案已填充（`shynekoo@outlook.com` / `2026年11月19日`），无 `【…】` 残留，权限表实测 4 项。
 - **未做**：真机排版、系统大字体、320dp 换行、深浅色对比。发布信息（邮箱 / 生效日期）已填。
+
 
 ---
 

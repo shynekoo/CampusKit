@@ -221,13 +221,23 @@ def main():
     client = (PREVIEW / "EduClient.java").read_text(encoding="utf-8")
     require(client, "ACADEMIC_COURSES", "EduClient",
             "the per-group course endpoint must be named by the feature")
-    require(client, 'if (path.startsWith(ACADEMIC_PAGE) || path.startsWith(ACADEMIC_COURSES)) return;',
+    require(client, '|| path.startsWith(ACADEMIC_COURSES_EXTRA)) return;',
             "EduClient",
-            "the course query must be added to the read-only path allow-list explicitly")
+            "both course queries must be on the read-only path allow-list explicitly")
     require(status, "private void toggle(EduAcademic.Node node", "AcademicStatusActivity",
             "courses must open on tap rather than all at once")
-    require(status, "rowGroup(node, !hasChildren)", "AcademicStatusActivity",
-            "only a group that holds courses may be tappable")
+    require(status, "private boolean opensCourses(boolean hasChildren)", "AcademicStatusActivity",
+            "tappable course rows must be decided by one helper, not a depth guess")
+    require(status, "return !hasChildren;", "AcademicStatusActivity",
+            "only a leaf holds courses, which is where the school puts its expander")
+    require(status, "rowGroup(node, opensCourses(hasChildren))", "AcademicStatusActivity",
+            "only a leaf group may be tappable")
+    require(core_academic, "public final boolean planCourses", "EduAcademic",
+            "each node must say which course endpoint serves it")
+    require(client, "ACADEMIC_COURSES_EXTRA", "EduClient",
+            "non-plan courses come from their own endpoint; the plan query answers them with []")
+    require(status, "EduClient.academicCourses(node.id, node.planCourses)", "AcademicStatusActivity",
+            "the course request must follow the node's endpoint choice")
     require(status, "courses.put(node.id, list)", "AcademicStatusActivity",
             "a fetched group must be cached so re-opening costs nothing")
     require(status, '"未通过", report.failed', "AcademicStatusActivity",
