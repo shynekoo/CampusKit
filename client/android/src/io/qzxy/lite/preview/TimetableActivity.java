@@ -746,16 +746,33 @@ public final class TimetableActivity extends Page implements App.Themed {
         root.announceForAccessibility("第 "+week+" 周");
     }
     private void selectWeek() {
-        CoursePickers.selectWeek(this,week,selected->{int delta=selected-week;if(delta!=0)applyWeek(delta);});
+        CoursePickers.selectWeek(this,week,selected->{int delta=selected-week;if(delta!=0)jumpWeek(delta);});
+    }
+    /**
+     * A jump of several weeks at once (回本周 / 选周次). There is no adjacent page to slide in —
+     * the origin week has no board for the destination — so the old "slide out, then rebuild"
+     * order showed a blank board and then snapped to the new week the moment the animation ended.
+     *
+     * <p>Instead the week is committed first and the swap plays the same content transition the
+     * tabs use: the previous board fades out while this week's board fades/drifts into place, so by
+     * the time the animation finishes the screen has already been showing the target week.</p>
+     */
+    private void jumpWeek(int delta) {
+        int next=Math.max(1,Math.min(CoursePickers.LAST_WEEK,week+delta));if(next==week)return;
+        int scroll=pager==null?0:pager.verticalPosition();
+        week=next;
+        // Hand the reading position to renderContent's restore, which runs after the new board is
+        // laid out; keeping it on the old pager would leave the new one at the top.
+        tabScroll[nav.tab()]=scroll;
+        renderHeader();                     // 周次标签与「回本周」按钮先落到新的一周
+        renderContent(true,delta>0?1:-1);   // 旧板面淡出、本周板面淡入到位（generation 守卫，连点安全）
+        root.announceForAccessibility("第 "+week+" 周");
     }
     private void goCurrentWeek() {
         if(currentWeek()<1 || currentWeek()>CoursePickers.LAST_WEEK){semester();return;}
         int delta=currentWeek()-week;
         if(delta==0){android.widget.Toast.makeText(this,"已经是本周",android.widget.Toast.LENGTH_SHORT).show();return;}
-        // 回本周一次跨好几周，但观感必须和 ‹ › 一致：先滑出一屏，再由 applyWeek 落到目标周，
-        // 不能直接闪一下换页。pager 不在（无课表/未建出板面）时才直接落地。
-        if(pager==null){applyWeek(delta);return;}
-        pager.animateOutThen(delta,()->applyWeek(delta));
+        jumpWeek(delta);
     }
     private void showCourses(List<JSONObject> group) {
         if(group.size()>1) {

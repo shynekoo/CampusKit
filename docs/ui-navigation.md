@@ -52,7 +52,8 @@
 
 - 今日 tab 同日 30s 时钟 tick 走 `updateTodayDynamic()`：就地更新摘要与每行删除线/透明度/「正在上课」标记，不再全量 `render()`。
 - `RefreshDecision` 决定 NONE / TODAY_DYNAMIC / FULL；跨天、切 tab 才 FULL，保留滚动位置；数据不一致自动回退 FULL。
-- **周次切换动画**：‹ ›（`shiftWeek`）、左右滑动、**回本周**（`goCurrentWeek`）都先滑出一屏再落地——`Pager.animateOutThen` 的位移固定为 ±1 屏，回本周跨的周数由 `applyWeek` 落地，不会按 |delta| 甩出好几页。选周次弹窗（`selectWeek`）仍是即时跳转。
+- **周次切换动画分两类**：相邻一周（‹ › 的 `shiftWeek`、左右滑动）走 `Pager.animateOutThen` → 旧板面滑出一屏、相邻页滑进来，位移固定 ±1 屏；**跨多周**（回本周 `goCurrentWeek`、选周次 `selectWeek`）没有相邻页可滑，走 `jumpWeek`：先落周次 → 更新周次标签 → `renderContent(true, ±1)` 播内容转场，旧板面淡出、本周板面在动画里淡入到位。跨周跳转**不会**出现「滑空一屏再突然变成本周」。
+- 跨周跳转沿用既有转场参数（alpha 0.7→1 / ±8dp / 220ms 进 180ms 出），不额外新增动效数值；`jumpWeek` 会把当前滚动位置交给 `tabScroll` 由 `renderContent` 的恢复逻辑在布局后还原。
 - 所有改变今日课程集合的操作（增删改 / 导入 / 周次 / 主题）走 `render()` 全量重建并刷新引用。
 - `WeekBoard` 按屏幕计算 gutter / padding / 字号（`BoardFit`），窄屏不挤成两字一行。
 
@@ -66,4 +67,4 @@
 
 ## 自动化守卫的边界
 
-`scripts/test_ui_contract.py` 当前有 **150 个静态锚点**：底部导航三项、WeekBoard onMeasure、滚动保存恢复、CardLayer 手势与快照、S4 策略、A3 就地更新分支、三个 Screen 存在、学业情况入口与卡片单一挂载点、教务卡 tile 顺序，以及 UI-1 的 token 常量、UI-2 的 shell/底栏不重建与转场防旧回调守卫、底栏外观修正的房屋图标/固定尺寸图标图标槽/胶囊只包图标的 64×32dp 守卫、UI-3 的转场参数（alpha 0.7→1 / ±8dp / 220ms 进 180ms 出）、快速连点竞态守卫（快照 cancel、各动画自带 end 清理、4 处 generation 守卫），以及 UI-3 收尾的滚动恢复守卫（恢复带 generation、同屏重建才搬运滚动、`OnPreDrawListener` 布局后恢复、stale 恢复不得落到别的 tab、离场页移出无障碍树）与周次切换守卫（回本周走 animateOutThen、位移只取一屏）。**它是静态守卫，不验证视觉/手势/真机效果**；UI 2.0 的真机清单（快速切换、320dp、主题、滚动恢复、返回手势、关动画、今日 60s）本轮未实测，D/E 组真机清单未完成前不得发布。
+`scripts/test_ui_contract.py` 当前有 **152 个静态锚点**：底部导航三项、WeekBoard onMeasure、滚动保存恢复、CardLayer 手势与快照、S4 策略、A3 就地更新分支、三个 Screen 存在、学业情况入口与卡片单一挂载点、教务卡 tile 顺序，以及 UI-1 的 token 常量、UI-2 的 shell/底栏不重建与转场防旧回调守卫、底栏外观修正的房屋图标/固定尺寸图标图标槽/胶囊只包图标的 64×32dp 守卫、UI-3 的转场参数（alpha 0.7→1 / ±8dp / 220ms 进 180ms 出）、快速连点竞态守卫（快照 cancel、各动画自带 end 清理、4 处 generation 守卫），以及 UI-3 收尾的滚动恢复守卫（恢复带 generation、同屏重建才搬运滚动、`OnPreDrawListener` 布局后恢复、stale 恢复不得落到别的 tab、离场页移出无障碍树）与跨周跳转守卫（回本周走 jumpWeek、先落周次再转场、保留滚动位置；Pager 滑出位移只取一屏）。**它是静态守卫，不验证视觉/手势/真机效果**；UI 2.0 的真机清单（快速切换、320dp、主题、滚动恢复、返回手势、关动画、今日 60s）本轮未实测，D/E 组真机清单未完成前不得发布。

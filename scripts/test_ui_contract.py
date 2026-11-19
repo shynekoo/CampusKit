@@ -52,15 +52,21 @@ def main():
     require(activity, "verticalPosition()", "TimetableActivity",
             "week switch must preserve per-week scroll position")
     require(activity, "shiftWeek", "TimetableActivity", "week switch gesture/arrow")
-    # 回本周 jumps several weeks at once: it must slide out like ‹ › instead of snapping, and the
-    # slide itself stays one page wide no matter how many weeks were skipped.
+    # 回本周 jumps several weeks at once: there is no adjacent page to slide in, and the old
+    # "slide out then rebuild" order showed a blank board then snapped to the new week when the
+    # animation ended. It must commit the week first and play the content transition instead.
     gcw_start = activity.find("private void goCurrentWeek()")
     gcw_block = activity[gcw_start:activity.find("\n    private ", gcw_start + 1)] if gcw_start >= 0 else ""
-    require(gcw_block, "animateOutThen", "goCurrentWeek",
-            "回本周 must animate like the arrow buttons, not snap")
-    require(gcw_block, "applyWeek(delta)", "goCurrentWeek", "回本周 still lands through applyWeek")
+    require(gcw_block, "jumpWeek(delta)", "goCurrentWeek", "回本周 must land through jumpWeek")
+    jw_start = activity.find("private void jumpWeek(int delta)")
+    jw_block = activity[jw_start:activity.find("\n    private ", jw_start + 1)] if jw_start >= 0 else ""
+    require(jw_block, "week=next;", "jumpWeek", "the target week is committed before the transition")
+    require(jw_block, "renderContent(true,", "jumpWeek",
+            "the new board must fade in during the transition, not appear after it")
+    require(jw_block, "tabScroll[nav.tab()]=scroll", "jumpWeek",
+            "a multi-week jump keeps the vertical reading position")
     require(board, "-(delta>0?getWidth():-getWidth())", "WeekBoard.Pager",
-            "a multi-week jump must slide exactly one page, not |delta| pages")
+            "a multi-week slide must move exactly one page, not |delta| pages")
 
     # --- scroll position preserved across a rebuild ---------------------------------------
     require(activity, "getScrollY()", "TimetableActivity", "capture scroll before rebuild")
