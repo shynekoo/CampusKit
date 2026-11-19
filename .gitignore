@@ -22,7 +22,9 @@ __pycache__/
 /.wbapp_*.genie
 /analysis/
 /delivery/*
-!/delivery/release-1.0.0.md
+# 发布说明是发布记录的一部分（AppChangelog 与更新日志检查都要能查到），必须入库；
+# 旁边同目录的 APK / build.json 仍属构建产物，继续忽略。
+!/delivery/release-*.md
 # The update manifest and its landing page are source for the release channel; the packages
 # beside them are build output and stay out of the repository.
 !/delivery/update/
