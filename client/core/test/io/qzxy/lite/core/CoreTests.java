@@ -1436,6 +1436,45 @@ public final class CoreTests {
         equal(true, check.isSignedIn());              // still signed in; only the check failed
         System.out.println("PASS: session checks dedupe, cache, and separate network error from logout");
 
+        // 学生学业情况查询: the school inlines the whole credit tree into an embedded script. Each
+        // node is a p.title1 with yxxf/yqzdxf/sftg and a Chinese literal; the same id is emitted once
+        // per campus branch, so it must be de-duplicated. Names are stripped of i18n calls and tags.
+        String academic =
+            "<div role='alert' id='alertBox'>"
+            + "某同学&nbsp;同学，您的课程修读情况："
+            + "平均学分绩点（GPA）：<font style=\"color: red;\"> 2.9875 &nbsp;</font>"
+            + "计划总课程<!-- 计划总课程 -->&nbsp;118&nbsp;门<!-- 门 -->通过<!-- 通过 -->&nbsp;54&nbsp;门<!-- 门 -->，"
+            + "未通过<!-- 未通过 -->&nbsp;0&nbsp;门<!-- 门 -->；未修<!-- 未修 -->&nbsp;50&nbsp;门<!-- 门 -->；"
+            + "在读&nbsp;14&nbsp;门<!-- 门 -->！ 计划外<!-- 计划外 -->：通过<!-- 通过 -->&nbsp;6&nbsp;门<!-- 门 --></div>"
+            + "<p class='title1' id='pAAA111' yxxf='100.0' yqzdxf='180' sftg='0'>\" + \"主修&nbsp;\""
+            + " + $.i18n.get('yqxf')/* 要求学分 */ + \":180.0</p>"
+            + "<p class='title1' id='pBBB222' yxxf='24.5' yqzdxf='45' sftg='0'>\" + \"通识教育 \""
+            + " + $.i18n.get('yqxf') + \":45.0</p>"
+            + "<p class='title1' id='pCCC333' yxxf='4.0' yqzdxf='4' sftg='1'>\" + \"体育课组 </p>"
+            // duplicate of pBBB222 in another campus branch: must collapse to one row
+            + "<p class='title1' id='pBBB222' yxxf='24.5' yqzdxf='45' sftg='0'>\" + \"通识教育重复</p>";
+        EduAcademic.Report academicReport = EduAcademic.parse(academic);
+        equal("2.9875", academicReport.gpa);
+        equal("118", academicReport.plan);
+        equal("54", academicReport.passed);
+        equal("0", academicReport.failed);
+        equal("50", academicReport.unread);
+        equal("14", academicReport.studying);
+        equal("6", academicReport.extra);
+        equal(3, academicReport.nodes.size());          // duplicate id collapsed
+        equal("主修", academicReport.nodes.get(0).name);
+        equal("100.0", academicReport.nodes.get(0).earned);
+        equal("180", academicReport.nodes.get(0).required);
+        equal(false, academicReport.nodes.get(0).passed);
+        equal("通识教育", academicReport.nodes.get(1).name);
+        equal(true, academicReport.nodes.get(2).passed);
+        equal("体育课组", academicReport.nodes.get(2).name);
+        rejects(() -> EduAcademic.parse(null));
+        rejects(() -> EduAcademic.parse(""));
+        rejects(() -> EduAcademic.parse("<html>not the academic page</html>"));
+        rejects(() -> EduAcademic.parse(repeat('x', EduAcademic.MAX_HTML + 1)));
+        System.out.println("PASS: academic status page yields GPA, statistics and a de-duplicated credit tree");
+
         System.out.println("All " + assertions + " assertions passed. Live API/Bluetooth compatibility is not tested here.");
     }
 

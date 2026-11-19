@@ -1,6 +1,7 @@
 package io.qzxy.lite.preview;
 
 import android.webkit.CookieManager;
+import io.qzxy.lite.core.EduAcademic;
 import io.qzxy.lite.core.EduLoginProtocol;
 import io.qzxy.lite.core.EduSite;
 import io.qzxy.lite.core.SmsLoginProtocol;
@@ -57,6 +58,8 @@ final class EduClient {
         "/kwgl/kscjcx_kscjcx.html?gnmkdm=N358105",
         "/kwgl/kscjcx_kscjcx.html",
     };
+    /** 学生学业情况查询: the whole credit tree is rendered into this one page. */
+    private static final String ACADEMIC_PAGE = "/xsxy/xsxyqk_cxXsxyqkIndex.html?gnmkdm=N105515";
     /** The student timetable page, used as Referer for its own query endpoints. */
     private static final String TIMETABLE_PAGE = "/kbcx/xskbcx_cxXskbcxIndex.html?gnmkdm=N2151&layout=default";
     /** 正方 names this query differently across deployments; try each with the same term fields. */
@@ -472,6 +475,17 @@ final class EduClient {
     }
 
     /**
+     * 学生学业情况查询: GPA, course statistics and the credit-group tree.
+     *
+     * <p>This page is rendered server-side in one shot — unlike grades it has no paged JSON query —
+     * so a single signed-in GET is enough. Parsing lives in the platform-independent core so the
+     * exact extraction is unit-tested there; this method only owns transport and the session.</p>
+     */
+    static EduAcademic.Report academicStatus() throws IOException {
+        return EduAcademic.parse(fetch(ACADEMIC_PAGE, null));
+    }
+
+    /**
      * Grade modules to try, best first: whatever the school's own menu names, then the routes 正方
      * ships. Reading the menu keeps a moved or renamed module working without a release.
      */
@@ -705,7 +719,8 @@ final class EduClient {
         cancelSignOut();
         String method = form == null ? "GET" : "POST";
         String referer = ORIGIN + (path.startsWith("/cdjy/") ? ROOMS_PAGE
-            : path.startsWith("/kbcx/") ? TIMETABLE_PAGE : pageOf(path));
+            : path.startsWith("/kbcx/") ? TIMETABLE_PAGE
+            : path.startsWith("/xsxy/") ? ACADEMIC_PAGE : pageOf(path));
         try {
             return checked(request(ORIGIN + path, method, form, jar(), referer));
         } catch (NotSignedIn expired) {
@@ -937,6 +952,8 @@ final class EduClient {
 
     private static void checkPath(String path) throws IOException {
         if (path.startsWith("/cdjy/") || path.startsWith("/cjcx/") || path.startsWith("/kbcx/")) return;
+        // 学生学业情况查询: one read-only page, no paged/command endpoints.
+        if (path.startsWith(ACADEMIC_PAGE)) return;
         // 正方's other grade module. Named one path, not the whole folder, so this stays as narrow as
         // the feature needs: two read-only modules, nothing else.
         if (path.startsWith("/kwgl/kscjcx_kscjcx.html")) return;

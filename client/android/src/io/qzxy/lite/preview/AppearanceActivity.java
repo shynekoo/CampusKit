@@ -209,11 +209,11 @@ public final class AppearanceActivity extends Page implements App.Themed {
         int chosen = Theme.accentChoice();
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
-        row.addView(accentCard("品牌蓝", Theme.BRAND, false, chosen == 0), new LinearLayout.LayoutParams(0, -2, 1));
+        row.addView(accentCard("默认", Theme.BRAND, false, chosen == 0), new LinearLayout.LayoutParams(0, -2, 1));
         row.addView(spacer(dp(12)), new LinearLayout.LayoutParams(dp(12), 1));
         row.addView(accentCard("自定义", chosen == 0 ? Theme.BRAND : chosen, true, chosen != 0), new LinearLayout.LayoutParams(0, -2, 1));
         add(column, row);
-        caption(column, chosen == 0 ? "品牌蓝 #275DAD" : "自定义 " + hex(chosen) + "，长按任一卡片恢复品牌蓝。");
+        caption(column, chosen == 0 ? "默认 #275DAD" : "自定义 " + hex(chosen) + "，长按任一卡片恢复默认。");
 
         heading(column, "交互");
         LinearLayout motion = card();
@@ -223,10 +223,6 @@ public final class AppearanceActivity extends Page implements App.Themed {
             refreshBackMode();
         });
         add(column, motion);
-        gap(column, 18);
-        caption(column, Build.VERSION.SDK_INT >= 34
-            ? "打开后往回滑时整页跟着手指缩成一张圆角卡片，上一页在下面，松手才返回，中途放弃会弹回去；关掉以后是上一版那段轻微的缩小淡出。"
-            : "这台设备的系统不给逐帧手势进度，两种开关都是轻微的缩小淡出；要跟手缩卡需要 Android 14 及以上。");
     }
 
     private View spacer(int size) {
@@ -266,7 +262,7 @@ public final class AppearanceActivity extends Page implements App.Themed {
         line.setGravity(Gravity.CENTER_VERTICAL);
         line.addView(bold(title, 14), new LinearLayout.LayoutParams(0, -2, 1));
         TextView mark = new TextView(this);
-        // 选中的打勾；「自定义」没选中时给一个加号，说明点进去能自己调；「品牌蓝」没选中就空着。
+        // 选中的打勾；「自定义」没选中时给一个加号，说明点进去能自己调；「默认」没选中就空着。
         if (selected) mark.setBackground(AppUi.icon(this, "check", AppUi.ACCENT, 18));
         else if (custom) mark.setBackground(AppUi.icon(this, "plus", AppUi.MUTED, 18));
         line.addView(mark, new LinearLayout.LayoutParams(dp(18), dp(18)));
@@ -301,7 +297,6 @@ public final class AppearanceActivity extends Page implements App.Themed {
         frame.setBackground(AppUi.outlined(this, AppUi.BG, 18, AppUi.LINE));
         frame.addView(preview, new LinearLayout.LayoutParams(-1, dp(208)));
         add(column, frame);
-        caption(column, "这一块就是课表本身，只是去掉了节次时间：改圆角、不透明度、配色，它当场跟着变。");
 
         heading(column, "课程配色");
         LinearLayout palette = card();
@@ -510,7 +505,9 @@ public final class AppearanceActivity extends Page implements App.Themed {
                 rect.set(left, top, left + column - dp(4), top + row * span - dp(4));
 
                 paint.setColor(withDraft(Theme.fill(slot)));
-                canvas.drawRoundRect(rect, draftRadius, draftRadius, paint);
+                // drawRoundRect takes pixels, not dp. WeekBoard uses dp(Theme.radius()) for the real
+                // block corner, so the preview must convert too or it shows ~1/3 of the real radius.
+                canvas.drawRoundRect(rect, dp(draftRadius), dp(draftRadius), paint);
 
                 int ink = Theme.inkFor(slot);
                 float room = rect.width() - dp(4);

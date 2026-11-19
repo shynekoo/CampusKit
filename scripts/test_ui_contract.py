@@ -116,6 +116,57 @@ def main():
     if "private void timetableContent() {" in activity:
         failures.append("TimetableActivity still owns timetableContent() inline (not extracted)")
 
+    # 学业情况查询 (2.5.8.2): the today-教务 card must keep its entry, and the screen must go
+    # through the shared signed-in EduClient rather than opening the school site in a WebView.
+    status_activity = PREVIEW / "AcademicStatusActivity.java"
+    require(status_activity.read_text(encoding="utf-8") if status_activity.exists() else "",
+            "EduClient.academicStatus()", "AcademicStatusActivity",
+            "academic status must use the shared signed-in client")
+    require(activity, '"学业情况"', "TimetableActivity",
+            "today-教务 card must expose the academic status entry")
+    require(activity, "openAcademicStatus()", "TimetableActivity",
+            "academic status tile must route to its own screen")
+    require(activity, "AcademicStatusActivity.class", "TimetableActivity",
+            "academic status tile must launch AcademicStatusActivity")
+    core = ROOT / "client/core/src/io/qzxy/lite/core/EduAcademic.java"
+    require(core.read_text(encoding="utf-8") if core.exists() else "",
+            "static Report parse(String html)", "EduAcademic",
+            "academic status extraction must live in the testable core")
+
+    # 外观页 (2.5.8.3): the preview corner must convert dp to px like WeekBoard does, or it shows
+    # ~1/3 of the real radius on density screens. The two explanatory captions were removed on
+    # request; keep them gone, and keep the theme's first swatch labelled 默认 not 品牌蓝.
+    appearance = (PREVIEW / "AppearanceActivity.java").read_text(encoding="utf-8")
+    require(appearance, "drawRoundRect(rect, dp(draftRadius)", "AppearanceActivity",
+            "preview corner must convert dp to px to match the real timetable")
+    for stale in ("打开后往回滑时", "这一块就是课表本身", '"品牌蓝"'):
+        checks += 1
+        if stale in appearance:
+            failures.append("AppearanceActivity: removed copy %r came back" % stale)
+
+    # 学业情况页 (2.5.8.4): the crash was a View added to results twice. card() must stay a pure
+    # factory and addCard() the single attach point; note must be set once in onCreate, not per show.
+    status_activity = PREVIEW / "AcademicStatusActivity.java"
+    status = status_activity.read_text(encoding="utf-8") if status_activity.exists() else ""
+    require(status, "private void addCard(LinearLayout card)", "AcademicStatusActivity",
+            "single attach point for academic cards")
+    card_block = status[status.find("private LinearLayout card()"):status.find("private void addCard(")]
+    checks += 1
+    if "results.addView" in card_block:
+        failures.append("AcademicStatusActivity: card() attaches itself again (double-parent crash)")
+    checks += 1
+    if status.count("screen.note(") != 1:
+        failures.append("AcademicStatusActivity: note must be set once, not stacked on every show")
+
+    # 教务 card order: row 1 = 成绩/空教室/教务系统, row 2 = 学业情况/河工程/科信.
+    ac = activity[activity.find("private void academicCard("):activity.find("private void openEdu(")]
+    checks += 1
+    expected = ['"score","成绩"', '"room","空教室"', '"cap","教务系统"',
+                '"check","学业情况"', '"school","河工程官网"', '"globe","科信官网"']
+    positions = [ac.find(t) for t in expected]
+    if -1 in positions or positions != sorted(positions):
+        failures.append("TimetableActivity: 教务 card tile order does not match row1=成绩/空教室/教务系统 row2=学业情况/河工程/科信")
+
     if failures:
         print("UI CONTRACT FAILED (%d/%d checks):" % (len(failures), checks))
         for f in failures:
