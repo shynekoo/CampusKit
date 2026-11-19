@@ -1156,52 +1156,58 @@ public final class CoreTests {
 
         // The name only decides what the dialog says about itself; the code decides that it appears.
         equal(false, UpdateManifest.parse("{\"version\":\"9.9.9\",\"versionCode\":3,"
-            + "\"notes\":[\"x\"],\"url\":\"https://example.edu/a.apk\"}").newerThan(158));
+            + "\"notes\":[\"x\"],\"url\":\"https://example.edu/a.apk\",\"bytes\":12,\"sha256\":\""
+            + repeat('a', 64) + "\"}").newerThan(158));
 
-        // Optional fields stay absent instead of being invented.
-        UpdateManifest bare = UpdateManifest.parse("{\"version\":\"2.3\",\"versionCode\":158,"
-            + "\"notes\":[\"x\"],\"url\":\"https://example.edu/a.apk\"}");
-        equal(0L, bare.bytes);
-        equal("", bare.sha256);
+        // A manifest that omits the digest or the size is refused, not filled with zeroes.
+        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3\",\"versionCode\":158,"
+            + "\"notes\":[\"x\"],\"url\":\"https://example.edu/a.apk\"}"));
+        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3\",\"versionCode\":158,"
+            + "\"notes\":[\"x\"],\"url\":\"https://example.edu/a.apk\",\"bytes\":12}"));
         // An unknown key is left for a future field and does not invalidate the release.
         UpdateManifest extended = UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,"
-            + "\"notes\":[\"x\"],\"url\":\"https://example.edu/a.apk\",\"channel\":\"beta\"}");
+            + "\"notes\":[\"x\"],\"url\":\"https://example.edu/a.apk\",\"bytes\":12,\"sha256\":\""
+            + repeat('a', 64) + "\",\"channel\":\"beta\"}");
         equal(158, extended.versionCode);
 
         // Escapes survive, because a note may quote itself. A newline does not: every note is one
         // bullet in the dialog, so a two-line entry is rejected rather than drawn half-height.
         equal("他说" + '"' + "好了" + '"',
             UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,"
-                + "\"notes\":[\"他说\\\"好了\\\"\"],\"url\":\"https://example.edu/a.apk\"}").notes.get(0));
+                + "\"notes\":[\"他说\\\"好了\\\"\"],\"url\":\"https://example.edu/a.apk\",\"bytes\":12,\"sha256\":\""
+                + repeat('a', 64) + "\"}").notes.get(0));
         rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,"
-            + "\"notes\":[\"第一行\\n第二行\"],\"url\":\"https://example.edu/a.apk\"}"));
+            + "\"notes\":[\"第一行\\n第二行\"],\"url\":\"https://example.edu/a.apk\",\"bytes\":12,\"sha256\":\""
+            + repeat('a', 64) + "\"}"));
 
+        String digest = repeat('a', 64);
+        String tail = ",\"bytes\":12,\"sha256\":\"" + digest + "\"}";
         String ok = "\"version\":\"2.3.0\",\"versionCode\":158,\"notes\":[\"x\"]";
         rejects(() -> UpdateManifest.parse(""));
         rejects(() -> UpdateManifest.parse("null"));
         rejects(() -> UpdateManifest.parse("[]"));
-        rejects(() -> UpdateManifest.parse("{" + ok + "} trailing"));
-        rejects(() -> UpdateManifest.parse("{" + ok + ",\"url\":\"http://example.edu/a.apk\"}"));
-        rejects(() -> UpdateManifest.parse("{" + ok + ",\"url\":\"file:///sdcard/a.apk\"}"));
-        rejects(() -> UpdateManifest.parse("{" + ok + ",\"url\":\"https://example.edu/../a.apk\"}"));
-        rejects(() -> UpdateManifest.parse("{" + ok + ",\"url\":\"\"}"));
+        rejects(() -> UpdateManifest.parse("{" + ok + ",\"url\":\"https://e.cn/a.apk\"" + tail + " trailing"));
+        rejects(() -> UpdateManifest.parse("{" + ok + ",\"url\":\"http://example.edu/a.apk\"" + tail));
+        rejects(() -> UpdateManifest.parse("{" + ok + ",\"url\":\"file:///sdcard/a.apk\"" + tail));
+        rejects(() -> UpdateManifest.parse("{" + ok + ",\"url\":\"https://example.edu/../a.apk\"" + tail));
+        rejects(() -> UpdateManifest.parse("{" + ok + ",\"url\":\"\"" + tail));
         // Missing pieces of every kind.
-        rejects(() -> UpdateManifest.parse("{\"versionCode\":158,\"notes\":[\"x\"],\"url\":\"https://e.cn/a.apk\"}"));
-        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"notes\":[\"x\"],\"url\":\"https://e.cn/a.apk\"}"));
-        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,\"url\":\"https://e.cn/a.apk\"}"));
-        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,\"notes\":[\"x\"]}"));
+        rejects(() -> UpdateManifest.parse("{\"versionCode\":158,\"notes\":[\"x\"],\"url\":\"https://e.cn/a.apk\"" + tail));
+        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"notes\":[\"x\"],\"url\":\"https://e.cn/a.apk\"" + tail));
+        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,\"url\":\"https://e.cn/a.apk\"" + tail));
+        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,\"notes\":[\"x\"]" + tail));
         // Values that would break the dialog or the download.
-        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0-beta\",\"versionCode\":158,\"notes\":[\"x\"],\"url\":\"https://e.cn/a.apk\"}"));
-        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":0,\"notes\":[\"x\"],\"url\":\"https://e.cn/a.apk\"}"));
-        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":15.5,\"notes\":[\"x\"],\"url\":\"https://e.cn/a.apk\"}"));
-        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,\"notes\":[],\"url\":\"https://e.cn/a.apk\"}"));
-        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,\"notes\":[\"x\"],\"url\":\"https://e.cn/a.apk\",\"bytes\":-1}"));
-        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,\"notes\":[\"x\"],\"url\":\"https://e.cn/a.apk\",\"sha256\":\"zz\"}"));
-        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,\"notes\":[\"a\",\"b\",\"c\",\"d\",\"e\",\"f\",\"g\",\"h\",\"i\"],\"url\":\"https://e.cn/a.apk\"}"));
-        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,\"notes\":[\"x\"],\"url\":\"https://e.cn/a.apk\",}"));
-        rejects(() -> UpdateManifest.parse("{version:\"2.3.0\",\"versionCode\":158,\"notes\":[\"x\"],\"url\":\"https://e.cn/a.apk\"}"));
-        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,\"notes\":\"x\",\"url\":\"https://e.cn/a.apk\"}"));
-        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,\"notes\":[\"x\",1],\"url\":\"https://e.cn/a.apk\"}"));
+        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0-beta\",\"versionCode\":158,\"notes\":[\"x\"],\"url\":\"https://e.cn/a.apk\"" + tail));
+        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":0,\"notes\":[\"x\"],\"url\":\"https://e.cn/a.apk\"" + tail));
+        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":15.5,\"notes\":[\"x\"],\"url\":\"https://e.cn/a.apk\"" + tail));
+        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,\"notes\":[],\"url\":\"https://e.cn/a.apk\"" + tail));
+        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,\"notes\":[\"x\"],\"url\":\"https://e.cn/a.apk\",\"bytes\":-1,\"sha256\":\"" + digest + "\"}"));
+        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,\"notes\":[\"x\"],\"url\":\"https://e.cn/a.apk\",\"bytes\":12,\"sha256\":\"zz\"}"));
+        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,\"notes\":[\"a\",\"b\",\"c\",\"d\",\"e\",\"f\",\"g\",\"h\",\"i\"],\"url\":\"https://e.cn/a.apk\"" + tail));
+        rejects(() -> UpdateManifest.parse("{" + ok + ",\"url\":\"https://e.cn/a.apk\"" + tail.substring(0, tail.length() - 1) + ",}"));
+        rejects(() -> UpdateManifest.parse("{version:\"2.3.0\",\"versionCode\":158,\"notes\":[\"x\"],\"url\":\"https://e.cn/a.apk\"" + tail));
+        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,\"notes\":\"x\",\"url\":\"https://e.cn/a.apk\"" + tail));
+        rejects(() -> UpdateManifest.parse("{\"version\":\"2.3.0\",\"versionCode\":158,\"notes\":[\"x\",1],\"url\":\"https://e.cn/a.apk\"" + tail));
         System.out.println("PASS: an update manifest is accepted only when every field it will use is sound");
 
         // 使用码：8 位 = 前 5 位使用码 + 后 3 位安全码，设备键盘上连着输完才开门。
@@ -1233,6 +1239,39 @@ public final class CoreTests {
         rejects(() -> UseCode.parse(fields("useCode", "1234abcd")));
         rejects(() -> UseCode.parse(fields("useCodeStatus", "abc")));
         System.out.println("PASS: a use code is read only from well-formed fields, split 5+3 for the keypad");
+
+        // Update manifest: a digest and a size are mandatory. Without either, a swapped manifest
+        // could point at any package and skip verification entirely.
+        String um = "{\"version\":\"2.5.8\",\"versionCode\":200,\"notes\":[\"note\"],\"url\":\"https://host/app.apk\",\"bytes\":12,\"sha256\":\""
+            + repeat('a', 64) + "\"}";
+        equal(12L, UpdateManifest.parse(um).bytes);
+        equal(repeat('a', 64), UpdateManifest.parse(um).sha256);
+        rejects(() -> UpdateManifest.parse(um.replace(",\"bytes\":12", "")));
+        rejects(() -> UpdateManifest.parse(um.replace(",\"sha256\":\"" + repeat('a', 64) + "\"", "")));
+        rejects(() -> UpdateManifest.parse(um.replace("\"bytes\":12", "\"bytes\":0")));
+        rejects(() -> UpdateManifest.parse(um.replace(repeat('a', 64), repeat('a', 63))));
+        rejects(() -> UpdateManifest.parse(um.replace("https://", "http://")));
+        System.out.println("PASS: an update manifest is rejected unless it states size and SHA-256 over HTTPS");
+
+        // Redirect policy: HTTPS on every hop, bounded, loop-free, and no sharecode leak to a
+        // different host. A legitimate CDN hop is allowed.
+        UpdateUrls.requireHttps("https://host/app.apk?sharecode=ABC");
+        rejects(() -> UpdateUrls.requireHttps("http://host/app.apk"));
+        rejects(() -> UpdateUrls.requireHttps("https://user:pass@host/app.apk"));
+        java.util.Set<String> redirectSeen = new java.util.HashSet<String>();
+        redirectSeen.add(UpdateUrls.canonical("https://host/app.apk?sharecode=ABC"));
+        equal("https://cdn.example.com/app.apk",
+            UpdateUrls.next("https://host/app.apk?sharecode=ABC", "https://cdn.example.com/app.apk", redirectSeen, 0));
+        equal("https://host/app-2.apk?sharecode=ABC",
+            UpdateUrls.next("https://host/app.apk?sharecode=ABC", "/app-2.apk?sharecode=ABC",
+                new java.util.HashSet<String>(), 0));
+        rejects(() -> UpdateUrls.next("https://host/app.apk", "http://host/app.apk",
+            new java.util.HashSet<String>(), 0));
+        rejects(() -> UpdateUrls.next("https://host/app.apk", "/app.apk",
+            new java.util.HashSet<String>(java.util.Arrays.asList(UpdateUrls.canonical("https://host/app.apk"))), 0));
+        rejects(() -> UpdateUrls.next("https://host/a.apk", "/b.apk", new java.util.HashSet<String>(),
+            UpdateUrls.MAX_REDIRECTS));
+        System.out.println("PASS: update redirects stay on HTTPS, are bounded and loop-free, and drop query on a new host");
 
         System.out.println("All " + assertions + " assertions passed. Live API/Bluetooth compatibility is not tested here.");
     }

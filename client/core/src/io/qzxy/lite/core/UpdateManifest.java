@@ -40,9 +40,9 @@ public final class UpdateManifest {
     public final int versionCode;
     public final List<String> notes;
     public final String url;
-    /** Package size in bytes, or 0 when the manifest does not state one. */
+    /** Package size in bytes. Required so an oversized download can be stopped mid-stream. */
     public final long bytes;
-    /** Lower-case hex digest of the package, or "" when the manifest does not state one. */
+    /** Lower-case hex digest of the package. Required so it is verified before install. */
     public final String sha256;
 
     private UpdateManifest(String version, int versionCode, List<String> notes, String url, long bytes, String sha256) {
@@ -86,19 +86,13 @@ public final class UpdateManifest {
         }
         if (notes.isEmpty() || notes.size() > MAX_NOTES) throw new IllegalArgumentException("bad notes");
 
-        long bytes = 0;
-        Object size = object.get("bytes");
-        if (size != null) {
-            bytes = count(object, "bytes");
-            if (bytes < 1) throw new IllegalArgumentException("bad bytes");
-        }
-        String digest = "";
-        Object sha = object.get("sha256");
-        if (sha != null) {
-            if (!(sha instanceof String)) throw new IllegalArgumentException("bad sha256");
-            digest = ((String) sha).trim().toLowerCase(Locale.US);
-            if (!SHA256.matcher(digest).matches()) throw new IllegalArgumentException("bad sha256");
-        }
+        // A manifest without a digest or a size cannot be verified before install. Require both:
+        // an attacker who can swap the file can otherwise point at any package and skip the check.
+        long bytes = count(object, "bytes");
+        if (bytes < 1) throw new IllegalArgumentException("bad bytes");
+        String digest = text(object, "sha256", 64);
+        digest = digest.toLowerCase(Locale.US);
+        if (!SHA256.matcher(digest).matches()) throw new IllegalArgumentException("bad sha256");
         return new UpdateManifest(version, code, notes, url, bytes, digest);
     }
 

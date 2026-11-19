@@ -24,9 +24,12 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.security.MessageDigest;
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Set;
 
 import io.qzxy.lite.core.UpdateManifest;
+import io.qzxy.lite.core.UpdateUrls;
 
 /**
  * Checks for a new release at start-up, explains it, and installs it if the reader says yes.
@@ -37,10 +40,12 @@ import io.qzxy.lite.core.UpdateManifest;
  * 账号 still offers it. And it fails silently — no network, a moved manifest or a malformed one all
  * end the same way, with nothing on screen, because a popup about a failed check is not news.</p>
  *
- * <p>Nothing the manifest says is taken on faith. {@link UpdateManifest} validates the fields; this
- * class additionally requires HTTPS, compares the version <em>code</em> rather than the name, and
- * verifies the package against the manifest's byte count and SHA-256 before handing it to the
- * installer. A failed verification deletes the download instead of installing it.</p>
+ * <p>Nothing the manifest says is taken on faith. {@link UpdateManifest} validates every field and
+ * now requires both a byte count and a SHA-256; this class additionally requires HTTPS on every
+ * hop, follows redirects manually under the rules in {@link UpdateUrls}, and verifies the package
+ * against the manifest's size and digest before checking its package name, version and signing
+ * certificate against the installed app. A failed check deletes the download instead of installing
+ * it. A mirrored manifest alone is not enough to forge an update: the certificate must still match.</p>
  */
 final class UpdateCheck {
     /**
@@ -240,7 +245,7 @@ final class UpdateCheck {
             @Override public void run() {
                 String failure = null;
                 try {
-                    save(manifest, target, progress, cancelled);
+                    save(activity, manifest, target, progress, cancelled);
                 } catch (Exception problem) {
                     failure = problem.getMessage() == null ? "下载失败" : problem.getMessage();
                     target.delete();
@@ -276,18 +281,12 @@ final class UpdateCheck {
         });
     }
 
-    private static void save(UpdateManifest manifest, File target, Progress progress, boolean[] cancelled) throws Exception {
+    private static void save(Context context, UpdateManifest manifest, File target, Progress progress, boolean[] cancelled) throws Exception {
         HttpURLConnection connection = null;
         FileOutputStream output = null;
         try {
-            connection = (HttpURLConnection) new URL(manifest.url).openConnection();
-            connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
-            connection.setReadTimeout(READ_TIMEOUT_MS);
-            connection.setInstanceFollowRedirects(true);
-            connection.setRequestProperty("Accept", "application/octet-stream");
-            int status = connection.getResponseCode();
-            if (status != 200) throw new IOException("服务器返回 " + status);
-            progress.total = manifest.bytes > 0 ? manifest.bytes : connection.getContentLength();
+            connection = open(manifest.url, "application/octet-stream", null);
+            progress.total = manifest.bytes;
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             output = new FileOutputStream(target);
             InputStream input = connection.getInputStream();
@@ -298,23 +297,78 @@ final class UpdateCheck {
                 output.write(buffer, 0, read);
                 digest.update(buffer, 0, read);
                 progress.done += read;
-                // A manifest that understates the size is not a slow download, it is a different
-                // file; stop before it fills the phone.
-                if (progress.total > 0 && progress.done > progress.total + BUFFER) throw new IOException("安装包大小与说明不符");
+                // The manifest states the size; anything beyond it is not the reviewed package.
+                if (progress.done > manifest.bytes + BUFFER) throw new IOException("安装包大小与说明不符");
             }
             output.flush();
             output.close();
             output = null;
-            if (manifest.bytes > 0 && progress.done != manifest.bytes) throw new IOException("安装包大小与说明不符");
-            if (!manifest.sha256.isEmpty()) {
-                StringBuilder hex = new StringBuilder(64);
-                for (byte value : digest.digest()) hex.append(String.format(Locale.US, "%02x", value & 0xff));
-                if (!hex.toString().equals(manifest.sha256)) throw new IOException("安装包校验失败，已删除");
-            }
+            if (progress.done != manifest.bytes) throw new IOException("安装包大小与说明不符");
+            StringBuilder hex = new StringBuilder(64);
+            for (byte value : digest.digest()) hex.append(String.format(Locale.US, "%02x", value & 0xff));
+            if (!hex.toString().equals(manifest.sha256)) throw new IOException("安装包校验失败，已删除");
+            verifyPackage(context, target, manifest);
         } finally {
             if (output != null) try { output.close(); } catch (IOException ignored) { }
             if (connection != null) connection.disconnect();
         }
+    }
+
+    /**
+     * Compares the downloaded package with the running app. The digest ties the bytes to the
+     * manifest; this ties the manifest to the app's own identity. A forged manifest that swaps in
+     * another APK cannot match our signing certificate, and a version that is not the announced one
+     * is refused as well. The system installer checks the upgrade signature again at install time.
+     */
+    private static void verifyPackage(Context context, File apk, UpdateManifest manifest) throws IOException {
+        android.content.pm.PackageManager pm = context.getPackageManager();
+        android.content.pm.PackageInfo candidate = pm.getPackageArchiveInfo(
+            apk.getAbsolutePath(), android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES);
+        if (candidate == null) throw new IOException("安装包无法解析，已删除");
+        if (!context.getPackageName().equals(candidate.packageName))
+            throw new IOException("安装包包名不符，已删除");
+        long code = Build.VERSION.SDK_INT >= 28 ? candidate.getLongVersionCode() : candidate.versionCode;
+        if (code != manifest.versionCode) throw new IOException("安装包版本与说明不符，已删除");
+        android.content.pm.SigningInfo ours = signing(context.getPackageName(), pm);
+        android.content.pm.SigningInfo theirs = candidate.signingInfo;
+        if (ours == null || theirs == null) throw new IOException("无法读取签名证书，已删除");
+        // Compare SHA-256 of every signer certificate. getApkContentsSigners() covers both single
+        // and multi-signer apps; comparing as a set makes signer order irrelevant.
+        if (!fingerprints(ours).equals(fingerprints(theirs)))
+            throw new IOException("安装包签名与本应用不符，已删除");
+    }
+
+    private static android.content.pm.SigningInfo signing(String packageName,
+            android.content.pm.PackageManager pm) {
+        try {
+            return pm.getPackageInfo(packageName,
+                android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES).signingInfo;
+        } catch (Exception missing) {
+            return null;
+        }
+    }
+
+    private static java.util.Set<String> fingerprints(android.content.pm.SigningInfo info) {
+        java.util.Set<String> out = new HashSet<String>();
+        for (android.content.pm.Signature signer : info.getApkContentsSigners()) {
+            out.add(hex(sha256(signer.toByteArray())));
+        }
+        return out;
+    }
+
+    /** SHA-256 is guaranteed on every Android device; a missing one is a broken runtime. */
+    private static byte[] sha256(byte[] input) {
+        try {
+            return MessageDigest.getInstance("SHA-256").digest(input);
+        } catch (java.security.NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException(impossible);
+        }
+    }
+
+    private static String hex(byte[] value) {
+        StringBuilder out = new StringBuilder(value.length * 2);
+        for (byte b : value) out.append(String.format(Locale.US, "%02x", b & 0xff));
+        return out.toString();
     }
 
     private static void installWithPermission(Activity activity, File apk) {
@@ -358,16 +412,41 @@ final class UpdateCheck {
         return Build.VERSION.SDK_INT < 26 || activity.getPackageManager().canRequestPackageInstalls();
     }
 
-    private static String read(String address) throws IOException {
-        HttpURLConnection connection = (HttpURLConnection) new URL(address).openConnection();
-        connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
-        connection.setReadTimeout(READ_TIMEOUT_MS);
-        connection.setInstanceFollowRedirects(true);
-        connection.setRequestProperty("Accept", "application/json");
-        connection.setRequestProperty("Cache-Control", "no-cache");
-        try {
+    /**
+     * Opens an HTTPS address, following redirects one hop at a time under {@link UpdateUrls}. Java's
+     * built-in automatic redirect is deliberately off: it would silently allow an HTTP downgrade,
+     * an unbounded loop, or a query string (the sharecode) leaking to an unrelated host.
+     */
+    private static HttpURLConnection open(String address, String accept, String cache) throws IOException {
+        UpdateUrls.requireHttps(address);
+        Set<String> seen = new HashSet<String>();
+        seen.add(UpdateUrls.canonical(address));
+        String current = address;
+        for (int hop = 0; ; hop++) {
+            HttpURLConnection connection = (HttpURLConnection) new URL(current).openConnection();
+            connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
+            connection.setReadTimeout(READ_TIMEOUT_MS);
+            connection.setInstanceFollowRedirects(false);
+            if (accept != null) connection.setRequestProperty("Accept", accept);
+            if (cache != null) connection.setRequestProperty("Cache-Control", cache);
             int status = connection.getResponseCode();
-            if (status != 200) throw new IOException("HTTP " + status);
+            if (status >= 300 && status < 400) {
+                String location = connection.getHeaderField("Location");
+                connection.disconnect();
+                current = UpdateUrls.next(current, location, seen, hop);
+                continue;
+            }
+            if (status != 200) {
+                connection.disconnect();
+                throw new IOException("HTTP " + status);
+            }
+            return connection;
+        }
+    }
+
+    private static String read(String address) throws IOException {
+        HttpURLConnection connection = open(address, "application/json", "no-cache");
+        try {
             InputStream input = connection.getInputStream();
             java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
             byte[] buffer = new byte[4096];
