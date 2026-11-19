@@ -109,6 +109,13 @@ def main():
     if "private void todayContent() {" in activity:
         failures.append("TimetableActivity still owns todayContent() inline (not extracted)")
 
+    # A1 stage 3: schedule screen extraction, must keep pager wiring and adaptive height intact.
+    require(activity, "new ScheduleScreen(this)", "TimetableActivity",
+            "render() must delegate the schedule tab to ScheduleScreen")
+    require(activity, "class ScheduleScreen", "TimetableActivity", "ScheduleScreen extracted")
+    if "private void timetableContent() {" in activity:
+        failures.append("TimetableActivity still owns timetableContent() inline (not extracted)")
+
     if failures:
         print("UI CONTRACT FAILED (%d/%d checks):" % (len(failures), checks))
         for f in failures:

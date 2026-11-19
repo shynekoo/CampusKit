@@ -812,7 +812,7 @@ public final class TimetableActivity extends Page implements App.Themed {
         if(nav.tab()==1){Button settings=weekAction(importing?"识别中…":"管理",this::manage);settings.setEnabled(!unreadable&&!importing);header.addView(settings,new LinearLayout.LayoutParams(dp(76),dp(48)));}
         else if(nav.tab()==2&&nav.campusView()==1){TextView back=text("‹ 返回",14);back.setTextColor(AppUi.ACCENT);back.setPadding(dp(10),dp(10),0,dp(10));back.setOnClickListener(v->{nav.openCampusList();render();});header.addView(back);}
         root.addView(header);
-        if(nav.tab()==0)new HomeScreen(this).build();else if(nav.tab()==1)timetableContent();else new CampusScreen(this).build();
+        if(nav.tab()==0)new HomeScreen(this).build();else if(nav.tab()==1)new ScheduleScreen(this).build();else new CampusScreen(this).build();
         LinearLayout holder=column();holder.setPadding(dp(8),dp(2),dp(8),dp(8));
         // No elevation: the cast shadow is offset downward, so a rounded white bar shows a dark smudge
         // under the two bottom corners while the top corners stay clean. The hairline border alone
@@ -854,51 +854,6 @@ public final class TimetableActivity extends Page implements App.Themed {
         view.setMinWidth(0);view.setMinimumWidth(0);view.setPadding(dp(8),0,dp(8),0);
         AppUi.press(view,0x00ffffff,8);return view;
     }
-    private void timetableContent() {
-        boolean compact=AppUi.compact(this);int arrow=compact?dp(44):dp(48);
-        LinearLayout navigation=new LinearLayout(this);navigation.setGravity(android.view.Gravity.CENTER_VERTICAL);navigation.setPadding(dp(4),0,dp(4),dp(4));
-        Button selected=weekAction("第 "+week+" 周  ▾",this::selectWeek);selected.setTextSize(compact?17:18);selected.setGravity(android.view.Gravity.LEFT|android.view.Gravity.CENTER_VERTICAL);selected.setMaxLines(1);selected.setEllipsize(android.text.TextUtils.TruncateAt.END);selected.setContentDescription("选择周次，当前第"+week+"周");
-        navigation.addView(selected,new LinearLayout.LayoutParams(0,dp(48),1));
-        Button previous=weekAction("‹",()->shiftWeek(-1));previous.setTextSize(26);previous.setContentDescription("上一周");previous.setEnabled(week>1);
-        Button next=weekAction("›",()->shiftWeek(1));next.setTextSize(26);next.setContentDescription("下一周");next.setEnabled(week<CoursePickers.LAST_WEEK);
-        navigation.addView(previous,new LinearLayout.LayoutParams(arrow,dp(48)));
-        navigation.addView(next,new LinearLayout.LayoutParams(arrow,dp(48)));
-        if(week!=currentWeek()&&currentWeek()>=1&&currentWeek()<=CoursePickers.LAST_WEEK)navigation.addView(weekAction("回本周",this::goCurrentWeek),new LinearLayout.LayoutParams(compact?dp(64):dp(76),dp(48)));
-        root.addView(navigation);
-        List<JSONObject> visible=new ArrayList<>();for(JSONObject c:courses)if(appears(c))visible.add(c);
-        WeekBoard.Listener listener=new WeekBoard.Listener(){
-            public void open(List<JSONObject> group){showCourses(group);}
-            public void shift(int delta){shiftWeek(delta);}
-            public void swipe(int delta){applyWeek(delta);}
-            public boolean canShift(int delta){int next=week+delta;return next>=1&&next<=CoursePickers.LAST_WEEK;}
-            public void addAt(int day,int section){edit(null,day,section);}
-        };
-        if(unreadable)root.addView(text("课表读取失败，原数据已保留。可从管理中恢复备份。",14));
-        else if(courses.isEmpty()) {TextView hint=text("还没有课程 · 点击右上角管理，导入教务课表",12);hint.setGravity(android.view.Gravity.CENTER);root.addView(hint);}
-        else if(visible.isEmpty()) {TextView hint=text("这一周没有课程",12);hint.setGravity(android.view.Gravity.CENTER);root.addView(hint);}
-        // Colours are resolved from the whole course list, not just this week, so a course keeps its
-        // colour while paging through weeks.
-        final int shownWeek=week;
-        pager=new WeekBoard.Pager(this,delta->{
-            int targetWeek=shownWeek+delta;
-            List<JSONObject> adjacent=new ArrayList<>();
-            if(!unreadable)for(JSONObject c:courses)if(appears(c,targetWeek))adjacent.add(c);
-            String[] adjacentDates=new String[7];
-            for(int d=0;d<7;d++) {
-                adjacentDates[d]="";
-                if(!monday.isEmpty())try {
-                    Date date=new Date(parseMonday(monday).getTime()+((targetWeek-1L)*7+d)*86400000L);
-                    adjacentDates[d]=dateFormat().format(date).substring(5);
-                }catch(Exception invalid){}
-            }
-            WeekBoard board=new WeekBoard(this,adjacent,adjacentDates,targetWeek==currentWeek()?(Calendar.getInstance().get(Calendar.DAY_OF_WEEK)+5)%7:-1,
-                WeekBoard.autoColorsFor(unreadable?new ArrayList<>():courses),listener);
-            board.setPhoto(backgroundImage);return board;
-        },listener);
-        root.addView(pager,new LinearLayout.LayoutParams(-1,0,1));
-        
-    }
-
     private void openQzxy(){
         Intent intent=getPackageManager().getLaunchIntentForPackage("com.klcxkj.zqxy");
         if(intent==null){notice("请先安装趣智校园原版应用。");return;}
@@ -1231,6 +1186,59 @@ public final class TimetableActivity extends Page implements App.Themed {
             android.widget.ImageView mark=new android.widget.ImageView(a);mark.setImageDrawable(AppUi.icon(a,icon,AppUi.ACCENT,24));mark.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);mark.setBackground(AppUi.shape(a,AppUi.SOFT,22));mark.setPadding(a.dp(9),a.dp(9),a.dp(9),a.dp(9));tile.addView(mark,new LinearLayout.LayoutParams(size,size));
             TextView name=a.bold(title,compact?12:13);name.setGravity(android.view.Gravity.CENTER);name.setPadding(0,a.dp(8),0,0);name.setMaxLines(2);name.setEllipsize(android.text.TextUtils.TruncateAt.END);tile.addView(name);
             TextView hint=a.text(subtitle,compact?11:12);hint.setTextColor(AppUi.MUTED);hint.setGravity(android.view.Gravity.CENTER);hint.setMaxLines(2);hint.setEllipsize(android.text.TextUtils.TruncateAt.END);tile.addView(hint);tile.setContentDescription(title+"，"+subtitle);return tile;
+        }
+    }
+
+
+    /** 课表 tab: week navigation and the paging WeekBoard. Extracted as a screen; every callback
+     *  still writes back to the activity's own state (week, pager, courses), so swipe/week switching
+     *  and the adaptive board height behave exactly as before. */
+    static final class ScheduleScreen {
+        private final TimetableActivity a;
+        ScheduleScreen(TimetableActivity activity) { this.a = activity; }
+
+        void build() {
+            boolean compact=AppUi.compact(a);int arrow=compact?a.dp(44):a.dp(48);
+            LinearLayout navigation=new LinearLayout(a);navigation.setGravity(android.view.Gravity.CENTER_VERTICAL);navigation.setPadding(a.dp(4),0,a.dp(4),a.dp(4));
+            Button selected=a.weekAction("第 "+a.week+" 周  ▾",a::selectWeek);selected.setTextSize(compact?17:18);selected.setGravity(android.view.Gravity.LEFT|android.view.Gravity.CENTER_VERTICAL);selected.setMaxLines(1);selected.setEllipsize(android.text.TextUtils.TruncateAt.END);selected.setContentDescription("选择周次，当前第"+a.week+"周");
+            navigation.addView(selected,new LinearLayout.LayoutParams(0,a.dp(48),1));
+            Button previous=a.weekAction("‹",()->a.shiftWeek(-1));previous.setTextSize(26);previous.setContentDescription("上一周");previous.setEnabled(a.week>1);
+            Button next=a.weekAction("›",()->a.shiftWeek(1));next.setTextSize(26);next.setContentDescription("下一周");next.setEnabled(a.week<CoursePickers.LAST_WEEK);
+            navigation.addView(previous,new LinearLayout.LayoutParams(arrow,a.dp(48)));
+            navigation.addView(next,new LinearLayout.LayoutParams(arrow,a.dp(48)));
+            if(a.week!=a.currentWeek()&&a.currentWeek()>=1&&a.currentWeek()<=CoursePickers.LAST_WEEK)navigation.addView(a.weekAction("回本周",a::goCurrentWeek),new LinearLayout.LayoutParams(compact?a.dp(64):a.dp(76),a.dp(48)));
+            a.root.addView(navigation);
+            List<JSONObject> visible=new ArrayList<>();for(JSONObject c:a.courses)if(a.appears(c))visible.add(c);
+            WeekBoard.Listener listener=new WeekBoard.Listener(){
+                public void open(List<JSONObject> group){a.showCourses(group);}
+                public void shift(int delta){a.shiftWeek(delta);}
+                public void swipe(int delta){a.applyWeek(delta);}
+                public boolean canShift(int delta){int next=a.week+delta;return next>=1&&next<=CoursePickers.LAST_WEEK;}
+                public void addAt(int day,int section){a.edit(null,day,section);}
+            };
+            if(a.unreadable)a.root.addView(a.text("课表读取失败，原数据已保留。可从管理中恢复备份。",14));
+            else if(a.courses.isEmpty()) {TextView hint=a.text("还没有课程 · 点击右上角管理，导入教务课表",12);hint.setGravity(android.view.Gravity.CENTER);a.root.addView(hint);}
+            else if(visible.isEmpty()) {TextView hint=a.text("这一周没有课程",12);hint.setGravity(android.view.Gravity.CENTER);a.root.addView(hint);}
+            // Colours are resolved from the whole course list, not just this week, so a course keeps its
+            // colour while paging through weeks.
+            final int shownWeek=a.week;
+            a.pager=new WeekBoard.Pager(a,delta->{
+                int targetWeek=shownWeek+delta;
+                List<JSONObject> adjacent=new ArrayList<>();
+                if(!a.unreadable)for(JSONObject c:a.courses)if(a.appears(c,targetWeek))adjacent.add(c);
+                String[] adjacentDates=new String[7];
+                for(int d=0;d<7;d++) {
+                    adjacentDates[d]="";
+                    if(!a.monday.isEmpty())try {
+                        Date date=new Date(a.parseMonday(a.monday).getTime()+((targetWeek-1L)*7+d)*86400000L);
+                        adjacentDates[d]=a.dateFormat().format(date).substring(5);
+                    }catch(Exception invalid){}
+                }
+                WeekBoard board=new WeekBoard(a,adjacent,adjacentDates,targetWeek==a.currentWeek()?(Calendar.getInstance().get(Calendar.DAY_OF_WEEK)+5)%7:-1,
+                    WeekBoard.autoColorsFor(a.unreadable?new ArrayList<>():a.courses),listener);
+                board.setPhoto(a.backgroundImage);return board;
+            },listener);
+            a.root.addView(a.pager,new LinearLayout.LayoutParams(-1,0,1));
         }
     }
 
