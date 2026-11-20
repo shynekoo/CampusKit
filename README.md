@@ -43,8 +43,8 @@
 
 | 项目 | 情况 |
 | :-- | :-- |
-| 最新版本 | **v2.5.8**（2026-11-19） |
-| 安装包 | 5,359,482 字节 · SHA-256 `33851ee1190e98b1655489bd1c7989119fc6f16cfc4fd7883dc3beae6b5728bc` |
+| 最新版本 | **v2.5.8.1**（2026-11-20） |
+| 安装包 | 5,437,306 字节 · SHA-256 `af7ed82392da21863e9ac4af963a27980e3fe1718c83c4c9335f377451f6708f` |
 | 系统要求 | Android 7.0（API 24）及以上，targetSdk 36 |
 | 技术栈 | Java + 原生 View；无 Gradle、无第三方 UI 框架 |
 | 第三方库 | ZXing 3.5.3、PDFBox-Android 2.0.27.0、Bouncy Castle 1.72、支付宝 SDK 15.8.42 |
@@ -145,13 +145,13 @@ sequenceDiagram
 
 ## 下载
 
-1. 从 [Releases 最新版](https://github.com/shynekoo/CampusKit/releases/latest) 下载 `kexin-xiaozhushou-2.5.8.apk`（国内也可以用直链：<https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.5.8.apk?sharecode=BZD63HRP4B>）
+1. 从 [Releases 最新版](https://github.com/shynekoo/CampusKit/releases/latest) 下载 `kexin-xiaozhushou-2.5.8.1.apk`（国内也可以用直链：<https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.5.8.1.apk?sharecode=BZD63HRP4B>）
 2. 允许浏览器「安装未知应用」，装完打开即可，不需要 Root、不需要任何框架
 3. 想核对包有没有被改过：
 
 ```bash
-sha256sum kexin-xiaozhushou-2.5.8.apk
-# ac40b21dfad29e1c2f6e985bec8762ec5244ba31564b497e87f7001f4410d806
+sha256sum kexin-xiaozhushou-2.5.8.1.apk
+# af7ed82392da21863e9ac4af963a27980e3fe1718c83c4c9335f377451f6708f
 ```
 
 > ⚠️ **升级请覆盖安装。** 换成别的签名只能卸载重装，而卸载会清掉课表与凭据——先在「课表 → 管理 → 导出备份」存一份，重装后再恢复。
@@ -261,6 +261,10 @@ docs/           README 用到的截图
 - **代码贡献**：先开 Issue 说清楚要改什么，再提 PR；改动需通过 `python scripts/test_core.py`，涉及界面的请附截图
 
 ## 更新日志
+
+**v2.5.8.1**（2026-11-20）
+
+- 修复趣智校园扫码无法跳转使用的bug，如果给您带来的不好的体验，非常抱歉。
 
 **v2.5.8**（2026-11-19）
 

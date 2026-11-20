@@ -1,13 +1,10 @@
 {
-  "version": "2.5.8",
-  "versionCode": 208,
+  "version": "2.5.8.1",
+  "versionCode": 209,
   "notes": [
-    "底栏和切页动画重做，页面切换更加丝滑",
-    "新增学业情况查询功能",
-    "新增趣智校园使用码",
-    "新增应用内更新日志"
+    "修复趣智校园扫码无法跳转使用的bug，如果给您带来的不好的体验，非常抱歉。"
   ],
-  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.5.8.apk?sharecode=BZD63HRP4B",
-  "bytes": 5420922,
-  "sha256": "ac40b21dfad29e1c2f6e985bec8762ec5244ba31564b497e87f7001f4410d806"
+  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.5.8.1.apk?sharecode=BZD63HRP4B",
+  "bytes": 5437306,
+  "sha256": "af7ed82392da21863e9ac4af963a27980e3fe1718c83c4c9335f377451f6708f"
 }

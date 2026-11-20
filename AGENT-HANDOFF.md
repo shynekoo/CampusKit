@@ -13,15 +13,15 @@
 
 | 项 | 值 | 说明 |
 | :-- | :-- | :-- |
-| 线上正式版 / 下载站 | **2.5.8** | `delivery/update/update.json`，versionCode `208`，2026-11-19 发布 |
-| 线上 APK | `campuskit-2.5.8.apk` | 5,420,922 字节，SHA-256 `ac40b21d…10d806`；带 `?sharecode=BZD63HRP4B`，下载后实测哈希一致 |
-| 已提交并 push | 2.5.8.1（versionCode 199） | HEAD `6406500`；`git status` 显示与 `origin/main` 同步（0/0） |
+| 线上正式版 / 下载站 | **2.5.8.1** | `delivery/update/update.json`，versionCode `209`，2026-11-20 发布；修复趣智校园扫码跳转 |
+| 线上 APK | `campuskit-2.5.8.1.apk` | 5,437,306 字节，SHA-256 `af7ed823…f6708f`；带 `?sharecode=BZD63HRP4B`；用水版（`--field-water`），dex 水控类命中 4/100/3 |
+| 历史开发包（同名未发版） | 2.5.8.1（versionCode 199） | 提交 `6406500`；与本次线上 2.5.8.1/209 **不是同一产物** |
 | 已提交（本地 `main`，合并后重建） | **2.5.8.8**（versionCode 206） | 产物 `delivery/科信小助手-2.5.8.8.apk`；主线已含少课修复，dex 反查通过，详见「同步状态」 |
 | 当前分支 | **2.5.8**（versionCode 208，已发布） | `feat/diag-2.5.8`：诊断系统重构 + 把 2.5.8.1–2.5.8.9 合并成正式版本号；产物 `delivery/科信小助手-2.5.8.apk`，5 420 922 B，SHA-256 `ac40b21d…10d806` |
-| 发布公告（已写） | `delivery/release-2.5.8.md` | 含短版 / 长版公告、升级注意、已知问题、上线清单；`update.json` 与 App 内更新日志**待发版当天**再改 |
+| 发布公告（当前版） | `delivery/release-2.5.8.1.md` | 含短版 / 长版公告、根因、测试与上线清单；`update.json` 与 App 内更新日志已同步。上版公告见 `delivery/release-2.5.8.md` |
 | 上一版未发版包 | 2.5.8.7（versionCode 205） | 产物仍在 `delivery/`，**不含少课修复**，仅作历史对照 |
-| 最新 Git tag | `v2.5.8` | 2.5.8.x 开发迭代未各自建 tag |
-| GitHub Release | 最新为 v2.5.8 | 附 `kexin-xiaozhushou-2.5.8.apk` |
+| 最新 Git tag | `v2.5.8.1` | 2.5.8 为 `00d7bb4`；2.5.8.x 早期开发迭代未各自建 tag |
+| GitHub Release | 最新为 [v2.5.8.1](https://github.com/shynekoo/CampusKit/releases/tag/v2.5.8.1) | 附 `kexin-xiaozhushou-2.5.8.1.apk`（5,437,306 字节） |
 
 ## 二之二、同步状态（2026-11-19 22:45 合并完成）
 

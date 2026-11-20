@@ -7,12 +7,12 @@
 | 项 | 值 |
 | :-- | :-- |
 | 技术栈 | Java + 原生 Android View + Python 构建；无 Kotlin / Compose / Gradle |
-| 线上正式版 | **2.5.8 / versionCode 208**（2026-11-19 发布，`delivery/update/update.json`） |
-| 已提交 HEAD | `bcee394`（main：2.5.8.8 重建） |
+| 线上正式版 | **2.5.8.1 / versionCode 209**（2026-11-20 发布，`delivery/update/update.json`；修复趣智校园扫码跳转，用水版） |
+| 已提交 HEAD | `00d7bb4`（main：2.5.8 发布，已 push） |
 | 当前开发分支 | `feat/diag-2.5.8`（诊断系统改造，**未提交、未合并**） |
-| 最新包 | `delivery/科信小助手-2.5.8.apk`（versionCode 208，已发布，sha256 `ac40b21d…10d806`）；`2.5.8.8` 仍保留作对照 |
+| 最新包 | `delivery/科信小助手-2.5.8.1.apk`（versionCode 209，已发布，sha256 `af7ed823…f6708f`，`--field-water` 用水版）；`2.5.8` 保留作对照 |
 | 发布公告 | `delivery/release-2.5.8.md`（短版 / 长版公告 + 上线记录 + 原始清单） |
-| 最新 tag / Release | `v2.5.8`（2.5.8.x 开发迭代未各自建 tag） |
+| 最新 tag / Release | `v2.5.8.1`（[Release](https://github.com/shynekoo/CampusKit/releases/tag/v2.5.8.1)，附 ASCII 资产 `kexin-xiaozhushou-2.5.8.1.apk`） |
 | 工作区 | `feat/diag-2.5.8` 上未提交；主线 `main` 未改 |
 | 核心断言 | 实测 **1329 项全过**；UI 契约守卫 **240 锚点**；诊断隐私守卫 **634 项** |
 | 发布状态 | **2.5.8 已发布**：清单、直链、下载站、App 内更新日志已同步；早期 2.5.8.x 开发包未单独发布 |

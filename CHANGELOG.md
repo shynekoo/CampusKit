@@ -4,8 +4,9 @@
 
 **事实基准**（每条均以仓库代码 / Git 提交 / 实际构建为依据，不推测）：
 
-- 上一版正式版：`2.5.7`（versionCode `197`，2026-11-18）；现由 `2.5.8`（208）取代，见下条。
-- 已提交并 push、尚未发版：`2.5.8.1`（versionCode `199`，Git HEAD `6406500`）。
+- 当前正式版：`2.5.8.1`（versionCode `209`，2026-11-20，修复扫码跳转），见下条。
+- 上一版正式版：`2.5.8`（versionCode `208`，2026-11-19）；更早为 `2.5.7`（197）。
+- 历史开发包 `2.5.8.1`（versionCode `199`，Git HEAD `6406500`）与本版同名但**不是**同一产物，未发版。
 - 已提交、尚未发版：`2.5.8.2`–`2.5.8.6`（最新 versionCode `204`），含学业情况查询与 UI-1/UI-2 第一轮。
 - 已提交并 push 的主线：`16cec29`（UI-1 / UI-2 / UI-3 转场竞态 + 滚动恢复 + 回本周整屏滑页）。
 - 已提交到主线、尚未发版：数据与隐私 / 使用公告改版 + 移除未使用的 Wi-Fi 权限；应用内更新日志；使用公告入口去重 + 课表圆角默认 20dp（versionCode `205`）；学业情况少课修复（计划内 / 计划外课组按学校 `jdkcsx` 分流取课端点）。
@@ -18,6 +19,25 @@
 更早版本的发布说明见 [`delivery/release-*.md`](delivery/)。
 
 ---
+
+## [2.5.8.1] - 2026-11-20（versionCode 209，已发布）
+
+> 修复趣智校园扫码无法跳转使用的bug，如果给您带来的不好的体验，非常抱歉。
+> 发布公告见 [`delivery/release-2.5.8.1.md`](delivery/release-2.5.8.1.md)。
+
+### 修复
+
+- **趣智校园扫码后不跳转支付宝**：2.5.7 发版（commit `2575dd8`）未传 `--field-water`，产出只读构建，
+  `BuildFlags.WATER_CONTROL=false`，`ScanActivity.showCode()` 的支付宝跳转分支在编译期被移除；2.5.8 延续。
+  本版重建为用水版，扫码后恢复跳转，与 2.5.6 及之前一致。使用码为同期独立功能，与本问题无关。
+- dex 水控类命中由 1 / 1 / 0 恢复为 `WaterControl` 4、`WaterActivity` 100、`LifeWaterProtocol` 3。
+- manifest 版本真源同步为 209 / 2.5.8.1；`FIELD_VERSION_NAME` 与发布逻辑未改，构建时显式传版本号。
+
+### 测试
+
+- `test_core` 1329 / `test_build_config` 7 / `test_diag_privacy` 634 / `test_diag_files` 6650 /
+  `test_webview_policy` 5 / `test_ui_contract` 240 全绿；APK v2 / v3 验签 true。
+- 真机扫码跳转由发布者确认可用；真实出水/关水/账单未对生产服务测试。
 
 ## [2.5.8] - 2026-11-19（versionCode 208，已发布）
 
