@@ -1,0 +1,8 @@
+# 依赖与本地调试产物
+node_modules/
+.wrangler/
+
+# HMAC 密钥只走 `wrangler secret put` 或本地 .dev.vars，绝不入库
+.dev.vars
+.dev.vars.*
+!.dev.vars.example

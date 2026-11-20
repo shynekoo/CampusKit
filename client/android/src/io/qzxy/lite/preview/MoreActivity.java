@@ -237,6 +237,89 @@ public final class MoreActivity extends Page {
         if (divider) rule(parent);
     }
 
+    /**
+     * 匿名使用统计：默认关，只有读者自己拨开才会开始上报。
+     *
+     * <p>开关放在「数据与隐私」下面第一项，因为它回答的是同一类问题：这个应用会把什么发出去。
+     * 打开前必须过一次确认框，把「发什么、发给谁、多久一次、怎么删」讲清楚——一个只有开关没有
+     * 说明的同意，不算同意。关掉时会同时请求服务端删掉已上传的记录（{@link AnalyticsReporter#setConsent}）。</p>
+     *
+     * <p>构建期没给统计服务地址（{@code --analytics-endpoint}）时，开关是灰的，副标题如实写
+     * 「尚未配置」——不给一个拨了也没用的开关，也不假装服务已经在线。</p>
+     */
+    private void analyticsSetting(LinearLayout parent, boolean divider) {
+        final boolean configured = AnalyticsPreferences.configured();
+        final boolean on = configured && AnalyticsPreferences.consented(this);
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(14), 0, dp(14));
+        row.setMinimumHeight(dp(56));
+
+        android.widget.ImageView mark = new android.widget.ImageView(this);
+        mark.setImageDrawable(AppUi.icon(this, "group", AppUi.ACCENT, 22));
+        mark.setBackground(AppUi.shape(this, AppUi.SOFT, 11));
+        mark.setPadding(dp(8), dp(8), dp(8), dp(8));
+        mark.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        row.addView(mark, new LinearLayout.LayoutParams(dp(38), dp(38)));
+
+        LinearLayout labels = new LinearLayout(this);
+        labels.setOrientation(LinearLayout.VERTICAL);
+        labels.setPadding(dp(14), 0, dp(8), 0);
+        TextView name = text("匿名使用统计", 16, AppUi.INK);
+        name.setTypeface(null, Typeface.BOLD);
+        labels.addView(name);
+        final TextView caption = text(analyticsCaption(configured, on), 12, AppUi.MUTED);
+        caption.setPadding(0, dp(2), 0, 0);
+        labels.addView(caption);
+        row.addView(labels, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+
+        final boolean[] settling = {false};
+        Switch toggle = tick(on, (moved, checked) -> {
+            if (settling[0]) return;
+            if (!checked) {
+                AnalyticsReporter.setConsent(this, false);
+                caption.setText(analyticsCaption(configured, false));
+                row.setContentDescription("匿名使用统计，已关闭");
+                return;
+            }
+            Theme.dialog(this)
+                .setTitle("开启匿名使用统计？")
+                .setMessage("开启后，应用每天最多向开发者自建的统计服务发送一次：\n"
+                    + "· 本机随机生成的安装标识（不是设备码，也不含账号信息）\n"
+                    + "· 当前应用版本号\n\n"
+                    + "用途只有统计每天有多少人使用、各版本各有多少人。不含学号、姓名、手机号、"
+                    + "课表或任何登录凭据，也不会与教务、支付宝等平台的请求混在一起。\n\n"
+                    + "记录在服务端保留 90 天，可随时在这里关闭；关闭时会请求删除已上传的记录。")
+                .setPositiveButton("开启", (dialog, which) -> {
+                    AnalyticsReporter.setConsent(this, true);
+                    caption.setText(analyticsCaption(configured, true));
+                    row.setContentDescription("匿名使用统计，已开启");
+                })
+                .setNegativeButton("保持关闭", (dialog, which) -> revert(moved, settling))
+                .setOnCancelListener(dialog -> revert(moved, settling))
+                .show();
+        });
+        toggle.setEnabled(configured);
+        toggle.setContentDescription("匿名使用统计");
+        row.addView(toggle);
+
+        row.setFocusable(configured);
+        row.setContentDescription("匿名使用统计，" + (on ? "已开启" : "已关闭"));
+        if (configured) {
+            AppUi.press(row, AppUi.SURFACE, 12);
+            row.setOnClickListener(v -> toggle.setChecked(!toggle.isChecked()));
+        }
+        parent.addView(row, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT));
+        if (divider) rule(parent);
+    }
+
+    private static String analyticsCaption(boolean configured, boolean on) {
+        if (!configured) return "统计服务尚未配置，本版不会上报";
+        return on ? "已开启，每天最多上报一次，不含任何账号信息"
+            : "已关闭，不会上报。可随时开启或关闭";
+    }
+
     /** 取消确认后把开关拨回去，但不要再走一遍「已关闭」的提示与落盘。 */
     private void revert(Switch toggle, boolean[] settling) {
         settling[0] = true;
@@ -331,6 +414,8 @@ public final class MoreActivity extends Page {
         // 数据与隐私 从校园页挪到这里：它回答的是「这个应用本身动了什么」，与源码、许可证同类，
         // 而不是像趣智校园/慧生活那样的一项校园服务。
         entry(card, "info", "数据与隐私", "本机存了什么、发到哪里、怎么清除", true, this::openPrivacy);
+        // 匿名统计紧挨着隐私说明：读者刚看完「哪些数据不出本机」，这里就是唯一一处会主动发出去的。
+        analyticsSetting(card, true);
         // 使用公告不在这里另开一条：它就是《数据与隐私》里那份文本的另一面，从那一页末尾
         // 进去即可，同一份东西摆两个入口只会让人猜哪个才是正的。
         // 更新日志挨着「检查更新」的入口放：想知道这版改了什么的人，先找的通常是这里。

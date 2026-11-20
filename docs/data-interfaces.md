@@ -12,6 +12,7 @@
 | 支付宝 SDK | `AlipayLogin`、`QzxyAlipayActivity` | 授权登录、充值收银台、用水免密 | 支付凭据不经应用服务器 |
 | 淘宝/菜鸟 | `PickupCodeLinks`（core） | 唤起取件身份码页面 | 仅跳转，不访问取件数据 |
 | 应用内更新 | `UpdateCheck`、`UpdateSources`、`UpdateManifest`、`UpdateUrls`、`UpdateChannel` | 从所选渠道（WorkBuddy 默认 / GitHub / Gitee 可选）读 `update.json`（正式）与 `beta.json`（预览，仅在开关打开时读）并下载 APK | 三条通道走同一套校验后交系统安装器，用户点安装；渠道只决定「去哪读」，不改变校验强度 |
+| 匿名活跃统计（唯一自建服务） | `AnalyticsReporter`（android）+ `AnalyticsRequest`/`AnalyticsReply`（core）；服务端 `server/analytics-worker` | 读者主动开启后每天最多一次：`POST /v1/active`（随机安装标识 + 版本号），关闭时 `POST /v1/forget` | 只写统计库（HMAC 后的标识、日期、版本），不接触任何业务数据；失败静默、不影响业务 |
 
 ### 更新渠道与稳定地址
 
@@ -21,6 +22,15 @@
 - GitHub Release 资产下载会 302 到带签名 query 的 CDN；Gitee 会先 302 到 `gitee.com/<owner>/<repo>/attach_files/…`，再 302 到 `foruda.gitee.com/attach_file/…?token=…&ts=…`。`UpdateUrls` 逐跳保留 Location 自带的参数（签名 / token+ts），同时剥掉与上一跳同名（如 `sharecode`）的参数，防止凭据跨 host 泄漏。Gitee 链路是两跳且不需要登录（公开仓库）。
 - 默认渠道是 WorkBuddy；未保存过或读到未知值都回落到 WorkBuddy。渠道与「接收预览版更新」两项独立设置，互不影响。GitHub / Gitee 渠道不受 WorkBuddy 站点所有权限制。
 - 实测参考（同一网络、同一时段）：WorkBuddy 托管约 4 MB/s，Gitee 附件约 0.7 MB/s，GitHub Release 在境内常在数十 KB/s 量级。Gitee 的意义是「境内稳定可达」，不是最快。
+
+### 匿名统计（Cloudflare Worker + D1）
+
+- 地址由构建期 `--analytics-endpoint` 写死进 `BuildFlags.ANALYTICS_ENDPOINT`，运行期没有任何入口能改它；空串=未部署，整条链路不工作。
+- `POST /v1/active` 请求体固定两个字段：`installId`（本机随机 UUID，36 字符）与 `version`（≤32 字符，字符集 `[A-Za-z0-9._+-]`）。服务端拒绝多余字段（如 `studentId`、`day`），整包上限 512 字节。
+- 日期由服务端按 UTC+8 自行确定，请求里没有日期/时间/时区字段。
+- 应答：`200 {"ok":true,"counted":…}`=已记；`400`=请求不合规；`413`=包过大；`429`=限流；`503`=密钥缺失或 D1 不可用（失败关闭）。客户端把 `400` 之外的失败与断网一律当作「下次进前台再试」，只有 `200 + ok` 才在本地记下「今天报过了」。
+- `POST /v1/forget` 用同一个标识删除该安装的全部历史记录；没有读接口，统计结果在 D1 控制台查（SQL 见 `server/analytics-worker/README.md`）。
+- 传输约束与更新链路一致：HTTPS、`setInstanceFollowRedirects(false)`、5s 连接 / 8s 读、应答上限 4KB。
 
 ## 通用传输约束（`HttpForm` 等）
 

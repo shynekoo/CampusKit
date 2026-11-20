@@ -14,10 +14,64 @@
 - 已构建、尚未发版：`2.5.8.8`（versionCode `206`，2026-11-19），在合并后的主线上重建。
 - **线上正式版（2026-11-19 发布）**：`2.5.8`（versionCode `208`），把 2.5.8.1–2.5.8.9 合并成一个正式版本号；
   产物 `delivery/科信小助手-2.5.8.apk`，发布公告见 [`delivery/release-2.5.8.md`](delivery/release-2.5.8.md)。
-- 核心断言：`python scripts/test_core.py` → **1518 项全过**；UI 守卫 **331 锚点**；诊断隐私守卫 **672 项**（2026-11-20）。
+- 核心断言：`python scripts/test_core.py` → **1584 项全过**；UI 守卫 **364 锚点**；诊断隐私守卫 **716 项**；统计守卫 **77 项** + Worker `node --test` **18 项**（2026-11-20）。
 - 2.5.8 的 tag / Release / 下载站随本次发布同步；早期 2.5.8.x 开发迭代仍**未**各自建 tag。
 
 更早版本的发布说明见 [`delivery/release-*.md`](delivery/)。
+
+---
+
+## [未发布] — 匿名每日活跃统计（可选，默认关闭）
+
+分支 `feat/analytics`。**尚未提交、未发布**；`2.6.0-beta.11`（versionCode `228`）只在本地构建过，
+产物 `delivery/科信小助手-2.6.0-beta.11.apk`，构建时**没有**给 `--analytics-endpoint`，所以统计
+在这只包里是灰的、不会发任何请求。
+
+**2026-11-21 更新：功能已实现，但暂停启用。** Worker 已部署到
+`https://campuskit-analytics.campuskit.workers.dev`（D1 库 `campuskit-analytics`、表 `daily_active`、
+HMAC 密钥、每日清理 cron 均已就位），但实测 `*.workers.dev` 在国内被按 SNI 封锁：同一 Cloudflare
+边缘 IP 换 SNI 为 `www.cloudflare.com` 返回 200，换回 `*.workers.dev` 立即被重置，真实用户无法上报。
+因此**不进入构建、不发布**，代码留在分支上等一个绑定到 Cloudflare 的自定义域。详见
+[`docs/analytics.md`](docs/analytics.md) 的「当前状态」与 [`docs/known-issues.md`](docs/known-issues.md)。
+
+### 新增
+
+- **匿名每日活跃统计**：`校园 → 更多 → 匿名使用统计`，默认关闭。开启后每天最多上报一次，
+  内容只有本机随机生成的 UUID 与版本号；关闭即停，并可请求删除已上传记录。
+  - 安卓端：`AnalyticsPreferences`（同意状态、随机标识、上次上报日期）、`AnalyticsReporter`
+    （后台线程、5s/8s 超时、不跟随重定向、失败不重试不弹窗）。
+  - core：`AnalyticsDay`（UTC+8 自然日，无 `java.time`）、`AnalyticsRequest`（两字段请求体与形状
+    校验）、`AnalyticsReply`（记上 / 重复 / 拒绝 / 重试四判定）。
+  - 触发点：`App` 的进程前台切换（`onActivityStarted`，计数 0→1），不是页面 `onResume`。
+  - 服务端：`server/analytics-worker/`（Cloudflare Workers + D1）。`POST /v1/active` 由服务器按
+    UTC+8 定日期，`HMAC-SHA256` 后入库，`(day, anon_id)` 联合主键 + `INSERT OR IGNORE` 去重，
+    保留 90 天由定时任务清理；`POST /v1/forget` 删除该安装的历史。无读接口，数据在 D1 控制台查。
+- 构建开关 `--analytics-endpoint https://…` → `BuildFlags.ANALYTICS_ENDPOINT`（空串=未部署）。
+- 诊断新增 `ANALYTICS` 模块：`report.done` / `report.failed` / `forget.done` / `forget.failed`，
+  只记状态码与判定，不记标识与请求体。
+- 测试入口 `scripts/test_analytics.py`（77 项静态守卫 + 跑 Worker 的 `node --test`），已并入
+  `build_preview.py` 的预检与 CI。
+- 文档：新增 [`docs/analytics.md`](docs/analytics.md)；`architecture` / `security` / `data-interfaces` /
+  `diagnostics` / `modules` / `build-and-release` / `README` 同步；隐私说明新增第 5 节（生效日期
+  2026-11-20）。
+
+### 测试结果（实测）
+
+| 入口 | 结果 |
+| :-- | :-- |
+| `python scripts/test_core.py` | 1584 项全过 |
+| `python scripts/test_diag_privacy.py` | 716 项全过 |
+| `python scripts/test_ui_contract.py` | 364 锚点全过 |
+| `python scripts/test_analytics.py` | 77 项全过 + Worker 18 项全过 |
+| `python scripts/test_build_config.py` / `test_diag_files.py` / `test_webview_policy.py` | 全过 |
+| `python scripts/build_preview.py --version-name 2.6.0-beta.11 --version-code 228 --beta` | 出包成功，dex 内含 `AnalyticsReporter` / `AnalyticsPreferences` / `v1/active` |
+
+### 未验证
+
+- Cloudflare 侧**未部署**：没有 D1 库、没有 HMAC 密钥、没有 Worker 地址，`wrangler.toml` 的
+  `database_id` 仍是占位值。因此真机上的上报、断网补报、关闭后删除、覆盖升级标识不变、卸载重装换
+  新标识、服务端异常容错**全部未实测**。
+- 统计功能的界面与流程只做了静态守卫（锚点）与 JVM 断言，没有真机走查。
 
 ---
 

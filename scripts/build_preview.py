@@ -70,7 +70,22 @@ def check_route_boundary(dex_dir, field_water):
     return hits
 
 
-def write_build_flags(field_water, device_tests, diagnostics):
+def analytics_endpoint(argv=None):
+    """--analytics-endpoint：匿名统计服务地址。不给就是空——统计功能保持不可用状态。
+
+    只接受 https：请求体里那两样东西再少，也不该走明文。地址由构建期写死进包，运行期没有
+    任何地方能改它（没有偏好键、没有输入框），所以「上报去了哪个域名」是可以在 APK 里查到的
+    事实，而不是一句承诺。
+    """
+    value = (option("--analytics-endpoint", argv) or "").strip().rstrip("/")
+    if not value:
+        return ""
+    if not value.startswith("https://") or " " in value or '"' in value or "\\" in value:
+        raise RuntimeError("--analytics-endpoint 必须是 https:// 开头的地址，当前是 %r" % value)
+    return value
+
+
+def write_build_flags(field_water, device_tests, diagnostics, endpoint=""):
     package = BUILD / "generated/io/qzxy/lite/preview"
     package.mkdir(parents=True, exist_ok=True)
     source = package / "BuildFlags.java"
@@ -88,6 +103,11 @@ def write_build_flags(field_water, device_tests, diagnostics):
         "    static final boolean DIAG_BASIC = true;\n"
         "    /** 内部细节事件（手势、渲染、逐次请求）：只有显式 --diagnostics 才编入。 */\n"
         "    static final boolean DIAGNOSTICS = " + ("true" if diagnostics else "false") + ";\n"
+        "    /**\n"
+        "     * 匿名活跃统计服务地址（构建期 --analytics-endpoint 写入）。空串表示没有部署：\n"
+        "     * 设置页会如实写「尚未配置」，不会发出任何统计请求。\n"
+        "     */\n"
+        "    static final String ANALYTICS_ENDPOINT = \"" + endpoint.replace("\\", "\\\\").replace('"', '\\"') + "\";\n"
         "    private BuildFlags() { }\n"
         "}\n", encoding="utf-8")
     return source
@@ -149,11 +169,12 @@ def diagnostics_enabled(argv):
     return "--diagnostics" in argv
 
 
-def option(name):
+def option(name, argv=None):
     """--name value 或 --name=value，找不到就返回 None。"""
-    for index, value in enumerate(sys.argv):
-        if value == name and index + 1 < len(sys.argv):
-            return sys.argv[index + 1]
+    values = sys.argv if argv is None else argv
+    for index, value in enumerate(values):
+        if value == name and index + 1 < len(values):
+            return values[index + 1]
         if value.startswith(name + "="):
             return value.split("=", 1)[1]
     return None
@@ -174,6 +195,7 @@ def main():
         run([sys.executable, ROOT / "scripts/test_diag_privacy.py"])
         run([sys.executable, ROOT / "scripts/test_diag_files.py"])
         run([sys.executable, ROOT / "scripts/test_webview_policy.py"])
+        run([sys.executable, ROOT / "scripts/test_analytics.py"])
     properties = subprocess.run(["java", "-XshowSettings:properties", "-version"], capture_output=True, text=True, errors="replace", check=True)
     found = re.search(r"java.home\s*=\s*(.+)", properties.stderr)
     if found is None:
@@ -263,7 +285,7 @@ def main():
         manifest = BUILD / ("field-manifest.xml" if field_water else "versioned-manifest.xml")
         tree.write(manifest, encoding="utf-8", xml_declaration=True)
         manifest_root = root
-    write_build_flags(field_water, device_tests, diagnostics)
+    write_build_flags(field_water, device_tests, diagnostics, analytics_endpoint(sys.argv))
     run([tools / "aapt2.exe", "compile", "--dir", app / "res", "-o", BUILD / "resources.zip"])
     run([tools / "aapt2.exe", "link", "-I", android, "--manifest", manifest,
          "--java", BUILD / "generated", "--custom-package", "io.qzxy.lite.preview",

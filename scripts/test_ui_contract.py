@@ -669,6 +669,28 @@ def main():
             "使用公告页需要注册，否则入口点了会崩")
     require(manifest, 'android:name=".PrivacyActivity"', "AndroidManifest",
             "数据与隐私页仍在清单里")
+    # --- 匿名使用统计：开关在「更多」，删除在「数据与隐私」，触发在 App 的前台切换 ---------
+    more_src_path = PREVIEW / "MoreActivity.java"
+    more_src = more_src_path.read_text(encoding="utf-8")
+    analytics_prefs_path = PREVIEW / "AnalyticsPreferences.java"
+    analytics_prefs = analytics_prefs_path.read_text(encoding="utf-8") if analytics_prefs_path.exists() else ""
+    app_src = (PREVIEW / "App.java").read_text(encoding="utf-8")
+    require(more_src, "private void analyticsSetting(", "MoreActivity",
+            "匿名使用统计的开关必须在「更多」页")
+    require(more_src, '"匿名使用统计"', "MoreActivity", "开关的标题是读者看得懂的那四个字")
+    require(more_src, "AnalyticsReporter.setConsent(this, true)", "MoreActivity",
+            "打开统计要经过统一的同意入口")
+    require(more_src, "AnalyticsReporter.setConsent(this, false)", "MoreActivity",
+            "关闭统计要停上报并请求删除")
+    require(analytics_prefs, "getBoolean(KEY_CONSENT, false)", "AnalyticsPreferences",
+            "统计默认关闭，升级安装不得自动开启")
+    require(app_src, "AnalyticsReporter.onForeground", "App",
+            "统计只在进程进入前台时检查一次")
+    require(privacy_src, '"匿名使用统计"', "PrivacyActivity", "隐私页要交代统计这件事")
+    require(privacy_src, "删除已上传的匿名记录", "PrivacyActivity",
+            "隐私页要能单独删除已上传的匿名记录")
+    require(legal, '"5. 匿名使用统计"', "LegalText", "隐私说明必须有一节讲统计")
+    require(legal, "90 天", "LegalText", "统计记录的保留期必须写明")
     # 离线可读：这两页不许引入 WebView 或任何请求。注释里提到这些词不算（说明文里会解释
     # 「不用 WebView」），只看真正的代码行。
     def code_lines(text):

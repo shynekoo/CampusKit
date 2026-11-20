@@ -6,7 +6,8 @@
 
 - **Java** + **原生 Android View**；**没有 Kotlin、没有 Compose、没有 Gradle**。
 - 构建是 Python 脚本 + 官方 SDK 工具（`aapt2` / `d8` / `zipalign` / `apksigner`），入口 `scripts/build_preview.py`。
-- 无后端、无 Gradle 插件；依赖按 SHA-256 固定在 `tools/`，第三方清单见 [`client/THIRD_PARTY.md`](client/THIRD_PARTY.md)。
+- 业务无后端、无 Gradle 插件；依赖按 SHA-256 固定在 `tools/`，第三方清单见 [`client/THIRD_PARTY.md`](client/THIRD_PARTY.md)。
+- 仓库里唯一的服务端代码是 `server/analytics-worker/`（Cloudflare Workers + D1，可选的匿名活跃统计，默认关闭）。它只处理「随机安装标识 + 版本号」，不参与任何业务请求。
 - 不要引入上述不存在的技术栈，也不要假设有 `gradlew` / `build.gradle` / `*.kt`。
 
 ## 1. 每次开发任务的工作流（强制）
@@ -17,7 +18,7 @@
 4. 运行文档同步检查（见第 2 节），识别受影响文档。
 5. **增量更新**受影响文档：只改相关段落，禁止无理由重写整套文档。
 6. 更新 [`CHANGELOG.md`](CHANGELOG.md) 的「未发布」段。
-7. 执行可用测试：`python scripts/test_core.py`、`test_build_config.py`、`test_diag_privacy.py`、`test_diag_files.py`、`test_webview_policy.py`、`test_ui_contract.py`；出包才跑 `build_preview.py`。
+7. 执行可用测试：`python scripts/test_core.py`、`test_build_config.py`、`test_diag_privacy.py`、`test_diag_files.py`、`test_webview_policy.py`、`test_ui_contract.py`、`test_analytics.py`；出包才跑 `build_preview.py`。
 8. 检查代码与文档一致性（命令、路径、版本、测试数量是否与实测一致）。
 9. 汇总：代码改动 / 文档改动 / 测试结果 / 未验证事项。
 
@@ -51,15 +52,16 @@ python scripts/check_doc_sync.py --base origin/main   # 检查一个提交范围
 ## 4. 测试与 CI
 
 ```bash
-python scripts/test_core.py            # core JVM 断言（当前 1505 项）
+python scripts/test_core.py            # core JVM 断言（当前 1584 项）
 python scripts/test_build_config.py    # 诊断构建开关 7 项
-python scripts/test_diag_privacy.py    # 诊断隐私守卫 672 项
+python scripts/test_diag_privacy.py    # 诊断隐私守卫 716 项
 python scripts/test_diag_files.py      # 日志轮转/上限/清空/过期清理实跑
 python scripts/test_webview_policy.py  # WebView 导航守卫 5 项
-python scripts/test_ui_contract.py     # UI 行为静态守卫 326 锚点
+python scripts/test_ui_contract.py     # UI 行为静态守卫 364 锚点
+python scripts/test_analytics.py       # 统计隐私守卫 77 项 + server/analytics-worker 的 node --test
 ```
 
-CI 在 `.github/workflows/docs-ci.yml`：推送 / PR 时自动跑以上六个入口（构建脚本内置的五个 + UI 守卫），并检查关键文档存在。**CI 不构建、不签名、不发布、不推送任何内容。**
+CI 在 `.github/workflows/docs-ci.yml`：推送 / PR 时自动跑以上七个入口（构建脚本内置的六个 + UI 守卫），并检查关键文档存在。**CI 不构建、不签名、不发布、不推送任何内容。**
 
 ## 5. 发布与提交
 

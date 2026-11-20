@@ -51,6 +51,14 @@ jobs:
       - name: Run UI behaviour contract guards
         run: python scripts/test_ui_contract.py
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run analytics privacy guards and worker tests
+        run: python scripts/test_analytics.py
+
       - name: Check key documentation exists
         shell: bash
         run: |
@@ -65,6 +73,7 @@ jobs:
             docs/ui-navigation.md
             docs/data-interfaces.md
             docs/known-issues.md
+            docs/analytics.md
             docs/agent-handoff.md
             docs/back-gesture.md
             docs/real-device-acceptance.md

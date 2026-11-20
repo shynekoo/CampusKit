@@ -27,6 +27,12 @@ public final class App extends Application {
     /** The look each activity was created under, so a resumed page knows it is out of date. */
     private final Map<Activity, Integer> drawn = new WeakHashMap<>();
 
+    /**
+     * 前台页面的计数。0 → 1 就是「回到前台」，1 → 0 是「退到后台」。用它而不是每个页面的
+     * {@code onResume}：一次进前台只触发一次，页面之间来回切不会重复问统计服务。
+     */
+    private int started;
+
     @Override public void onCreate() {
         super.onCreate();
         Theme.load(this);
@@ -60,11 +66,18 @@ public final class App extends Application {
             else activity.recreate();
         }
 
-        @Override public void onActivityStarted(Activity activity) { }
+        @Override public void onActivityStarted(Activity activity) {
+            // 只有「从后台回来」这一次算进入前台。没有同意统计的用户在这里只是一次偏好读取，
+            // 不会生成标识、也不会发请求。
+            if (started++ > 0) return;
+            AnalyticsReporter.onForeground(getApplicationContext());
+        }
 
         @Override public void onActivityPaused(Activity activity) { }
 
-        @Override public void onActivityStopped(Activity activity) { }
+        @Override public void onActivityStopped(Activity activity) {
+            if (started > 0) started--;
+        }
 
         @Override public void onActivitySaveInstanceState(Activity activity, Bundle saved) { }
 

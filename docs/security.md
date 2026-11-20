@@ -11,8 +11,9 @@
 | 课表与设置 | 应用私有目录，`allowBackup=false`，只在用户手动导出时生成备份 |
 | 诊断信息 | 运行期默认关，用户主动开启；只写白名单字段（无自由文本、无 SDK 原文、无请求正文），私有目录、不联网；导出与复制读的是同一份已脱敏内容 |
 | 支付 | 交给支付宝官方 SDK 与收银台；应用不接触支付凭据 |
+| 匿名活跃统计 | 默认关闭；开启后只发随机安装 UUID 与版本号，服务端 HMAC 后入库、保留 90 天；可随时关闭并请求删除（见 [`analytics.md`](analytics.md)） |
 
-权限仅 5 项：网络×3、相机（扫码）、安装 APK（更新，用户确认）。未申请定位 / 通讯录 / 短信 / 存储 / 蓝牙。
+权限仅 4 项：网络访问、网络状态、相机（扫码）、安装 APK（更新，用户确认）。未申请定位 / 通讯录 / 短信 / 存储 / 蓝牙；统计功能没有新增任何权限。
 
 ## 诊断日志的安全边界
 
@@ -33,6 +34,22 @@
 - **固定依赖**：ZXing / PDFBox / Bouncy Castle / 支付宝 AAR 以 SHA-256 锁定，构建时校验；手工合并 AAR。
 - **WebView**：5 处 WebView 页面全部 HTTPS-aware（由 `test_webview_policy.py` 静态守卫）；禁混合内容；拦截导航与新窗口；`addJavascriptInterface` 零命中。学生评价**不使用 WebView**：问卷片段由 `EduEvaluationForm` 当纯文本读出来，题目与选项在原生控件上渲染，因此这条链路不引入任何网页执行环境。
 - **评教的写入边界**：`EduClient.checkPath()` 只按名字放行五个 `/xspjgl/` 端点（列表查询、评价情况统计、问卷片段、暂存、提交）。写端点只接收 `EduEvaluationForm.body()` 按读者实际选择拼出的请求体：应用不预填、不代选、不批量代评，提交前必须由读者在二次确认框里确认，且只提交当前这一个教学班。评语只存在内存里，不写盘、不进诊断。
+
+## 匿名统计的安全边界
+
+- **同意先行**：`AnalyticsPreferences.consented` 默认 false；`installId()` 只读不建，标识只在读者按下
+  开启之后的 `ensureInstallId()` 里生成，升级安装不会自动开启。
+- **请求体只有两样**：`installId`（本机 `UUID.randomUUID()`）与 `version`。日期由服务端按 UTC+8 现算，
+  客户端不上传时间；不读 ANDROID_ID / IMEI / OAID / MAC，不带学号与任何业务数据。
+- **入库不是 UUID**：服务端先 `HMAC-SHA256`（密钥走 `wrangler secret`，不入库、不进仓库），
+  表里只有 `day` / `anon_id` / `app_version`，主键 `(day, anon_id)` + `INSERT OR IGNORE`。
+- **密钥缺失即失败关闭**：Worker 找不到 `ANALYTICS_HMAC_SECRET` 直接 503，绝不退化成明文入库。
+- **不进诊断日志**：只记状态码与判定；`scripts/test_analytics.py` 静态检查统计模块的 `Diag.*`
+  调用里不出现标识或请求体。
+- **删除可执行**：关闭开关或「数据与隐私 → 删除已上传的匿名记录」会请求删掉该标识的全部历史；
+  删不掉则保留待删除标记，下次进前台继续（标识在删成功前不丢）。
+- **故障不影响业务**：后台线程、5s/8s 超时、不跟随重定向、失败不重试不弹窗；构建期没给
+  `--analytics-endpoint` 时整条链路不可用（开关置灰）。
 
 ## 支付与用水控制
 
