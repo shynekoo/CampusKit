@@ -1,12 +1,13 @@
 {
-  "version": "2.6.0-beta.1",
-  "versionCode": 217,
+  "version": "2.6.0-beta.2",
+  "versionCode": 218,
   "notes": [
-    "学生评价：点开一门课会打开学校的评价页，并自动定位到这门课那一行，表单由学校页面自己装载，评分与提交都在页面上完成",
-    "修掉前几版「参数异常 / 系统升级维护中 / 面板空白」：Referer 改为页面自身地址（带模块号），并给学校的表单请求补上 gnmkdm",
-    "打开后状态栏会报「共 N 个评价项」，0 项与空白面板分别有不同提示，便于判断是学校模板没开放还是没定位到"
+    "学生评价：找到真根因——学校的评价页是片段页，必须装进教务菜单文档里才跑得起来；现在会先打开菜单再就地装载，评价题目才能真正显示",
+    "课程定位改为读表格自己的数据（教学班编号）而不是行里的文字，隐藏列也能正确定位",
+    "装载失败不再无限等待：30 秒内给出具体原因（列表没出现 / 没这门课 / 学校回 0 门 / 面板 0 项 / 学校自己拒绝）",
+    "提交后学校追问「是否评选最佳教师」时也在同一页内打开，不再白屏"
   ],
-  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.6.0-beta.1.apk?sharecode=BZD63HRP4B",
-  "bytes": 5453690,
-  "sha256": "27fe5fc99e0a13f8757b8cbd70f22622bc6cdca5f3055361096c388e6ef09976"
+  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.6.0-beta.2.apk?sharecode=BZD63HRP4B",
+  "bytes": 5457786,
+  "sha256": "274e7e302ba96e5a372dec71a22a4d8a9ea53a9cf4aed5e21907b096154d27a8"
 }

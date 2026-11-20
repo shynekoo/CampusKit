@@ -15,6 +15,7 @@ public final class DiagCatalog {
         switch (code) {
             case "APP": return "应用";
             case "EDU": return "教务";
+            case "EVAL": return "学生评价";
             case "TIMETABLE": return "课表";
             case "NETWORK": return "网络";
             case "LIFE": return "慧生活";
@@ -28,7 +29,7 @@ public final class DiagCatalog {
     }
 
     /** 稳定的模块代码，供筛选按模块聚合。 */
-    public static final String[] MODULES = {"EDU", "TIMETABLE", "NETWORK", "LIFE", "QZXY", "UPDATE", "UI"};
+    public static final String[] MODULES = {"EDU", "EVAL", "TIMETABLE", "NETWORK", "LIFE", "QZXY", "UPDATE", "UI"};
 
     public static String title(String module, String code) {
         if (code == null) return "";
@@ -48,6 +49,11 @@ public final class DiagCatalog {
             case "auth.start": return "开始唤起支付宝";
             case "auth.returned": return "支付宝已返回";
             case "auth.failed": return "支付宝授权失败";
+
+            case "shell.mount": return "评价页已装进教务菜单";
+            case "form.ready": return "评价表单已打开";
+            case "form.empty": return "评价表单没有内容";
+            case "form.failed": return "评价页没能打开";
 
             case "load.start": return "开始获取课表数据";
             case "load.success": return "课表已加载";

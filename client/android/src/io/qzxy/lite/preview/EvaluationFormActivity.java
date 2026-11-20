@@ -5,6 +5,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.CookieManager;
@@ -21,30 +22,37 @@ import android.widget.TextView;
 /**
  * The school's own 学生评价 page, opened on one 教学班 and left to the school to drive.
  *
- * <p>Earlier versions asked for the evaluation form directly, as a URL with ids attached. That can
- * never work: the form is a <em>fragment</em> — {@code xspj_cxXspjDisplay.html} — and the 暂存 /
- * 提交 buttons it binds ({@code #btn_xspj_bc}, {@code #btn_xspj_tj}) live in the list page's own
- * markup, not in the fragment. Fetched on its own it is a form of radio buttons with no way to
- * submit, whatever shape the request takes; the school's list page asks for it with
- * {@code $(panel).load(url, data)}, a jQuery POST whose headers and encoding only exist inside a
- * page that is already on the school's origin.</p>
+ * <p>A 正方 module page is not a page: it is a fragment written against globals the menu shell
+ * declares — {@code _path} for every url it builds, {@code BaseJqGrid} and {@code loadJqGrid} for
+ * its grid, {@code $.i18n} for every label. Opened as a top-level document it throws on the first
+ * of those ({@code BaseJqGrid is not defined}) inside its own {@code $(function(){…})}, so the grid
+ * is never created, {@code onSelectRow} is never bound, and the panel keeps the static skeleton it
+ * shipped with — the 状态备注 legend and "评价内容 / 0% Complete" the user saw. That is why the
+ * school's own menu entry works while a direct url did not: the menu loads the module <em>into the
+ * shell document</em>, where those globals exist.</p>
  *
- * <p>So this screen loads {@link EduClient#EVAL_PAGE} itself and then selects the row for the 教学班
- * the student tapped, through the grid's own {@code setSelection}. From there the school's
- * {@code onSelectRow} loads the fragment into its panel, fills the teacher line, wires the buttons
- * and decides what 暂存 and 提交 send. Nothing about the evaluation — the ids, the fields, the
- * required items, the submit — is built on this side.</p>
+ * <p>So this screen loads the shell first, then mounts the module into a full-screen host inside
+ * it, exactly as the menu does. Everything after that — the grid, the row, the fragment the row
+ * loads, the 暂存 / 提交 buttons the fragment wires — is the school's own code running on its own
+ * terms. Nothing about the evaluation is built on this side: the app never scores and never
+ * submits.</p>
  *
- * <p>Navigation stays on the school's HTTPS hosts, no form data is saved, and the browser session
- * is the one the list already holds: leaving keeps it, so returning reloads without signing in.</p>
+ * <p>Two things are added to that document, both inert to the school's logic: a
+ * {@code $.ajaxPrefilter} that appends {@code gnmkdm=N401605} to its {@code /xspjgl/} requests
+ * (the shell's own referer does not carry the module id, and the endpoint answers 500 without it),
+ * and an error listener, so a page that throws says so in the status line instead of waiting.</p>
  */
 public final class EvaluationFormActivity extends Page {
     /** The 教学班 to land on; the only thing this screen needs from the list. */
     static final String EXTRA_CLASS = "jxb_id";
     static final String EXTRA_TITLE = "title";
 
-    /** How many times to look for the row before saying so: the grid answers over two round trips. */
-    private static final int MAX_POLLS = 24;
+    /** How many times to look for the row: the grid answers over two round trips. */
+    private static final int MAX_POLLS = 30;
+    /** Whole-screen budget. Past this the screen says what is wrong rather than waiting. */
+    private static final long BUDGET_MS = 30_000;
+    /** How many row selections may produce nothing before the panel counts as not loading. */
+    private static final int MAX_MISSES = 3;
 
     private WebView web;
     private TextView status;
@@ -52,8 +60,9 @@ public final class EvaluationFormActivity extends Page {
     private Button backButton;
     private String classId = "";
     private int polls;
-    /** Row selections that produced nothing; the grid drops one made while it is still loading. */
     private int misses;
+    private boolean mounted;
+    private long startedAt;
     private final Handler main = new Handler(Looper.getMainLooper());
 
     private int dp(int n) { return Math.round(n * getResources().getDisplayMetrics().density); }
@@ -129,7 +138,7 @@ public final class EvaluationFormActivity extends Page {
         status.setTextSize(12);
         status.setTextColor(AppUi.MUTED);
         status.setPadding(dp(2), 0, dp(2), dp(6));
-        status.setText("正在打开学校的评价页面…");
+        status.setText("正在打开学校的教务菜单…");
         root.addView(status);
 
         web = new WebView(this);
@@ -153,9 +162,19 @@ public final class EvaluationFormActivity extends Page {
         CookieManager.getInstance().setAcceptThirdPartyCookies(web, false);
         web.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                if (school(request.getUrl().toString())) return false;
-                status.setText("该跳转不属于学校 HTTPS 网站，未在此页打开。");
-                return true;
+                String target = request.getUrl().toString();
+                if (!school(target)) {
+                    status.setText("该跳转不属于学校 HTTPS 网站，未在此页打开。");
+                    return true;
+                }
+                // 提交后学校会问「要不要评选最佳教师」并跳到另一个模块页。作为顶层文档打开它同样
+                // 缺 _path / BaseJqGrid，只剩白页——所以改成就地装进壳里，和进来时一样。
+                if (mounted && target.contains("/zjjspxgl/")) {
+                    view.evaluateJavascript(hostLoad(target), null);
+                    status.setText("已在评价页内打开学校的后续页面。");
+                    return true;
+                }
+                return false;
             }
             @Override public void onPageFinished(WebView view, String url) {
                 refreshBackMode();  // 历史变了，返回该不该缩卡片也跟着变
@@ -165,10 +184,15 @@ public final class EvaluationFormActivity extends Page {
                     status.setText("登录状态已失效：返回上一页会重新登录，再进来就能评。");
                     return;
                 }
-                if (!url.contains("/xspjgl/")) return;  // 学校把页面带到了别处，等它停下
-                status.setText("页面已打开，正在定位这门课…");
-                polls = 0;
-                pick();
+                if (url.contains("/xspjgl/")) {   // 学校自己跳到了模块页，就当已经装好
+                    status.setText("页面已打开，正在定位这门课…");
+                    located();
+                    return;
+                }
+                // Anything else is the shell, or where the shell redirected to — the document the
+                // module's globals live in either way, so mount into it. The flag keeps a redirect
+                // chain from mounting twice.
+                mount();
             }
             @Override public void doUpdateVisitedHistory(WebView view, String url, boolean reload) {
                 WebBack.caption(backButton, view);
@@ -188,11 +212,11 @@ public final class EvaluationFormActivity extends Page {
     }
 
     /**
-     * Opens the list page with the app's session cookie already installed.
+     * Opens the menu shell with the app's session cookie already installed.
      *
-     * <p>The Referer is the page's own url, which is what a browser sends once the page is up: it
-     * carries {@code gnmkdm}, and the module's own filter reads that. A Referer pointing at the menu
-     * frame loads the page but leaves the fragment request without it.</p>
+     * <p>The shell is the whole point: it is the document that declares {@code _path},
+     * {@code BaseJqGrid}, {@code $.i18n} and {@code loadJqGrid}. Loading the module url instead is
+     * what left the screen with a legend and "0% Complete".</p>
      */
     private void load() {
         CookieManager cookies = CookieManager.getInstance();
@@ -205,63 +229,136 @@ public final class EvaluationFormActivity extends Page {
         }
         polls = 0;
         misses = 0;
-        status.setText("正在打开学校的评价页面…");
+        mounted = false;
+        startedAt = SystemClock.elapsedRealtime();
+        status.setText("正在打开学校的教务菜单…");
         java.util.HashMap<String, String> headers = new java.util.HashMap<>();
-        headers.put("Referer", EduClient.ORIGIN + EduClient.EVAL_PAGE);
-        web.loadUrl(EduClient.ORIGIN + EduClient.EVAL_PAGE, headers);
+        headers.put("Referer", EduClient.ORIGIN + "/");
+        web.loadUrl(EduClient.ORIGIN + EduClient.MENU_PAGE, headers);
     }
 
     /**
-     * Makes the page's own fragment request carry the module id.
+     * Mounts the module into the shell document and starts looking for the row.
      *
-     * <p>The page calls {@code $(#panel_content).load("/xspjgl/xspj_cxXspjDisplay.html", {…})} without
-     * {@code gnmkdm}; reached from the menu that is harmless, but a page opened by url gets nothing
-     * back for it — the panel stays at its own placeholder. Appending the id to that one url is the
-     * smallest change that makes the request the one the endpoint answers (verified by hand: with
-     * {@code gnmkdm} the same ids return a form with 13 items, without it 500).</p>
+     * <p>Done the way the menu does it — {@code $(host).load(url)} — so the module's own scripts run
+     * with the shell's globals in scope. The host covers the shell so the student sees the
+     * evaluation, not a menu.</p>
      */
-    private static String patch() {
-        return "if(j.fn&&j.fn.load&&!j.fn.__ckEvalPatched){"
-            + "var L=j.fn.load,P=function(u){"
-            + "if(typeof u==='string'&&u.indexOf('xspj_cxXspjDisplay.html')>=0"
-            + "&&u.indexOf('gnmkdm')<0){u+=(u.indexOf('?')>=0?'&':'?')+'gnmkdm=N401605';arguments[0]=u;}"
-            + "return L.apply(this,arguments);};"
-            + "P.__ckEvalPatched=true;j.fn.load=P;}";
+    private void mount() {
+        if (mounted) return;
+        mounted = true;
+        web.evaluateJavascript(shellScript(), value -> {
+            String token = value == null ? "" : value.replace("\"", "");
+            if (token.contains("ok")) {
+                status.setText("页面已打开，正在定位这门课…");
+                located();
+            } else {
+                status.setText(token.contains("nojquery")
+                    ? "学校的教务菜单没有加载完整（缺少页面脚本），请点「重新打开」再试。"
+                    : "学校的教务菜单没有加载完整，请点「重新打开」再试。");
+                Diag.event(Diag.WARN, "EVAL", "shell.mount", "stage", "menu", "result", token);
+            }
+        });
     }
 
     /**
-     * Looks for the row, and clicks it once the table has one.
+     * The shell-side script: prefilter, error listener, host, mount.
      *
-     * <p>Matched in the DOM rather than through the grid's API: the 教学班 id sits in a hidden cell,
-     * so the row's text carries it even though nothing of it is on screen. A click is what a finger
-     * does, and the page already wires that to the same handler that loads the form — so this
-     * cannot drift from the way the school means it to work.</p>
+     * <p>The prefilter is the one thing the school's own code cannot know it needs: inside the menu
+     * the module is opened from a link carrying {@code gnmkdm}, while this one is loaded by url, so
+     * every {@code /xspjgl/} request the module makes would arrive without the module id and the
+     * endpoint answers 500. The error listener writes the first message into the page so a failure
+     * can be read back without a debugger.</p>
+     */
+    private static String shellScript() {
+        return "(function(){try{"
+            + "var j=window.jQuery;"
+            + "if(!j||!j.fn||typeof j.fn.load!=='function')return 'nojquery';"
+            + "if(!window.__ckEvalFix){window.__ckEvalFix=true;"
+            + "try{j.ajaxPrefilter(function(o){"
+            + "if(!o||typeof o.url!=='string')return;"
+            + "if(o.url.indexOf('/xspjgl/')<0)return;"
+            + "if(o.url.indexOf('gnmkdm')>=0)return;"
+            + "o.url+=(o.url.indexOf('?')>=0?'&':'?')+'gnmkdm=N401605';});}catch(e){}"
+            + "window.__ckEvalErr=[];"
+            + "try{window.addEventListener('error',function(e){"
+            + "if(window.__ckEvalErr.length<3)"
+            + "window.__ckEvalErr.push(String((e&&e.message)||'').slice(0,80));});}catch(e){}"
+            + "}"
+            + "var host=document.getElementById('ckEvalHost');"
+            + "if(!host){"
+            + "host=document.createElement('div');host.id='ckEvalHost';"
+            + "host.style.cssText='position:fixed;left:0;top:0;right:0;bottom:0;z-index:2147480000;"
+            + "background:#fff;overflow:auto;-webkit-overflow-scrolling:touch;';"
+            + "(document.body||document.documentElement).appendChild(host);"
+            + "j(host).load('/xspjgl/xspj_cxXspjIndex.html?gnmkdm=N401605',function(r,s){"
+            + "window.__ckEvalMount=s;});"
+            + "}"
+            + "return 'ok';}catch(e){return 'fail';}})()";
+    }
+
+    /** Loads one more module page into the same host, so the shell's globals stay in scope. */
+    private static String hostLoad(String url) {
+        String safe = url == null ? "" : url.replace("\\", "").replace("'", "%27");
+        return "(function(){try{var h=document.getElementById('ckEvalHost');"
+            + "if(!h||!window.jQuery)return;"
+            + "window.jQuery(h).load('" + safe + "');}catch(e){}})()";
+    }
+
+    /** Resets the look-for-the-row counter after a fresh mount or a retry. */
+    private void located() {
+        polls = 0;
+        pick();
+    }
+
+    /**
+     * Looks for the row, and selects it once the grid has one.
+     *
+     * <p>Matched through the grid's own data rather than the rendered cells: {@code jxb_id} is a
+     * hidden column, so jqGrid never writes it into a {@code <td>} and no amount of reading the row's
+     * text would find it. {@code getGridParam('data')} returns the rows as the school sent them, and
+     * {@code setSelection(rowid, true)} fires {@code onSelectRow} — the same handler a tap fires,
+     * which is what loads the fragment.</p>
      */
     private void pick() {
+        if (SystemClock.elapsedRealtime() - startedAt > BUDGET_MS) {
+            fail("页面打开了，但课程列表一直没有出现。可以点「重新打开」，或返回上一页用「教务系统」里的菜单进入。",
+                "timeout");
+            return;
+        }
         if (polls++ > MAX_POLLS) {
-            status.setText("没能定位到这门课，请在上面的列表里自己点那一行。");
+            fail("没能定位到这门课，请返回上一页重新点一次，或在「教务系统」的菜单里打开学生评价。",
+                "nocourse");
             return;
         }
         web.evaluateJavascript("(function(){"
+            + "try{"
             + "var j=window.jQuery;if(!j)return 'wait';"
             + "var g=j('#tempGrid');if(!g.length)return 'wait';"
-            + "var rows=g.find('tr.jqgrow');if(!rows.length)return 'wait';"
-            + patch()
-            + "var t='" + safeId() + "',hit=null;"
-            + "rows.each(function(){"
-            + "if((this.textContent||'').indexOf(t)>=0){hit=this;return false;}});"
+            + "var t='" + safeId() + "';"
+            + "var rows=null;try{rows=g.jqGrid('getGridParam','data');}catch(e){return 'wait';}"
+            + "if(!rows||!rows.length){"
+            + "if(g.find('tr.jqgrow').length)return 'null';"
+            + "return 'wait';}"
+            + "var hit='';"
+            + "for(var i=0;i<rows.length;i++){var r=rows[i]||{};"
+            + "if(String(r.jxb_id)===t){hit=(r._id_!=null?String(r._id_):String(r.jxb_id));break;}}"
             + "if(!hit)return 'missing'+rows.length;"
-            + "j(hit).trigger('click');"
-            + "try{if(g.jqGrid)g.jqGrid('setSelection',hit.id,true);}catch(e){}"
+            + "try{g.jqGrid('setSelection',hit,true);}catch(e){}"
+            + "var node=document.getElementById(hit);if(node){j(node).trigger('click');}"
             + "return 'open';"
-            + "})()", value -> {
-            String token = value == null ? "" : value;
+            + "}catch(e){return 'fail';}})()", value -> {
+            String token = value == null ? "" : value.replace("\"", "");
             if (token.contains("open")) {
                 main.postDelayed(this::verify, 1600);
             } else if (token.contains("missing")) {
                 String rows = token.replaceAll("[^0-9]", "");
-                status.setText("列表里没找到这门课（这一页 " + (rows.isEmpty() ? "?" : rows)
-                    + " 行），请在上面的列表里自己点那一行。");
+                fail("列表里没找到这门课（这一页 " + (rows.isEmpty() ? "?" : rows)
+                    + " 行），请返回上一页重新点一次。", "missing");
+            } else if (token.contains("null")) {
+                fail("学校没有返回这门课的评价列表（0 门），可以返回上一页看看这门课的状态。", "empty");
+            } else if (token.contains("fail")) {
+                fail("学校的评价页脚本出错了，没能读出课程列表。", "script");
             } else {
                 main.postDelayed(this::pick, 500);
             }
@@ -271,39 +368,50 @@ public final class EvaluationFormActivity extends Page {
     /**
      * Did the form actually land in the panel, and did the school send items with it?
      *
-     * <p>Two numbers, because they fail differently: an empty panel means the row click was dropped
-     * (the page ignores one while it is still loading the row it selected on arrival), while a panel
-     * with a header and no 评价项 means the school answered a form with nothing to score — the
-     * student can do nothing about that from here, so it is said plainly instead of leaving a blank
-     * screen under a cheerful hint.</p>
+     * <p>Three numbers, because they fail differently: an empty panel means the row selection was
+     * dropped (the page ignores one while it is still loading the row it selected on arrival), an
+     * {@code .alert-error} in the panel means the school itself refused the course (已放弃 / 无评价
+     * 内容) and no retry will change that, and a panel with items is the only success. A panel that
+     * merely has text is <em>not</em> success — the skeleton ships with text, which is exactly what
+     * made an earlier version report a loaded form over an empty one.</p>
      */
     private void verify() {
         web.evaluateJavascript("(function(){var p=document.getElementById('panel_content');"
-            + "if(!p)return '0,0';"
+            + "if(!p)return '0|0|0';"
             + "var t=(p.textContent||'').replace(/\\s+/g,'').length;"
             + "var n=p.querySelectorAll('.panel-pjdx').length;"
-            + "return t+','+n;})()", value -> {
+            + "var e=p.querySelector('.alert-error')?1:0;"
+            + "return t+'|'+n+'|'+e;})()", value -> {
             String raw = value == null ? "" : value.replace("\"", "");
-            String[] parts = raw.split(",");
+            String[] parts = raw.split("\\|");
             int length = number(parts.length > 0 ? parts[0] : "");
             int items = number(parts.length > 1 ? parts[1] : "");
+            int refused = number(parts.length > 2 ? parts[2] : "");
             if (items > 0) {
                 status.setText("表单已打开：共 " + items + " 个评价项，评完点页面里的「提交」，返回上一页会刷新状态。");
+                Diag.event(Diag.INFO, "EVAL", "form.ready", "stage", "form", "count", items);
                 reveal();
                 return;
             }
-            if (length >= 40) {
-                status.setText("学校页面打开了，但没有下发评价项（0 项）：请在上面的列表里点这门课那一行。"
-                    + "若仍是 0 项，说明这门课的评价模板没有开放。");
+            if (refused > 0) {
+                fail("这门课现在不能评价（学校页面已给出提示），返回上一页可以看到它的状态。", "refused");
                 return;
             }
-            if (misses++ < 3) {
+            if (misses++ < MAX_MISSES) {
                 polls = 0;
                 pick();
-            } else {
-                status.setText("表单没有加载出来，请在上面的列表里点这门课所在的那一行。");
+                return;
             }
+            Diag.event(Diag.WARN, "EVAL", "form.empty", "stage", "form", "count", length);
+            fail("评价表单没有加载出来（面板 " + length + " 字，0 个评价项）。点「重新打开」再试一次；"
+                + "如果一直这样，请用「教务系统」里的菜单进入。", "formempty");
         });
+    }
+
+    /** Says what went wrong and stops polling: a status line that never settles is not an answer. */
+    private void fail(String message, String code) {
+        status.setText(message);
+        Diag.event(Diag.WARN, "EVAL", "form.failed", "stage", code);
     }
 
     private static int number(String value) {

@@ -100,7 +100,13 @@ final class EduClient {
     };
     private static final String LOGIN = "/xtgl/login_slogin.html";
     private static final String PUBLIC_KEY = "/xtgl/login_getPublicKey.html";
-    private static final String MENU = "/xtgl/index_initMenu.html";
+    /**
+     * The menu shell. Its own scripts declare the globals ({@code _path}, {@code BaseJqGrid},
+     * {@code $.i18n}, {@code loadJqGrid}) that every 正方 module page is written against, so a
+     * module only runs when it is loaded <em>into</em> this document — opened on its own it throws
+     * before it builds anything. See {@link EvaluationFormActivity}.
+     */
+    static final String MENU_PAGE = "/xtgl/index_initMenu.html";
     private static final String LOGOUT = "/xtgl/logout.html";
     private static final int TIMEOUT = 15000, MAX_BYTES = 2_000_000, MAX_PAGES = 30;
     /**
@@ -643,7 +649,7 @@ final class EduClient {
      */
     private static String menuGradeLink() {
         if (menuChecked) return menuLink;
-        for (String page : new String[]{MENU, "/"}) {
+        for (String page : new String[]{MENU_PAGE, "/"}) {
             try {
                 String link = EduSite.gradeLink(request(ORIGIN + page, "GET", null, jar(), ORIGIN + page));
                 if (link.contains(".html")) { menuLink = link; break; }

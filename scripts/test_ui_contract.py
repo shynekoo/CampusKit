@@ -266,23 +266,35 @@ def main():
             "the term totals query must be on the read-only allow-list too")
     require(client, "static final String EVAL_PAGE", "EduClient",
             "the list page route must be named by the feature")
-    require(form_src, "web.loadUrl(EduClient.ORIGIN + EduClient.EVAL_PAGE, headers)",
+    require(form_src, "web.loadUrl(EduClient.ORIGIN + EduClient.MENU_PAGE, headers)",
             "EvaluationFormActivity",
-            "the form must be opened inside the school's own list page: the fragment's 提交 button "
-            "lives in that page, so a fragment fetched on its own can never be submitted")
-    require(form_src, 'headers.put("Referer", EduClient.ORIGIN + EduClient.EVAL_PAGE)',
+            "the module must be loaded inside the menu shell: a 正方 module page is a fragment that "
+            "uses _path / BaseJqGrid / $.i18n / loadJqGrid from that shell, so opened as a top-level "
+            "document it throws before it builds a grid (which is the legend + 0% Complete the user saw)")
+    require(form_src, 'headers.put("Referer", EduClient.ORIGIN + "/")',
             "EvaluationFormActivity",
-            "the Referer must be the page's own url: that is the one carrying gnmkdm, and the module "
-            "filter reads it — pointing it at the menu frame leaves the fragment request unanswered")
-    require(form_src, "xspj_cxXspjDisplay.html", "EvaluationFormActivity",
-            "the fragment the page asks for must be identified: the school's own call omits gnmkdm")
+            "the shell is the top-level document, so its Referer is the site root; the module id is "
+            "carried by the ajax prefilter instead of by a hand-made Referer")
+    require(form_src, "ajaxPrefilter", "EvaluationFormActivity",
+            "the module's own /xspjgl/ requests must be given gnmkdm: loaded by url they arrive "
+            "without the module id that the menu link would have carried, and the endpoint answers 500")
+    require(form_src, "j(host).load('/xspjgl/xspj_cxXspjIndex.html?gnmkdm=N401605'",
+            "EvaluationFormActivity",
+            "the module must be mounted the way the menu mounts it — into the shell document")
     require(form_src, "'gnmkdm=N401605'", "EvaluationFormActivity",
-            "the module id must be appended to that request, or the panel stays at its placeholder")
-    require(form_src, "rows.each(function(){", "EvaluationFormActivity",
-            "the 教学班 must be found in the school's own table: matching what is in the DOM survives "
-            "a grid whose row data hides the ids")
-    require(form_src, "j(hit).trigger('click');", "EvaluationFormActivity",
-            "the row must be opened the way a finger would, so the page's own handler loads the form")
+            "the module id must be present, or the panel stays at its placeholder")
+    require(form_src, "getGridParam','data'", "EvaluationFormActivity",
+            "the 教学班 must be matched on the grid's own row data: jxb_id is a hidden column, so "
+            "jqGrid never writes it into a cell and reading the row's text can never find it")
+    require(form_src, "'setSelection',hit,true", "EvaluationFormActivity",
+            "the row must be selected through the grid, which fires the page's own onSelectRow")
+    require(form_src, "j(node).trigger('click');", "EvaluationFormActivity",
+            "the row must also be opened the way a finger would, so the page's own handler loads the form")
+    require(form_src, ".panel-pjdx", "EvaluationFormActivity",
+            "success must be counted in 评价项 nodes; a panel that merely has text is the skeleton "
+            "the page ships with, and calling that a loaded form is what hid the failure")
+    require(form_src, "BUDGET_MS", "EvaluationFormActivity",
+            "the screen must give up on a budget and say what went wrong instead of waiting forever")
     checks += 1
     if "web.postUrl(" in form_src:
         failures.append("学生评价: postUrl is not a page load — the school's form needs its own page")
@@ -307,6 +319,17 @@ def main():
     checks += 1
     if "xspj_tjXspj" in form_src or "xspj_bcXspj" in form_src:
         failures.append("学生评价: the form screen must not post 提交/暂存 itself")
+    # Regressions this round is fixing, kept as guards so they cannot come back silently:
+    # (1) the module url must not be loaded as a top-level document — that document cannot run;
+    # (2) success must not be inferred from how much text the panel holds — the module ships text.
+    checks += 1
+    if "web.loadUrl(EduClient.ORIGIN + EduClient.EVAL_PAGE" in form_src:
+        failures.append("学生评价: the module url must not be loaded as a top-level document — it "
+                        "uses the menu shell's globals and throws before it builds a grid")
+    checks += 1
+    if "length >= 40" in form_src:
+        failures.append("学生评价: a panel that only has text is the page's own skeleton, not a "
+                        "loaded form; count .panel-pjdx instead")
 
     # --- CampusKit UI 2.0 / UI-1: centralized design + motion tokens ------------------------
     ui_tokens = (PREVIEW / "UiTokens.java")

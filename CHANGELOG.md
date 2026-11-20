@@ -14,12 +14,57 @@
 - 已构建、尚未发版：`2.5.8.8`（versionCode `206`，2026-11-19），在合并后的主线上重建。
 - **线上正式版（2026-11-19 发布）**：`2.5.8`（versionCode `208`），把 2.5.8.1–2.5.8.9 合并成一个正式版本号；
   产物 `delivery/科信小助手-2.5.8.apk`，发布公告见 [`delivery/release-2.5.8.md`](delivery/release-2.5.8.md)。
-- 核心断言：`python scripts/test_core.py` → **1418 项全过**；UI 守卫 **289 锚点**；诊断隐私守卫 **651 项**（2026-11-20）。
+- 核心断言：`python scripts/test_core.py` → **1418 项全过**；UI 守卫 **297 锚点**；诊断隐私守卫 **666 项**（2026-11-20）。
 - 2.5.8 的 tag / Release / 下载站随本次发布同步；早期 2.5.8.x 开发迭代仍**未**各自建 tag。
 
 更早版本的发布说明见 [`delivery/release-*.md`](delivery/)。
 
 ---
+
+## [未发布 · 2.6.0-beta.2] — 学生评价：模块页必须在菜单壳里打开（工作区改动，未构建）
+
+> 2.6.0-beta.1 真机仍然失败：能打开这门课的页面，但状态栏一直停在「页面已打开，正在定位这门课…」，
+> 面板里只有图例（`状态备注`）和「评价内容 / 0% Complete」，**一个题目都没有，连表格都没有**。
+> 用户同时确认：**用「教务系统」入口从学校菜单进去，同一门课能正常评** —— 这句是分水岭。
+
+### 根因（有脚本级证据）
+
+学校下发的 `xspj_cxXspjIndex.html` 不是能独立打开的页面，而是**被菜单壳 `index_initMenu.html` 装进来的片段页**。
+它自己的脚本裸用壳文档的全局，没有一处 `window.` 或 `parent.` 前缀：
+
+| 证据 | 代码 |
+|---|---|
+| 表格数据地址 | `url: _path + '/xspjgl/xspj_cxXspjIndex.html?doType=query'` |
+| 建表格 | `$.extend(true,{},BaseJqGrid,{…})` 与 `$("#tempGrid").loadJqGrid(TempGrid)` |
+| 列名与文案 | `label:$.i18n.jwglxt["rlzt"]`、`$.i18n.get("wpjnr")` |
+| 片段地址 | `$(panel_content).load(_path + "/xspjgl/xspj_cxXspjDisplay.html",{…})` |
+| 提交逻辑 | 片段脚本里 `$("#btn_xspj_bc")` / `$("#btn_xspj_tj")`，同样无 `parent.` 前缀 |
+
+`_path`、`BaseJqGrid`、`loadJqGrid`、`$.i18n`、`viewConfig`、`refershGrid` 只在壳文档里存在。把该 url 当**顶层文档** `loadUrl` 时，
+`$(function(){…})` 在 `BaseJqGrid` 处就抛 ReferenceError → 整段中断 → 表格从未创建（所以连表头都没有）、
+`onSelectRow` 从未绑定 → `#panel_content` 停在页面自带骨架。上一版补 `gnmkdm` 的 `jQuery.fn.load` 包装也因此从未被调用到。
+
+### 改法
+
+- **先加载 `EduClient.MENU_PAGE`（`/xtgl/index_initMenu.html`，Referer 为站点根）**，再 `jQuery(host).load('/xspjgl/xspj_cxXspjIndex.html?gnmkdm=N401605')`
+  把模块装进全屏宿主 `#ckEvalHost` —— 与学校菜单装模块的方式一致，全局因此可用。
+- **模块号改由 `$.ajaxPrefilter` 补齐**：壳文档的 Referer 不带 `gnmkdm`，模块自己的 `/xspjgl/` 请求（列表 query、`xspj_cxXspjDisplay.html` 片段、`xspj_cxXspjqk.html` 统计）都会缺模块号拿到 500；prefilter 只给尚未带模块号的 `/xspjgl/` url 追加 `N401605`。
+- **按表格数据定位，不读行文本**：`jqGrid('getGridParam','data')` 按 `jxb_id` 精确匹配 → `setSelection(rowid, true)` 触发学校 `onSelectRow` → DOM 上补一次 `trigger('click')`。`jxb_id` 是隐藏列，jqGrid 不写进 `<td>`，读文本永远找不到。
+- **成功判据改为 `.panel-pjdx` 节点数**：面板自带的骨架本来就有字，按字数判会把"没装进来"读成"已打开"。
+- **失败说清是哪一种**：30 秒预算 + 各自文案 —— 课程列表没出现 / 列表里没这门课 / 学校回 0 门 / 页脚本出错 / 面板 0 项 / 学校自己拒绝（`alert-error`）。
+- **提交后的「最佳教师评选」跳转**改为在同一宿主内打开，避免另一个模块页当顶层文档打开时白页。
+- 诊断新增 `EVAL` 模块与 `shell.mount` / `form.ready` / `form.empty` / `form.failed` 四个事件码（只记阶段与计数，不记题目、Cookie、Token）。
+
+### 现状
+
+- `test_core` 1418 / `test_build_config` 7 / `test_diag_privacy` **666** / `test_diag_files` 6650 /
+  `test_webview_policy` 6 / `test_ui_contract` **297**，六个入口全部通过；`javac --release 8` 全量编译通过。
+- 新增守卫：禁止把模块 url 当顶层文档 `loadUrl`、禁止用面板文本长度判成功、必须有 `ajaxPrefilter` / `MENU_PAGE` / `getGridParam','data'` / `.panel-pjdx` / `BUDGET_MS`。
+- 产物：`delivery/科信小助手-2.6.0-beta.2.apk`，5 457 786 B，SHA-256 `274e7e30…154d27a8`，versionCode 218 / versionName 2.6.0-beta.2，
+  预览渠道（`--beta`），用水版，v2/v3 验签通过；dex 反查 `gnmkdm=N401605` 3 处。
+- `delivery/update/beta.json` 已改为 2.6.0-beta.2 / 218，APK 已放进 `delivery/update/`；**线上尚未部署**（发布被 `SITES_ACCOUNT_MISMATCH` 拦住，需切回原发布账号），
+  当前线上仍是 2.6.0-beta.1 / 217，`update.json` 未动（2.5.9 / 210）。
+- **仍未真机验证**：真机需重新走一遍 E1–E4e。
 
 ## [未发布 · 2.6.0-beta.1] — 学生评价：让学校的片段请求带上 gnmkdm（versionCode 217）
 

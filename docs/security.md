@@ -31,7 +31,7 @@
 
 - **HTTPS only**：manifest `usesCleartextTraffic=false`；应用自身连接禁用自动重定向，逐跳校验 HTTPS、跳数上限、环路与跨主机 query 清理（`UpdateUrls`）；WebView 准入统一走 `TrustedUrlPolicy`（scheme + host + port）。
 - **固定依赖**：ZXing / PDFBox / Bouncy Castle / 支付宝 AAR 以 SHA-256 锁定，构建时校验；手工合并 AAR。
-- **WebView**：6 处 WebView 页面全部 HTTPS-aware（由 `test_webview_policy.py` 静态守卫）；禁混合内容；拦截导航与新窗口；`addJavascriptInterface` 零命中。学生评价的表单页只加载学校 HTTPS 主机，评分与提交都在学校页面上完成，应用自身不调用评教的保存/提交端点。
+- **WebView**：6 处 WebView 页面全部 HTTPS-aware（由 `test_webview_policy.py` 静态守卫）；禁混合内容；拦截导航与新窗口；`addJavascriptInterface` 零命中。学生评价的表单页先把学校的菜单壳（`index_initMenu.html`）作为顶层文档加载，再把模块装进壳内的全屏宿主 —— 宿主仍是学校 HTTPS 文档，不引入新导航来源；评分与提交都在学校页面上完成，应用自身不调用评教的保存/提交端点。
 
 ## 支付与用水控制
 

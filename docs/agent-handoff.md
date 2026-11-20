@@ -159,6 +159,25 @@ UI-3 本轮修 5 处：滚动恢复带 generation 且改为布局后（pre-draw�
   `test_webview_policy` 6 / `test_ui_contract` 291，全部通过。
 - **仍未验证**：真机上的定位、渲染与提交（本轮无可用教务账号）。
 
+## 三之十、学生评价：模块页必须在菜单壳里打开（2.6.0-beta.2，工作区改动、未构建未发版）
+
+- **2.6.0-beta.1 的真机现象（用户截图 + 用户确认）**：能打开这门课的页面，状态栏一直停在「页面已打开，正在定位这门课…」，
+  面板只有图例与「评价内容」「0% Complete」，**连表格都没有**；同时用户确认「用教务系统入口从学校菜单进去能正常评」。
+- **根因**：`xspj_cxXspjIndex.html` 是**片段页**，被 `index_initMenu.html` 装进主文档运行。它自己与它加载的片段都裸用壳文档的全局：
+  `_path`（拼每个请求地址）、`BaseJqGrid` / `loadJqGrid`（建表格）、`$.i18n`（每个列名）、`viewConfig` / `refershGrid`，
+  没有一处 `window.` 或 `parent.` 前缀。作为顶层文档打开时 `$(function(){…})` 在 `BaseJqGrid` 处抛 ReferenceError → 整段中断 →
+  表格不建、`onSelectRow` 不绑、面板停在骨架。beta.1 补 `gnmkdm` 的 `jQuery.fn.load` 包装因此从未被执行到。
+- **改法**：①先 `loadUrl(EduClient.MENU_PAGE)`（Referer 站点根），再 `jQuery(host).load('/xspjgl/xspj_cxXspjIndex.html?gnmkdm=N401605')` 装进全屏宿主；
+  ②`$.ajaxPrefilter` 给尚未带模块号的 `/xspjgl/` 请求补 `N401605`；③按 `getGridParam','data'` 的 `jxb_id` 匹配 →
+  `setSelection(rowid, true)` → 补 `trigger('click')`；④成功判据改为 `.panel-pjdx` 节点数；⑤30 秒预算 + 六种失败文案；
+  ⑥「最佳教师评选」跳转改在同一宿主内打开；⑦诊断新增 `EVAL` 模块与 4 个事件码。
+- 测试：`test_core` 1418 / `test_build_config` 7 / `test_diag_privacy` 666 / `test_diag_files` 6650 /
+  `test_webview_policy` 6 / `test_ui_contract` 297，六个入口全过；`javac --release 8` 全量编译通过。
+- 产物：`delivery/科信小助手-2.6.0-beta.2.apk`（5 457 786 B，SHA-256 `274e7e30…154d27a8`，218 / 2.6.0-beta.2，预览渠道、用水版、v2/v3 验签通过）。
+  `delivery/update/beta.json` 已指向它；**线上未部署**（`SITES_ACCOUNT_MISMATCH`，需切回原发布账号）。
+- **仍未验证**：真机 E1–E4e（尤其：菜单壳是否被学校重定向、模块装进宿主后表格能否建起来、片段能否装载）。
+- **证据留存**：`tmp/idx.js`（列表页脚本）、`tmp/disp.js`（片段脚本）是从学校页面抓下的原始脚本，`tmp/` 已被 gitignore，不随仓库分发。
+
 ## 四、验证状态（如实）
 
 **已执行**：`test_core` 1418、`test_build_config` 7、`test_diag_privacy` 651、`test_diag_files`、`test_webview_policy` 6、`test_ui_contract` 291，全部通过；`javac --release 8` 全量编译通过；2.5.8 APK 已构建（5 420 922 B，SHA-256 `ac40b21d…10d806`，v2/v3 验签通过，dex 水控路由 0）；2.5.8.6 / 2.5.8.7 / 2.5.8.8 普通版 APK 已构建并通过 v2/v3 验签（2.5.8.8 的 dex 反查含 `cxJxzxjhxfyqFKcxx` / `planCourses` / `opensCourses`，2.5.8.7 三项均为 0）；真实账号端到端拉取学业数据成功（GPA 2.9875、37 节点 5 层、16 课组 94 门课）；计划外课组按学校 `jdkcsx` 分流端点后复验（人文科学 5 门、自然科学 6 门，与学校页"共 N 门"一致）。
