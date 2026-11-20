@@ -1160,6 +1160,21 @@ public final class CoreTests {
             + "\"notes\":[\"x\"],\"url\":\"https://example.edu/a.apk\",\"bytes\":12,\"sha256\":\""
             + repeat('a', 64) + "\"}").newerThan(158));
 
+        // Four-segment release names are real (2.5.6.11, 2.5.8.1); the update check must accept them.
+        equal("2.5.8.1", UpdateManifest.parse("{\"version\":\"2.5.8.1\",\"versionCode\":209,"
+            + "\"notes\":[\"x\"],\"url\":\"https://example.edu/a.apk\",\"bytes\":12,\"sha256\":\""
+            + repeat('a', 64) + "\"}").version);
+        equal("2.5.6.11", UpdateManifest.parse("{\"version\":\"2.5.6.11\",\"versionCode\":189,"
+            + "\"notes\":[\"x\"],\"url\":\"https://example.edu/a.apk\",\"bytes\":12,\"sha256\":\""
+            + repeat('a', 64) + "\"}").version);
+        // Still bounded: five segments and a qualifier are not release names.
+        rejects(() -> UpdateManifest.parse("{\"version\":\"2.5.8.1.2\",\"versionCode\":158,"
+            + "\"notes\":[\"x\"],\"url\":\"https://example.edu/a.apk\",\"bytes\":12,\"sha256\":\""
+            + repeat('a', 64) + "\"}"));
+        rejects(() -> UpdateManifest.parse("{\"version\":\"2.5.8.1-beta\",\"versionCode\":158,"
+            + "\"notes\":[\"x\"],\"url\":\"https://example.edu/a.apk\",\"bytes\":12,\"sha256\":\""
+            + repeat('a', 64) + "\"}"));
+
         // A manifest that omits the digest or the size is refused, not filled with zeroes.
         rejects(() -> UpdateManifest.parse("{\"version\":\"2.3\",\"versionCode\":158,"
             + "\"notes\":[\"x\"],\"url\":\"https://example.edu/a.apk\"}"));

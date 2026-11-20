@@ -27,7 +27,8 @@ import java.util.regex.Pattern;
 public final class UpdateManifest {
     /** Enough for a release summary; more than this is patch notes nobody reads in a dialog. */
     private static final int MAX_NOTES = 8, MAX_NOTE = 160, MAX_URL = 512, MAX_NAME = 24;
-    private static final Pattern VERSION = Pattern.compile("[0-9]{1,2}(\\.[0-9]{1,2}){1,2}");
+    /** Three or four numeric segments: 2.5.8 and 2.5.8.1/2.5.6.11 are all real release names. */
+    private static final Pattern VERSION = Pattern.compile("[0-9]{1,2}(\\.[0-9]{1,2}){1,3}");
     private static final Pattern SHA256 = Pattern.compile("[0-9a-f]{64}");
     /**
      * HTTPS only, and no credentials in the URL: the APK is installed with the app's own authority,

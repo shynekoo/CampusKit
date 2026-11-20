@@ -76,8 +76,9 @@ final class AppChangelog {
      * 收录口径写在这里，免得下次有人以为漏了。</p>
      */
     static final Entry[] ENTRIES = {
-        new Entry("2.5.8.1", 209, "2026-11-20", null,
-            new Item(Kind.FIXED, "修复趣智校园扫码无法跳转使用的bug，如果给您带来的不好的体验，非常抱歉。")),
+        new Entry("2.5.9", 210, "2026-11-20", null,
+            new Item(Kind.FIXED, "修复趣智校园扫码无法跳转使用的bug，如果给您带来的不好的体验，非常抱歉。"),
+            new Item(Kind.FIXED, "修复部分版本检查不到更新：带四段版本号（如 2.5.8.1）的更新清单会被当成无效而跳过")),
         new Entry("2.5.8", 208, "2026-11-19", null,
             new Item(Kind.IMPROVED, "底栏和页面切换动画重做：切换更顺，切走再回来还停在原来的位置"),
             new Item(Kind.ADDED, "新增学业情况查询：每个课组都能点开，看到课程、成绩和学分"),

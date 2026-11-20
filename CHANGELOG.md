@@ -4,26 +4,28 @@
 
 **事实基准**（每条均以仓库代码 / Git 提交 / 实际构建为依据，不推测）：
 
-- 当前正式版：`2.5.8.1`（versionCode `209`，2026-11-20，修复扫码跳转），见下条。
+- 当前正式版：`2.5.9`（versionCode `210`，2026-11-20，修复扫码跳转 + 四段版本号检查不到更新），见下条。
 - 上一版正式版：`2.5.8`（versionCode `208`，2026-11-19）；更早为 `2.5.7`（197）。
-- 历史开发包 `2.5.8.1`（versionCode `199`，Git HEAD `6406500`）与本版同名但**不是**同一产物，未发版。
+- `2.5.8.1`（versionCode `209`）曾于 2026-11-20 短暂发布，但四段版名使旧客户端的更新清单解析失败、检查不到更新，已被 2.5.9 取代。
+- 另有历史开发包 `2.5.8.1`（versionCode `199`，Git HEAD `6406500`），与上述 209 包**不是**同一产物，未发版。
 - 已提交、尚未发版：`2.5.8.2`–`2.5.8.6`（最新 versionCode `204`），含学业情况查询与 UI-1/UI-2 第一轮。
 - 已提交并 push 的主线：`16cec29`（UI-1 / UI-2 / UI-3 转场竞态 + 滚动恢复 + 回本周整屏滑页）。
 - 已提交到主线、尚未发版：数据与隐私 / 使用公告改版 + 移除未使用的 Wi-Fi 权限；应用内更新日志；使用公告入口去重 + 课表圆角默认 20dp（versionCode `205`）；学业情况少课修复（计划内 / 计划外课组按学校 `jdkcsx` 分流取课端点）。
 - 已构建、尚未发版：`2.5.8.8`（versionCode `206`，2026-11-19），在合并后的主线上重建。
 - **线上正式版（2026-11-19 发布）**：`2.5.8`（versionCode `208`），把 2.5.8.1–2.5.8.9 合并成一个正式版本号；
   产物 `delivery/科信小助手-2.5.8.apk`，发布公告见 [`delivery/release-2.5.8.md`](delivery/release-2.5.8.md)。
-- 核心断言：`python scripts/test_core.py` → **1329 项全过**；UI 守卫 **240 锚点**；诊断隐私守卫 **634 项**（2026-11-19）。
+- 核心断言：`python scripts/test_core.py` → **1333 项全过**；UI 守卫 **240 锚点**；诊断隐私守卫 **634 项**（2026-11-20）。
 - 2.5.8 的 tag / Release / 下载站随本次发布同步；早期 2.5.8.x 开发迭代仍**未**各自建 tag。
 
 更早版本的发布说明见 [`delivery/release-*.md`](delivery/)。
 
 ---
 
-## [2.5.8.1] - 2026-11-20（versionCode 209，已发布）
+## [2.5.9] - 2026-11-20（versionCode 210，已发布）
 
 > 修复趣智校园扫码无法跳转使用的bug，如果给您带来的不好的体验，非常抱歉。
-> 发布公告见 [`delivery/release-2.5.8.1.md`](delivery/release-2.5.8.1.md)。
+> 同时修复四段版本号导致检查不到更新的问题。
+> 发布公告见 [`delivery/release-2.5.9.md`](delivery/release-2.5.9.md)。
 
 ### 修复
 
@@ -31,11 +33,13 @@
   `BuildFlags.WATER_CONTROL=false`，`ScanActivity.showCode()` 的支付宝跳转分支在编译期被移除；2.5.8 延续。
   本版重建为用水版，扫码后恢复跳转，与 2.5.6 及之前一致。使用码为同期独立功能，与本问题无关。
 - dex 水控类命中由 1 / 1 / 0 恢复为 `WaterControl` 4、`WaterActivity` 100、`LifeWaterProtocol` 3。
-- manifest 版本真源同步为 209 / 2.5.8.1；`FIELD_VERSION_NAME` 与发布逻辑未改，构建时显式传版本号。
+- manifest 版本真源同步为 210 / 2.5.9；`FIELD_VERSION_NAME` 与发布逻辑未改，构建时显式传版本号。
+- **检查不到更新**：`UpdateManifest.VERSION` 正则原只允许 2–3 段，四段版名（2.5.8.1 / 2.5.6.11）被判无效而静默跳过。
+  正则放宽到 `{1,3}` 段并补 4 条断言；本版清单用三段版名 2.5.9，旧客户端也能解析并提示升级。
 
 ### 测试
 
-- `test_core` 1329 / `test_build_config` 7 / `test_diag_privacy` 634 / `test_diag_files` 6650 /
+- `test_core` 1333 / `test_build_config` 7 / `test_diag_privacy` 634 / `test_diag_files` 6650 /
   `test_webview_policy` 5 / `test_ui_contract` 240 全绿；APK v2 / v3 验签 true。
 - 真机扫码跳转由发布者确认可用；真实出水/关水/账单未对生产服务测试。
 

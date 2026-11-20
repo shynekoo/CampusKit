@@ -1,10 +1,11 @@
 {
-  "version": "2.5.8.1",
-  "versionCode": 209,
+  "version": "2.5.9",
+  "versionCode": 210,
   "notes": [
-    "修复趣智校园扫码无法跳转使用的bug，如果给您带来的不好的体验，非常抱歉。"
+    "修复趣智校园扫码无法跳转使用的bug，如果给您带来的不好的体验，非常抱歉。",
+    "修复部分版本检查不到更新：带四段版本号（如 2.5.8.1）的更新清单会被当成无效而跳过"
   ],
-  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.5.8.1.apk?sharecode=BZD63HRP4B",
+  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.5.9.apk?sharecode=BZD63HRP4B",
   "bytes": 5437306,
-  "sha256": "af7ed82392da21863e9ac4af963a27980e3fe1718c83c4c9335f377451f6708f"
+  "sha256": "b022159dd8f259f47b97164e956fcfd8f2fb95e2a6d93b7dd07d4320c82ef605"
 }
