@@ -96,6 +96,12 @@ final class EduClient {
      * {@code data-*} ids — so it is read directly instead of being shown in a WebView.
      */
     private static final String EVAL_FORM = "/xspjgl/xspj_cxXspjDisplay.html?gnmkdm=N401605";
+    /**
+     * The same fragment with no query at all — byte for byte the address the school's own page loads:
+     * {@code $(panel_content).load("/xspjgl/xspj_cxXspjDisplay.html", {…七项…})}. Kept apart from
+     * {@link #EVAL_FORM} so the first attempt can be indistinguishable from the browser.
+     */
+    private static final String EVAL_DISPLAY = "/xspjgl/xspj_cxXspjDisplay.html";
     /** 暂存 / 提交. Same route names the school's own two buttons post to. */
     private static final String EVAL_SAVE = "/xspjgl/xspj_bcXspj.html?gnmkdm=N401605";
     private static final String EVAL_SEND = "/xspjgl/xspj_tjXspj.html?gnmkdm=N401605";
@@ -649,18 +655,103 @@ final class EduClient {
      */
     static String evaluationForm(String classId, String courseId, String teacherId, String studentType,
                                  String modelId, String gradeEntry, String statusCode) throws IOException {
+        // 学校的拒绝理由只有一句「参数异常」，说不出缺了哪个。先在这里分清"列表本身没给全"与
+        // "给了但没被接受"，读者才知道该重读列表还是该去网页。
+        if (classId.isEmpty() || courseId.isEmpty() || teacherId.isEmpty()) {
+            throw new IOException("这一行没拿到完整的教学班信息（"
+                + (classId.isEmpty() ? "教学班ID " : "") + (courseId.isEmpty() ? "课程号ID " : "")
+                + (teacherId.isEmpty() ? "教职工ID" : "") + " 为空），请回列表重新读取。");
+        }
         Map<String, String> form = new LinkedHashMap<>();
-        form.put("jxb_id", classId);
-        form.put("kch_id", courseId);
-        form.put("xsdm", studentType);
-        form.put("jgh_id", teacherId);
-        form.put("tjzt", statusCode);
-        form.put("pjmbmcb_id", modelId);
-        form.put("sfcjlrjs", gradeEntry);
-        form.put("nd", Long.toString(System.currentTimeMillis()));
-        String html = fetch(EVAL_FORM, form);
-        if (html.trim().isEmpty()) throw new IOException("学校返回了空的评价表单。");
-        return html;
+        // 空值不发。学校把这几个 id 当「一定有值」来解析，发一个空串比干脆不发更容易被它判成
+        // 参数异常，而且日志里也看不出区别。必填的三项上面已经拦过了。
+        putIfPresent(form, "jxb_id", classId);
+        putIfPresent(form, "kch_id", courseId);
+        putIfPresent(form, "jgh_id", teacherId);
+        putIfPresent(form, "xsdm", studentType);
+        putIfPresent(form, "tjzt", statusCode);
+        putIfPresent(form, "pjmbmcb_id", modelId);
+        putIfPresent(form, "sfcjlrjs", gradeEntry);
+        String query = SmsLoginProtocol.form(form);
+        // 三种载体，第一种与学校页面逐字一致：load("/xspjgl/xspj_cxXspjDisplay.html", {七项})——
+        // 没有 gnmkdm、没有查询串、没有时间戳。后两种是这台部署改了读法时的退路。
+        String[][] shapes = {
+            {"body", EVAL_DISPLAY},
+            {"body+query", EVAL_FORM + "&" + query},
+            {"query", EVAL_FORM + "&" + query},
+        };
+        String refusal = null;
+        int largest = 0;
+        for (int i = 0; i < shapes.length; i++) {
+            boolean byQueryOnly = i == shapes.length - 1;
+            String html;
+            try {
+                html = byQueryOnly ? fetch(shapes[i][1], null) : fetch(shapes[i][1], form);
+            } catch (IOException failure) {
+                Diag.event(Diag.WARN, "EVAL", "sheet.shape", "form", shapes[i][0]);
+                if (byQueryOnly) throw failure;
+                continue;
+            }
+            // 先看页面里有没有评价表，再谈「是不是被拒了」。顺序反过来会出事：那句话也可能出现在
+            // 一整张正常表单的脚本或提示模板里，先判字就等于把好页面挡在门外——2.6.0-beta.7 的
+            // 真机正是这样：三种载体一律「被拒」，而真正的可能只是页面回来了没人打开看。
+            int size = html.length();
+            if (size > largest) largest = size;
+            boolean sheet = looksLikeSheet(html);
+            Diag.event(sheet ? Diag.INFO : Diag.WARN, "EVAL", "sheet.shape",
+                "form", shapes[i][0], "bytes", size);
+            if (sheet) return html;
+            String said = refusal(html);
+            if (said != null && refusal == null) refusal = said;
+        }
+        // 连表都没有：把回包大小写进读者看得到的那句话里，一张截图就够定位，不必再去翻日志。
+        if (refusal != null) {
+            throw new IOException(refusal + "（学校回的是 " + readable(largest) + " 的页面）");
+        }
+        throw new IOException("学校回了页面，但里面没有评价表（最大 " + readable(largest) + "）。"
+            + "这门课的评价可能还没开放，或者要先在网页里进一次这门课。");
+    }
+
+    /**
+     * 页面里有没有一张评价表。依据就是解析器用的那几个选择器：{@code div.xspj-body} 是那层带 id 的
+     * 容器，{@code panel-pjdx} 一个评价对象，{@code tr-xspj} 一道题，{@code input-xspj} 一个选项。
+     * 命中任意一个就交给解析器，让它按真实结构去判断，而不是由这里凭一句话替它决定。
+     */
+    private static boolean looksLikeSheet(String html) {
+        return html.contains("xspj-body") || html.contains("panel-pjdx")
+            || html.contains("tr-xspj") || html.contains("input-xspj");
+    }
+
+    /** 字节数的口语写法，只用于提示语，不参与判断。 */
+    private static String readable(int size) {
+        return size >= 1024 ? (size / 1024) + " KB" : size + " 字节";
+    }
+
+    /** 只有非空值才进参数表，避免把空串当成「提供了这个参数」。 */
+    private static void putIfPresent(Map<String, String> form, String key, String value) {
+        if (value != null && !value.trim().isEmpty()) form.put(key, value.trim());
+    }
+
+    /**
+     * The school states a refusal as a sentence inside a 200 page rather than as an HTTP error, so
+     * the only way to tell "no questions" from "not accepted" is to read the page.
+     *
+     * <p>Returns the sentence to show, or {@code null} when the page is a real form. Each of these
+     * used to fall through to 「没有下发评价项」, which blames the wrong side and gives the reader
+     * nothing to do about it.</p>
+     */
+    private static String refusal(String html) {
+        if (html.contains("参数异常")) {
+            return "学校说这次请求的参数不对（课程号 / 教学班 / 教职工 ID 没被接受）。"
+                + "请回上一页「重新读取」列表后再点一次；如果仍是这句话，先用「网页登录」进教务系统完成这门课。";
+        }
+        if (html.contains("升级维护") || html.contains("系统维护")) {
+            return "教务的评教模块正在维护，过一会儿再试。";
+        }
+        if (html.contains("已放弃") || html.contains("yfqpj")) {
+            return "这门课的评价已被放弃，学校不再接收。";
+        }
+        return null;
     }
 
     /**

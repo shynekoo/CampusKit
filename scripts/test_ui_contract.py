@@ -357,6 +357,45 @@ def main():
             "提交 is a named route, not a folder")
     require(client, 'path.startsWith("/xspjgl/xspj_bcXspj.html")', "EduClient",
             "暂存 is a named route too")
+    # 真机三轮都没过：只给请求体 → 参数异常；双写查询串 → 还是参数异常；三种载体轮流试 →
+    # 三条全被记成「被拒」。可第一条与学校页面逐字相同，它不可能被学校拒。真正的问题在判断顺序：
+    # 先看页面里有没有评价表，再谈是不是被拒——那句话也可能出现在一张正常表单的脚本或提示模板里。
+    require(client, '{"body", EVAL_DISPLAY}', "EduClient",
+            "the first attempt must be the school's own address with no query at all, "
+            "POST body only — indistinguishable from the browser")
+    require(client, "private static boolean looksLikeSheet(String html)", "EduClient",
+            "a page is judged by whether it holds a 评价表, not by a sentence it may contain")
+    sheet_at = client.find("boolean sheet = looksLikeSheet(html)")
+    refusal_at = client.find("String said = refusal(html)", sheet_at if sheet_at > 0 else 0)
+    if sheet_at < 0 or refusal_at < 0 or refusal_at < sheet_at:
+        failures.append("学生评价: the refusal sentence must be read *after* the structure check; "
+                        "reading it first throws away pages that are perfectly good forms")
+    require(client, "if (sheet) return html;", "EduClient",
+            "a page that holds the sheet is returned as-is, whatever else is in it")
+    require(client, '"form", shapes[i][0], "bytes", size', "EduClient",
+            "each attempt must record its shape and the reply size: a Chinese shape label gets "
+            "redacted to OTHER, and without the size a log cannot tell a 2 KB error page from a "
+            "30 KB form")
+    require(client, '{"body+query",', "EduClient",
+            "the query-string variant must stay available for deployments whose filter reads it")
+    require(client, 'fetch(shapes[i][1], null)', "EduClient",
+            "the last shape is a GET with the ids in the query string only")
+    require(client, "private static void putIfPresent(Map<String, String> form, String key, String value)",
+            "EduClient",
+            "a blank id must not be sent at all: an empty value reads as「provided but wrong」and is "
+            "exactly the kind of thing that comes back as 参数异常")
+    require(client, "private static String refusal(String html)", "EduClient",
+            "a refusal arrives as a sentence inside a 200 page, so it must be read — otherwise "
+            "every refusal is shown as「学校没有下发评价项」and blames the wrong side")
+    require(client, 'throw new IOException(refusal + "（学校回的是 "', "EduClient",
+            "when no shape yields a sheet, the school's own sentence is what the reader sees, "
+            "and the size it came with rides along in the same line")
+    require(client, "readable(largest)", "EduClient",
+            "when not even a sheet comes back, the size must be in the sentence the reader sees, "
+            "so one screenshot is enough to tell an error page from a form")
+    require(client, "classId.isEmpty() || courseId.isEmpty()", "EduClient",
+            "the three ids must be checked before the request: the school cannot say which one is "
+            "missing, and the reader needs to know whether to reload or fall back to the web page")
     require(client, "static String evaluationWrite(String body, boolean submit)", "EduClient",
             "the write path must be one method taking the body the parser built")
     require(client, "EVAL_PAGE_SIZE", "EduClient",
@@ -681,9 +720,10 @@ def main():
             or "openConnection" in code_lines(data):
         failures.append("更新日志必须离线可读，不得加载网页或发起请求")
 
-    # --- 双渠道更新：正式清单 + 预览清单，开关只在「更多」页出现一处 ------------------------
+    # --- 三渠道更新：正式清单 + 预览清单，开关只在「更多」页出现一处 ------------------------
     update_src = (PREVIEW / "UpdateCheck.java").read_text(encoding="utf-8")
     core_dir = ROOT / "client/core/src/io/qzxy/lite/core"
+    sources_src = (core_dir / "UpdateSources.java").read_text(encoding="utf-8")
     manifest_src = (core_dir / "UpdateManifest.java").read_text(encoding="utf-8")
     channel_src = (core_dir / "UpdateChannel.java").read_text(encoding="utf-8")
     version_src = (core_dir / "ReleaseVersion.java").read_text(encoding="utf-8")
@@ -729,13 +769,21 @@ def main():
     # 更新渠道是独立的一项，与「接收预览版更新」并列：一个选去哪读，一个选读哪个通道。
     require(more_src, "sourceSetting(card, true)", "MoreActivity", "更新渠道挨着更新日志")
     require(more_src, 'text("更新渠道"', "MoreActivity", "更新渠道的可视标题")
-    require(more_src, "WorkBuddy（默认）", "MoreActivity", "WorkBuddy 是默认渠道")
-    require(more_src, '"GitHub"', "MoreActivity", "GitHub 是可切换的渠道")
+    require(more_src, "（默认）", "MoreActivity", "第一项要点明是默认渠道")
     require(more_src, "final String[] names = UpdateSources.HOSTS", "MoreActivity", "选项来自 core 的渠道表")
-    require(more_src, "UpdateCheck.setSource(this, next)", "MoreActivity", "渠道选择要落盘")
-    require(more_src, "setSingleChoiceItems(names, picked[0]", "MoreActivity", "渠道是二选一")
+    require(more_src, "UpdateSources.HOSTS[picked[0]]", "MoreActivity", "显示的渠道名也取自同一张表")
+    require(more_src, "UpdateCheck.setSource(this, UpdateSources.keyOf(picked[0]))", "MoreActivity",
+            "渠道选择要落盘")
+    require(more_src, "setSingleChoiceItems(names, picked[0]", "MoreActivity", "渠道是三选一")
+    # 渠道表本身也要守住：三条地址都写死在 core，测试与应用读同一份，新增渠道不能只改页面。
+    require(sources_src, '"WorkBuddy", "GitHub", "Gitee"', "UpdateSources", "三个渠道按这个顺序出现")
+    require(sources_src, '"workbuddy", "github", "gitee"', "UpdateSources", "每个渠道都有落盘用的键")
+    require(sources_src, "gitee.com", "UpdateSources", "Gitee 的清单地址")
+    require(sources_src, "/download/release/update.json", "UpdateSources",
+            "Gitee 没有 latest 路由，正式清单必须挂在固定 tag 上")
     require(update_src, 'getString(KEY_SOURCE, "workbuddy")', "UpdateCheck", "渠道默认是 WorkBuddy")
-    require(update_src, "UpdateSources.manifests(source)", "UpdateCheck", "两个渠道都从同一份清单表取地址")
+    require(update_src, "UpdateSources.normalize(", "UpdateCheck", "未知渠道一律读成默认，不落到没验证过的主机")
+    require(update_src, "UpdateSources.manifests(source)", "UpdateCheck", "三个渠道都从同一份清单表取地址")
     checks += 1
     # 确认框只在「打开」这一侧：关掉是安全方向，不必再问一次。
     if more_src.count("UpdateCheck.setBetaEnabled(this, true)") != 1:

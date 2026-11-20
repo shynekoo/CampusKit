@@ -11,15 +11,16 @@
 | 趣智校园 | `SmsAccountApi`、`UseCodeApi` | 余额、使用码（8 位） | 使用码设置/生成；余额只读 |
 | 支付宝 SDK | `AlipayLogin`、`QzxyAlipayActivity` | 授权登录、充值收银台、用水免密 | 支付凭据不经应用服务器 |
 | 淘宝/菜鸟 | `PickupCodeLinks`（core） | 唤起取件身份码页面 | 仅跳转，不访问取件数据 |
-| 应用内更新 | `UpdateCheck`、`UpdateSources`、`UpdateManifest`、`UpdateUrls`、`UpdateChannel` | 从所选渠道（WorkBuddy 默认 / GitHub 可选）读 `update.json`（正式）与 `beta.json`（预览，仅在开关打开时读）并下载 APK | 两条通道走同一套校验后交系统安装器，用户点安装；渠道只决定「去哪读」，不改变校验强度 |
+| 应用内更新 | `UpdateCheck`、`UpdateSources`、`UpdateManifest`、`UpdateUrls`、`UpdateChannel` | 从所选渠道（WorkBuddy 默认 / GitHub / Gitee 可选）读 `update.json`（正式）与 `beta.json`（预览，仅在开关打开时读）并下载 APK | 三条通道走同一套校验后交系统安装器，用户点安装；渠道只决定「去哪读」，不改变校验强度 |
 
 ### 更新渠道与稳定地址
 
-- `UpdateSources` 集中保存四个清单地址（core，JVM 测试与应用共用同一份）：WorkBuddy 同目录 `update.json?sharecode=…` + `beta.json?sharecode=…`；GitHub `releases/latest/download/update.json` + `releases/download/preview/beta.json`。
-- GitHub 的 `releases/latest` 排除预发布版本，因此预览清单固定在 `preview` tag；每次发预览版只更新该 tag 下的资产（同名覆盖），地址不变。
+- `UpdateSources` 集中保存六个清单地址（core，JVM 测试与应用共用同一份）：WorkBuddy 同目录 `update.json?sharecode=…` + `beta.json?sharecode=…`；GitHub `releases/latest/download/update.json` + `releases/download/preview/beta.json`；Gitee（**公开**仓库 `gitee.com/sun-heyue/CampusKit`）`releases/download/release/update.json` + `releases/download/preview/beta.json`。Gitee 侧必须 public：私有仓库对匿名读附件回 403，而建仓 API 即使传了 `private: false` 也可能落成私有，发布前要在仓库页确认可见性。
+- GitHub 的 `releases/latest` 排除预发布版本，因此预览清单固定在 `preview` tag；Gitee 没有可用的 `latest/download` 路由，正式清单固定在 `release` tag：每次发版只替换该 tag 下的同名资产，地址不变。
 - 清单里的 APK `url` 必须指向固定 tag/固定文件名（如 `releases/download/v2.5.9/kexin-xiaozhushou-2.5.9.apk`），不能用 `latest/download/<带版本号的文件名>`——新版发布后旧文件名在 latest 下不存在。
-- GitHub Release 资产下载会 302 到带签名 query 的 CDN。`UpdateUrls` 逐跳保留 Location 自带的参数（签名），同时剥掉与上一跳同名（如 `sharecode`）的参数，防止凭据跨 host 泄漏。
-- 默认渠道是 WorkBuddy；未保存过或读到未知值都回落到 WorkBuddy。渠道与「接收预览版更新」两项独立设置，互不影响。GitHub 渠道不受 WorkBuddy 站点所有权限制。
+- GitHub Release 资产下载会 302 到带签名 query 的 CDN；Gitee 会先 302 到 `gitee.com/<owner>/<repo>/attach_files/…`，再 302 到 `foruda.gitee.com/attach_file/…?token=…&ts=…`。`UpdateUrls` 逐跳保留 Location 自带的参数（签名 / token+ts），同时剥掉与上一跳同名（如 `sharecode`）的参数，防止凭据跨 host 泄漏。Gitee 链路是两跳且不需要登录（公开仓库）。
+- 默认渠道是 WorkBuddy；未保存过或读到未知值都回落到 WorkBuddy。渠道与「接收预览版更新」两项独立设置，互不影响。GitHub / Gitee 渠道不受 WorkBuddy 站点所有权限制。
+- 实测参考（同一网络、同一时段）：WorkBuddy 托管约 4 MB/s，Gitee 附件约 0.7 MB/s，GitHub Release 在境内常在数十 KB/s 量级。Gitee 的意义是「境内稳定可达」，不是最快。
 
 ## 通用传输约束（`HttpForm` 等）
 

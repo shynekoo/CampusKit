@@ -98,8 +98,9 @@
 ### 更新渠道
 
 - 位置：更新日志下一行，紧挨「接收预览版更新」上方。图标 `AppUi` 的 `globe`。
-- 文案：标题「更新渠道」；副标题随选择显示「WorkBuddy（默认）」或「GitHub」；右侧显示当前值。整行可点，行高 ≥ 56dp，带 `contentDescription`。
-- 交互：单选弹窗，「WorkBuddy」/「GitHub」两项，「确定」才落盘，「取消」不动。选择后更新副标题、读屏文案并给短 Toast。
+- 文案：标题「更新渠道」；副标题随选择显示「WorkBuddy（默认）」「GitHub」或「Gitee」；右侧显示当前值。整行可点，行高 ≥ 56dp，带 `contentDescription`。
+- 交互：单选弹窗，三项「WorkBuddy」/「GitHub」/「Gitee」，「确定」才落盘，「取消」不动。选择后更新副标题、读屏文案并给短 Toast。选项与名称都取自 `UpdateSources.HOSTS` / `KEYS`，页面不再写死渠道名。
+- 为什么有 Gitee：GitHub 的发布 CDN 在境内常只有数十 KB/s，Gitee 附件走 `foruda.gitee.com`，实测约 0.7 MB/s 且无需登录；WorkBuddy 托管最快（约 4 MB/s），但站点所有权可能变更。
 - 默认 WorkBuddy；`update-v1` 偏好的 `source` 键，未保存或未知值都按 WorkBuddy 处理。切换会作废正在进行的检查（generation 计数），下一手动检查按新渠道执行。
 
 ### 接收预览版更新

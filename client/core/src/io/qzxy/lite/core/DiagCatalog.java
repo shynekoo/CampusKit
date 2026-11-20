@@ -55,6 +55,7 @@ public final class DiagCatalog {
             case "sheet.empty": return "评价表单没有评价项";
             case "sheet.failed": return "评价表单没能读取";
             case "sheet.unsupported": return "评价表单里有不支持的题型";
+            case "sheet.shape": return "评价表单换了一种请求形态";
             case "write.sent": return "评价已提交";
             case "write.saved": return "评价已暂存";
             case "write.failed": return "学校没有接受这次评价";

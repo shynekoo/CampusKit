@@ -12,13 +12,13 @@
 | 当前开发分支 | `feat/diag-2.5.8`（诊断系统改造，**未提交、未合并**） |
 | 最新包 | `delivery/科信小助手-2.5.9.apk`（versionCode 210，已发布，sha256 `b022159d…c82ef605`，`--field-water` 用水版）；`2.5.8.1`/209 因四段版名检查不到更新已被取代 |
 | 发布公告 | `delivery/release-2.5.8.md`（短版 / 长版公告 + 上线记录 + 原始清单） |
-| 最新 tag / Release | `v2.5.9`（[Release](https://github.com/shynekoo/CampusKit/releases/tag/v2.5.9)，附 ASCII 资产 `kexin-xiaozhushou-2.5.9.apk` 与 `update.json`）；另有 `preview` 预发布，附 beta.3 APK 与 `beta.json` |
+| 最新 tag / Release | `v2.5.9`（[Release](https://github.com/shynekoo/CampusKit/releases/tag/v2.5.9)，附 ASCII 资产 `kexin-xiaozhushou-2.5.9.apk` 与 `update.json`）；`preview` 预发布现为 **2.6.0-beta.9 / 226**（APK + `beta.json`）；Gitee 侧同版本（`gitee.com/sun-heyue/CampusKit`） |
 | GitHub 登录 | `gh auth login` 已登录 `shynekoo`（ADMIN，repo scope）；按 AGENTS.md，push/tag/Release 仍需用户逐次确认 |
 | 工作区 | `feat/diag-2.5.8` 上未提交；主线 `main` 未改 |
-| 核心断言 | 实测 **1418 项全过**；UI 契约守卫 **291 锚点**；诊断隐私守卫 **651 项**；WebView 守卫 **6 处** |
+| 核心断言 | 实测 **1520 项全过**；UI 契约守卫 **339 锚点**；诊断隐私守卫 **679 项**；WebView 守卫 **5 处** |
 | 发布状态 | **2.5.8 已发布**：清单、直链、下载站、App 内更新日志已同步；早期 2.5.8.x 开发包未单独发布 |
-| 未发布开发版 | **2.6.0-beta.1 / versionCode 217**（学生评价：Referer 带模块号 + 给学校表单请求补 gnmkdm + 按 DOM 找行点击）；2.5.10 / 211 … 2.5.13-beta.2 / 216 均未公开发布，已被取代 |
-| 预览渠道 | `delivery/update/beta.json` 已更新为 2.6.0-beta.1 / 217，**线上未部署**（`beta.json` 现为 404，App 会安全回退到正式渠道） |
+| 未发布开发版 | **2.6.0-beta.9 / versionCode 226**（Gitee 渠道指向真实公开仓库并已实测匿名可下；评价页「先看结构再谈拒绝」沿用），**已上传 GitHub `preview` 与 Gitee `preview`**；WorkBuddy 站点仍是 beta.5 / 222 |
+| 预览渠道 | `delivery/update/beta.json` 为 2.6.0-beta.9 / 226；**WorkBuddy 站点仍是 beta.5 / 222**（发布被 `SITES_ACCOUNT_MISMATCH` 拒绝，appId 属另一账号）；GitHub 与 Gitee 的 `preview` 均已是 beta.9 / 226 |
 
 ## 二、已提交但未发布（2.5.8.1）
 
@@ -230,9 +230,119 @@ UI-3 本轮修 5 处：滚动恢复带 generation 且改为布局后（pre-draw�
   `test_webview_policy` 5 / `test_ui_contract` **314**，全过；`javac --release 8` 通过。
 - **仍需真机**：E2（展开/收起、连点不抢动画）；其余链路（答题、暂存、提交）与 beta.3 相同，未实测。
 
+## 三之十三、问卷请求被回「参数异常」：这组 id 必须同时进查询串（2.6.0-beta.6）
+
+- **现象**（真机）：2.6.0-beta.5 上卡片已能展开，点「开始评价」进入原生答题页，页面显示
+  「学校没有下发评价项：课程号ID,教学班ID,教职工ID参数异常！」。
+- **判断依据**：列表就是靠 `jxb_id / kch_id / jgh_id` 渲染出来的，这三项不可能是空的；学校这句
+  提示的真实含义是「请求里的参数表是空的」。
+- **根因**：原生版本只把参数放进了请求体。学校页面自己用 `$(panel_content).load(url, data)`
+  （data 进请求体），但它的过滤器仍从**查询串**取一份；只给请求体就读到空参数表。2.5.10 的真机
+  是同一句报错，2.5.11 的修法正是把同一组参数也拼进查询串——原生重写时漏掉了这条经验。
+- **修法**：`evaluationForm()` 里 `SmsLoginProtocol.form(form)` 生成查询串，URL 变成
+  `EVAL_FORM + "&" + query`，请求体照旧；新增 `refusal(html)` 识别「参数异常 / 模块维护 / 已放弃」
+  三种拒绝页并给对应提示（此前一律显示「没有下发评价项」，把责任推给了学校）；三个 id 先判空。
+- **守卫**：ui_contract 增三条防回退锚点（双写、`refusal` 必须存在、三个 id 先判空），323 → 326。
+- 测试：core 1505 / build_config 7 / diag_privacy 672 / diag_files 6650 / webview_policy 5 /
+  ui_contract **326**，全过；`javac --release 8` 通过。
+- **未验证**：题目是否真的渲染出来（E4）；提交/暂存仍无真机记录。
+
+## 三之十四、更新渠道增加 Gitee（2.6.0-beta.7，工作区改动、未构建未发版）
+
+- **起因**：真机把更新渠道切到 GitHub 后能检查到新版本，但 APK 下载慢到不可用。GitHub 的
+  release CDN 在境内本来就慢，换配置解决不了，只能增加一个境内分发点。
+- **实测（同一网络、同一时段）**：WorkBuddy 托管 ≈ 4 MB/s；Gitee 发布附件 ≈ 0.7 MB/s（9.1 MB
+  文件 7.2 s）；GitHub release CDN 在境内常为数十 KB/s 或直接超时。结论：Gitee 是「稳定可达」，
+  不是最快，所以 WorkBuddy 仍是默认渠道。
+- **Gitee 能否免登录下载**（关键前提，已实测）：公开仓库的发布附件可以。链路是
+  `gitee.com/<owner>/<repo>/releases/download/<tag>/<file>` → 302 →
+  `gitee.com/<owner>/<repo>/attach_files/<id>/download/<file>` → 302 →
+  `foruda.gitee.com/attach_file/<id>/<file>?token=…&ts=…` → 200，全程无登录态。私有仓库不行。
+- **代码**：`UpdateSources` 扩成三渠道，新增 `KEYS` / `keyOf(int)` / `indexOf(String)` /
+  `normalize(String)`；`manifests()` 多一个 `gitee` 分支；`MoreActivity.sourceSetting` 的三项名称、
+  当前值、Toast 全取自 `UpdateSources`，页面不再有硬编码渠道分支；`UpdateCheck.setSource/source`
+  落盘与读取都过 `normalize`，未知值回落 WorkBuddy。
+- **两个固定清单**：正式 `releases/download/release/update.json`、预览
+  `releases/download/preview/beta.json`。Gitee 没有 `latest/download` 路由，正式清单也只能挂固定
+  tag，每次发版替换 tag 内同名资产（与 GitHub 的 `preview` tag 做法一致）。
+- **仓库常量**：暂定 `gitee.com/shynekoo/CampusKit`（与 GitHub 同名）。Gitee 用户名不同就只改这两行常量。
+- **守卫**：ui_contract 增「三渠道顺序 / 每个渠道有落盘键 / Gitee 固定 tag 地址 / 页面渠道名取自
+  core / 未知值归一」，326 → 331；core 增三渠道清单与 Gitee 两跳 302 的断言，1505 → 1518。
+- **未验证**：Gitee 仓库还没建、资产还没上传，所以 App 内实际拉取一次都没跑过。真机步骤见
+  `docs/real-device-acceptance.md` 的 B0c。
+
+## 三之十五、评教仍回「参数异常」：三种载体依次试（2.6.0-beta.7）
+
+- **现象**：2.6.0-beta.6 已经双写（查询串 + 请求体），真机仍显示「学校说这次请求的参数不对」。
+  这句来自本项目自己的 `refusal()`，说明**拒绝页分型生效了、双写没有解决问题**——两者要分开看，
+  不能因为页面上出现了新文案就当修好了。
+- **三个互斥的假设**：① 学校过滤器只读请求体（网页是 `$(panel_content).load(url, data)`，
+  即 POST + 仅请求体）；② 只读查询串（beta.6 的假设）；③ 空值参数被当成「给了但错」。
+  没有账号无法逐条验证，所以一次把三种都试掉。
+- **修法**：`evaluationForm()` 依次试 `POST 仅请求体` → `POST 请求体+查询串` → `GET 仅查询串`，
+  第一次不被判拒绝就采用并返回；三种都被拒时抛学校原话。
+- **空值不发**：新增 `putIfPresent()`，`xsdm / tjzt / pjmbmcb_id / sfcjlrjs` 为空时根本不进参数表。
+- **可观测**：生效的形态写 `EVAL / sheet.shape`（字段 `form`，词条「评价表单换了一种请求形态」）。
+  这条是本轮唯一能自我定位的手段：下次再失败，诊断里能看出三种都试过且都被拒。
+- **守卫**：ui_contract 的「双写」断言改成「三形态顺序 + 空值不发 + 生效形态记诊断」，331 → 336；
+  diag_privacy 新增 `form` 字段与 `sheet.shape` 词条，672 → 681。
+- **未验证**：哪一种是学校接受的（E4 仍挂在真机上）。
+
+## 三之十四、评价页被自己判成「被拒」：先把顺序倒过来（2.6.0-beta.8）
+
+- **现场**：2.6.0-beta.7 真机日志里，`xspj_cxXspjDisplay.html` 连发三次（POST 仅请求体 / POST
+  请求体+查询串 / GET 查询串），三次都是 **200**，`duration` 都在 160–175 ms，三次都被记成
+  「被拒」，随后 `sheet.failed`。界面显示「学校说这次请求的参数不对」。
+- **推断的关键**：第一种形态与学校自己页面发出的请求逐字相同
+  （`load("/xspjgl/xspj_cxXspjDisplay.html", {jxb_id, kch_id, xsdm, jgh_id, tjzt, pjmbmcb_id,
+  sfcjlrjs})`，见线上 `xspj_index.js` 的 `onSelectRow`）。它不可能被学校拒。所以要么回包不是
+  拒绝，要么判定本身错了。
+- **真正的错**：`evaluationForm` 先调 `refusal(html)`（`html.contains("参数异常")`），命中就丢弃
+  整个回包，再去试下一种形态。判断权交给了一个子串——那句话只要出现在正常表单的脚本或提示模板
+  里，好页面就被自己挡在门外，三条路一次堵死。
+- **修法**：`looksLikeSheet(html)` 先认结构，四个标记即解析器所用的四个选择器
+  （`div.xspj-body` / `panel-pjdx` / `tr-xspj` / `input-xspj`；线上 `xspj_display.js` 里分别出现
+  9 / 28 / 36 / 12 次）。命中即 `return html`，由 `EduEvaluationForm.parse` 去判断有没有题目；
+  只有在**没有任何表结构**时才去读拒绝语，并把回包大小附在同一句提示里。
+- **顺带修的两个自伤**：
+  1. 第一种请求改成与浏览器逐字一致——新增 `EVAL_DISPLAY`
+     （`/xspjgl/xspj_cxXspjDisplay.html`，无查询串），去掉自加的 `gnmkdm` 与 `nd` 时间戳。
+  2. `sheet.shape` 的形态值原先是中文（「请求体」），诊断白名单只放行 `[A-Za-z0-9_.:+-]`，于是
+     三条全被脱敏写成 `form=OTHER`——日志看着「什么都没有」，信息其实是在路上被自己擦掉的。
+     现改为 `body` / `body+query` / `query`，并加 `bytes` 记录回包字节数。
+- **验证**：`test_ui_contract` 336 → **339**（结构优先、逐字对齐、`bytes` 入日志、失败提示带大小）；
+  `test_core` 1518 不变；其余守卫不变。产物 2.6.0-beta.8 / 225，SHA-256
+  `f4569dc6…8e325796`，dex 内可见 `looksLikeSheet` / `EVAL_DISPLAY` / `xspj-body`。
+- **未验证**：这张表到底是正常表单还是真的拒绝页。本次只做到「不再替它下结论」；真机若仍失败，
+  提示语里的 KB 数会直接说明回的是什么（2 KB 量级＝提示页，数十 KB＝表单）。
+
+## 三之十六、Gitee 渠道接通：仓库不存在，选项等于空（2.6.0-beta.9）
+
+- **现象**：beta.7/beta.8 里「更新渠道」有 Gitee 一项，选中后手动检查只得到「暂时查不到新版本」。
+- **原因**：两个地址写的是 `gitee.com/shynekoo/CampusKit`，当时是照 GitHub 账号名猜的。实测
+  `gitee.com/shynekoo` 本身 **404**（对照 `gitee.com/droidvm` 200），仓库自然也不存在，
+  `update.json` / `beta.json` 全 404；`UpdateCheck` 把读不到当成「该渠道没有内容」静默跳过。
+- **落地**：真实公开仓库 **`gitee.com/sun-heyue/CampusKit`**，两个固定 tag `release` / `preview`；
+  `UpdateSources.GITEE_RELEASE` / `GITEE_BETA` 改到该仓库；README 说明两个 tag 的用途与清单字段。
+- **建仓踩的坑**：`POST /user/repos` 传 `private: false`，仓库仍落成 **私有** → 匿名读附件
+  403（`{"status":403,"data":null,"message":"403 Forbidden"}`）。改可见性要
+  `PATCH /repos/{owner}/{repo}` **同时带 `name`**（只传 `private` 会回 `name is missing`）。
+  这条写进了 `UpdateSources` 类注释与 `build-and-release.md`：发布前从仓库页确认 public，
+  不能相信建仓接口的回显。
+- **上传附件两个坑**（与 GitHub 同源）：① 附件名取**本地文件名**，`update-gitee.json`
+  会原样上传，必须先把文件命名成 `update.json` 再传；② 同名重传要先 `DELETE
+  /releases/{id}/attach_files/{attach_id}`（204），否则会留两份。
+- **实测（不带令牌）**：`beta.json` 200 / 1169 B → 226；APK 200 / 5,465,978 B，SHA-256
+  `11cbeab8…0baf5b73` 与清单一致；速度 0.83–0.95 MB/s。跳转链
+  `download/…` → `attach_files/…` → `foruda.gitee.com/attach_file/…?token&ts`，与
+  `CoreTests` 的 Gitee 两跳夹具一致。
+- **守卫**：`test_core` 1518 → **1520**（新增「Gitee 地址的 owner 必须是真实仓库」两条）；
+  重定向夹具改用 `UpdateSources.GITEE_RELEASE` 常量，不再手抄地址。
+- **未验证**：App 内真机走 Gitee 下载安装（B0c）。
+
 ## 四、验证状态（如实）
 
-**已执行**：`test_core` 1418、`test_build_config` 7、`test_diag_privacy` 651、`test_diag_files`、`test_webview_policy` 6、`test_ui_contract` 291，全部通过；`javac --release 8` 全量编译通过；2.5.8 APK 已构建（5 420 922 B，SHA-256 `ac40b21d…10d806`，v2/v3 验签通过，dex 水控路由 0）；2.5.8.6 / 2.5.8.7 / 2.5.8.8 普通版 APK 已构建并通过 v2/v3 验签（2.5.8.8 的 dex 反查含 `cxJxzxjhxfyqFKcxx` / `planCourses` / `opensCourses`，2.5.8.7 三项均为 0）；真实账号端到端拉取学业数据成功（GPA 2.9875、37 节点 5 层、16 课组 94 门课）；计划外课组按学校 `jdkcsx` 分流端点后复验（人文科学 5 门、自然科学 6 门，与学校页"共 N 门"一致）。
+**已执行**：`test_core` **1520**、`test_build_config` 7、`test_diag_privacy` **679**、`test_diag_files`、`test_webview_policy` 5、`test_ui_contract` **339**，全部通过；2.6.0-beta.9 APK 已构建（5,465,978 B，SHA-256 `11cbeab8…0baf5b73`）；Gitee 两个固定 tag 的清单与 APK 已匿名复验；`javac --release 8` 全量编译通过；2.5.8 APK 已构建（5 420 922 B，SHA-256 `ac40b21d…10d806`，v2/v3 验签通过，dex 水控路由 0）；2.5.8.6 / 2.5.8.7 / 2.5.8.8 普通版 APK 已构建并通过 v2/v3 验签（2.5.8.8 的 dex 反查含 `cxJxzxjhxfyqFKcxx` / `planCourses` / `opensCourses`，2.5.8.7 三项均为 0）；真实账号端到端拉取学业数据成功（GPA 2.9875、37 节点 5 层、16 课组 94 门课）；计划外课组按学校 `jdkcsx` 分流端点后复验（人文科学 5 门、自然科学 6 门，与学校页"共 N 门"一致）。
 
 **未执行**：诊断页真机流程（G6–G17：开关、复现、导出、轮转、崩溃重启、长日志、深色/大字号）；真机验收清单其余全部（含 UI 2.0 的快速连点、滚动恢复与旋转/分屏、返回手势、关动画、320dp）；2.5.8.6 真机覆盖安装与学业页回归；真实支付用水、MobSF、签名轮换、旧版升级兼容。详见 [`known-issues.md`](known-issues.md)。
 

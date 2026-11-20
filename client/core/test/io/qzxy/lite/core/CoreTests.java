@@ -1395,23 +1395,54 @@ public final class CoreTests {
                 new java.util.HashSet<String>(), 0));
         System.out.println("PASS: a signed CDN redirect keeps its own query while a sharecode is never forwarded");
 
-        // Two update channels: WorkBuddy default, GitHub alternative. Both carry a release and a
-        // preview list; an absent or unknown value must resolve to WorkBuddy, never to a blank host.
-        equal(2, UpdateSources.HOSTS.length);
+        // Three update channels: WorkBuddy default, GitHub and Gitee alternatives. Every one carries
+        // a release and a preview list; an absent or unknown value must resolve to WorkBuddy, never
+        // to a blank host.
+        equal(3, UpdateSources.HOSTS.length);
         equal("WorkBuddy", UpdateSources.HOSTS[0]);
         equal("GitHub", UpdateSources.HOSTS[1]);
+        equal("Gitee", UpdateSources.HOSTS[2]);
         equal(true, UpdateSources.isWorkBuddy(null));
         equal(true, UpdateSources.isWorkBuddy(""));
+        equal(true, UpdateSources.isWorkBuddy("gitee-like-typo"));
         equal(true, UpdateSources.isWorkBuddy("workbuddy"));
         equal(false, UpdateSources.isWorkBuddy("github"));
+        equal(false, UpdateSources.isWorkBuddy("gitee"));
+        equal("gitee", UpdateSources.keyOf(2));
+        equal(2, UpdateSources.indexOf("gitee"));
+        equal(0, UpdateSources.indexOf("nonsense"));
+        equal("workbuddy", UpdateSources.normalize("nonsense"));
         equal(2, UpdateSources.manifests(null).length);
         equal(true, UpdateSources.manifests(null)[0].contains("workbuddy.host"));
         equal(true, UpdateSources.manifests(null)[1].contains("beta.json"));
         equal(true, UpdateSources.manifests("github")[0].startsWith("https://github.com/"));
         equal(true, UpdateSources.manifests("github")[1].contains("/preview/beta.json"));
+        equal(true, UpdateSources.manifests("gitee")[0].startsWith("https://gitee.com/"));
+        equal(true, UpdateSources.manifests("gitee")[0].contains("/download/release/update.json"));
+        equal(true, UpdateSources.manifests("gitee")[1].contains("/download/preview/beta.json"));
+        // The owner is part of the address, and a wrong owner answers 404 (or 403 while the repo is
+        // private) to every read — so pin it to the repository that actually exists.
+        equal(true, UpdateSources.GITEE_RELEASE.contains("gitee.com/sun-heyue/CampusKit/"));
+        equal(true, UpdateSources.GITEE_BETA.contains("gitee.com/sun-heyue/CampusKit/"));
         for (String url : UpdateSources.manifests(null)) UpdateUrls.requireHttps(url);
         for (String url : UpdateSources.manifests("github")) UpdateUrls.requireHttps(url);
-        System.out.println("PASS: both update channels resolve to two HTTPS manifests with WorkBuddy as the default");
+        for (String url : UpdateSources.manifests("gitee")) UpdateUrls.requireHttps(url);
+
+        // Gitee answers a manifest read with two 302 hops: gitee.com -> gitee.com/attach_files/...
+        // -> foruda.gitee.com/attach_file/...?token=..&ts=.. . The signature is written by the
+        // Location header, so it must survive, and the second hop must be accepted as HTTPS.
+        final java.util.Set<String> giteeHops = new java.util.HashSet<String>();
+        final String giteeFirst = UpdateSources.GITEE_RELEASE;
+        giteeHops.add(UpdateUrls.canonical(giteeFirst));
+        final String giteeAttach = UpdateUrls.next(giteeFirst,
+            "https://gitee.com/sun-heyue/CampusKit/attach_files/123/download/update.json", giteeHops, 0);
+        final String giteeCdn = UpdateUrls.next(giteeAttach,
+            "https://foruda.gitee.com/attach_file/1778235413864103324/update.json?token=abc&ts=1795180534&attname=update.json",
+            giteeHops, 1);
+        equal(true, giteeCdn.startsWith("https://foruda.gitee.com/"));
+        equal(true, giteeCdn.contains("token=abc"));
+        equal(true, giteeCdn.contains("ts=1795180534"));
+        System.out.println("PASS: three update channels resolve to two HTTPS manifests each, and Gitee's signed CDN hop survives");
 
         // Diagnostics must be opt-in at runtime even when compiled into a release variant. The
         // default is a policy, not an accident of a null context or a failed SharedPreferences read.

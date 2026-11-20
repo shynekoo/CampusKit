@@ -58,9 +58,10 @@ import io.qzxy.lite.core.UpdateUrls;
  */
 final class UpdateCheck {
     /**
-     * The published manifests live on two hosts. WorkBuddy is the default, GitHub is the
-     * alternative; the reader picks one in 更多 → 更新渠道. Both hosts carry the same two files, so
-     * switching changes only where they are read from — every field still goes through the same
+     * The published manifests live on three hosts. WorkBuddy is the default, GitHub and Gitee are
+     * the alternatives the reader picks in 更多 → 更新渠道; Gitee is there because GitHub's release
+     * CDN is slow from mainland networks. Every host carries the same two files, so switching
+     * changes only where they are read from — every field still goes through the same
      * {@link UpdateManifest} checks and the download through the same signature verification.
      * The addresses are in {@link UpdateSources} so the JVM tests read the exact same list.
      */
@@ -105,13 +106,14 @@ final class UpdateCheck {
     /** Saves the channel choice and retires any check already in flight. */
     static void setSource(Context context, String source) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .putString(KEY_SOURCE, "github".equals(source) ? "github" : "workbuddy").apply();
+            .putString(KEY_SOURCE, UpdateSources.normalize(source)).apply();
         synchronized (UpdateCheck.class) { generation++; }
     }
 
-    /** "workbuddy" (the default) or "github". */
+    /** "workbuddy" (the default), "github" or "gitee"; anything unknown reads as the default. */
     static String source(Context context) {
-        return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_SOURCE, "workbuddy");
+        return UpdateSources.normalize(
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_SOURCE, "workbuddy"));
     }
 
     private static synchronized int generation() { return generation; }

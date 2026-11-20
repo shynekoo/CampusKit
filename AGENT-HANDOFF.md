@@ -21,9 +21,9 @@
 | 发布公告（当前版） | `delivery/release-2.5.9.md` | 含短版 / 长版公告、根因、测试与上线清单；`update.json` 与 App 内更新日志已同步 |
 | 上一版未发版包 | 2.5.8.7（versionCode 205） | 产物仍在 `delivery/`，**不含少课修复**，仅作历史对照 |
 | 最新 Git tag | `v2.5.9` | 2.5.8 为 `00d7bb4`；2.5.8.x 早期开发迭代未各自建 tag |
-| GitHub Release | 最新为 [v2.5.9](https://github.com/shynekoo/CampusKit/releases/tag/v2.5.9) | 附 `kexin-xiaozhushou-2.5.9.apk`（5,437,306 字节）与 `update.json`；另有 `preview` 预发布，附 beta.3 APK 与 `beta.json` |
+| GitHub Release | 最新为 [v2.5.9](https://github.com/shynekoo/CampusKit/releases/tag/v2.5.9) | 附 `kexin-xiaozhushou-2.5.9.apk`（5,437,306 字节）与 `update.json`；`preview` 预发布现为 **2.6.0-beta.6 / 223**（`campuskit-2.6.0-beta.6.apk` + `beta.json`） |
 | GitHub 登录 | 已用 `gh auth login` 登录 `shynekoo`（ADMIN，token scopes 含 repo） | 技术上有 push/tag/Release 权限；按 AGENTS.md 仍需用户逐次确认才执行 |
-| 未发布开发版 | **2.6.0-beta.4**（versionCode 221，工作区改动、未构建完成） | 教务「学生评价」**原生实现**：列表按教务分页取全、三格计数 + 状态筛选 + 卡片折叠；答题页不用 WebView，`EduEvaluationForm` 按学校 `xspj_display.js` 的 DOM 把问卷片段读成题目/选项，暂存与提交沿用学校 `modelList[i].xspjList[j].childXspjList[k]` 参数。beta.4 只修一处：折叠高度写入把 `WRAP_CONTENT`(-2) 钳成 0，导致卡片「点开就缩回」
+| 未发布开发版 | **2.6.0-beta.9**（versionCode 226，已上传 GitHub `preview` 与 Gitee `preview`） | 评价页判定顺序反转：先 `looksLikeSheet` 认结构（`xspj-body`/`panel-pjdx`/`tr-xspj`/`input-xspj`）再谈拒绝，不再让一句「参数异常」把正常表单挡在门外（beta.7 三种载体全被判拒，而第一种与浏览器逐字相同）；首请求改用 `EVAL_DISPLAY`（无 `gnmkdm`、无查询串、无 `nd`）；`sheet.shape` 形态值改 ASCII 并加 `bytes`；失败提示直接写回包大小。Gitee 渠道接通：地址改到真实公开仓库 `gitee.com/sun-heyue/CampusKit`（两个固定 tag `release`/`preview`），测得不带令牌可下、约 0.85 MB/s、sha256 与清单一致。产物 5,465,978 B，SHA-256 `11cbeab8…0baf5b73`；WorkBuddy 站点仍是 beta.5 / 222（`SITES_ACCOUNT_MISMATCH`） |
 
 - **版本号规范（2026-11-20 起）**：正式版 `X.Y.Z`、预览版 `X.Y.Z-beta.N`（N 从 1 起），四段 `X.Y.Z.W` 只保留读取兼容；
   新旧一律比 `versionCode`（`core/UpdateChannel`），不比较版本名。`build_preview.py` 的 `check_version_name()` /
@@ -33,7 +33,8 @@
   不建议开启。」，只有「仍然开启」才落盘；状态存 `update-v1` 偏好，切换后旧检查作废。线上 `beta.json` 现为 404，读到即视为该渠道无内容。
 - **更新渠道（工作区改动，未构建）**：「更多 → 更新渠道」在「接收预览版更新」上方，二选一 WorkBuddy（默认）/ GitHub，存 `update-v1` 的 `source` 键。
   core `UpdateSources` 保存四个清单地址；GitHub 正式清单在 `releases/latest/download/update.json`、预览清单在固定 `preview` tag；`UpdateUrls` 保留 Location 自带签名 query、剥掉与上一跳同名的参数。
-  GitHub 发布链路：v2.5.9 已附正式清单，preview 预发布已附 beta.3 APK 与预览清单；资产经 API 元数据核对，**直链下载在本机受代理 502 限制未验证**。未提交。
+  GitHub 发布链路：v2.5.9 已附正式清单；preview 预发布已附 2.6.0-beta.8 APK 与预览清单（225），资产经 API 与 octet-stream 读取核对（version/versionCode/bytes/sha256 一致），**直链在本机网络多次连不上，仍待真机复核**。
+- **Gitee 渠道（2.6.0-beta.9）**：`UpdateSources` 第三渠道，正式清单 `releases/download/release/update.json`、预览 `releases/download/preview/beta.json`。仓库为**公开**的 `gitee.com/sun-heyue/CampusKit`（此前写的 `shynekoo` 在 Gitee 上不存在，用户页即 404）。实测匿名链路 `download/…` → 302 `attach_files/…` → 302 `foruda.gitee.com/…?token=…&ts=…` → 200，约 0.85 MB/s（同网络 WorkBuddy 约 4 MB/s、GitHub 数十 KB/s）；APK 与清单 sha256 一致。坑：建仓 API 传 `private:false` 仍可能落成私有（匿名读附件 403），改可见性要 `PATCH` 且带 `name`。**App 内未实测，见 B0c。**
 
 ## 二之二、同步状态（2026-11-19 22:45 合并完成）
 

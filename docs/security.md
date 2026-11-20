@@ -47,7 +47,7 @@
 
 `UpdateManifest` 要求 `version` / `versionCode` / `notes` / `url` / `bytes` / `sha256` 字段合法且 `sha256` 小写 64 位；下载必须 HTTPS、逐跳受控，落地前校验字节数与 SHA-256，并比对 APK 包名 / versionCode / 签名身份（比对逻辑存在，具体指纹值不记录在文档）。最后一步必须由用户点「安装」。
 
-- 更新渠道（WorkBuddy / GitHub，更多页选）只决定「从哪个主机读清单」，**不构成权限提升**：两处清单都过同一套 `UpdateManifest` 校验，GitHub 的 `sharecode` 不存在、WorkBuddy 的也不因换渠道而泄露。GitHub Release 资产会 302 到带签名 query 的 CDN，`UpdateUrls` 保留 Location 自带的参数，但剥掉与上一跳同名（如 `sharecode`）的参数，防止查询参数跨 host 泄漏；逐跳 HTTPS、跳数上限与防环保持不变。
+- 更新渠道（WorkBuddy / GitHub / Gitee，更多页选）只决定「从哪个主机读清单」，**不构成权限提升**：三处清单都过同一套 `UpdateManifest` 校验，GitHub 的 `sharecode` 不存在、WorkBuddy 的也不因换渠道而泄露。GitHub Release 资产会 302 到带签名 query 的 CDN，Gitee 会 302 到 `gitee.com/…/attach_files/…` 再 302 到 `foruda.gitee.com/…?token=…&ts=…`；`UpdateUrls` 保留 Location 自带的参数，但剥掉与上一跳同名（如 `sharecode`）的参数，防止查询参数跨 host 泄漏；逐跳 HTTPS、跳数上限与防环保持不变。Gitee 的 token 是服务端签发的临时下载凭据，只在那一跳内有效，不来自也不写入本地存储。
 - 预览通道（`beta.json`）**不降低任何一项**：同一份 `UpdateManifest` 校验、同一套逐跳 HTTPS 策略、同一套字节数 / SHA-256 / 包名 / versionCode / 签名证书比对都在下载链路上，与渠道无关；清单缺字段、指向明文 HTTP、或包里任何一项对不上，一律删除下载而不安装。
 
 - 版本名只用于显示与分渠道，**新旧一律由 `versionCode` 决定**（`core/UpdateChannel`）。不比较字符串，因此不存在「`2.10` 比 `2.9` 旧」这类误判。

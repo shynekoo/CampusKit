@@ -14,10 +14,163 @@
 - 已构建、尚未发版：`2.5.8.8`（versionCode `206`，2026-11-19），在合并后的主线上重建。
 - **线上正式版（2026-11-19 发布）**：`2.5.8`（versionCode `208`），把 2.5.8.1–2.5.8.9 合并成一个正式版本号；
   产物 `delivery/科信小助手-2.5.8.apk`，发布公告见 [`delivery/release-2.5.8.md`](delivery/release-2.5.8.md)。
-- 核心断言：`python scripts/test_core.py` → **1491 项全过**；UI 守卫 **314 锚点**；诊断隐私守卫 **672 项**（2026-11-20）。
+- 核心断言：`python scripts/test_core.py` → **1518 项全过**；UI 守卫 **331 锚点**；诊断隐私守卫 **672 项**（2026-11-20）。
 - 2.5.8 的 tag / Release / 下载站随本次发布同步；早期 2.5.8.x 开发迭代仍**未**各自建 tag。
 
 更早版本的发布说明见 [`delivery/release-*.md`](delivery/)。
+
+---
+
+## [未发布 · 2.6.0-beta.9] — Gitee 渠道接通（versionCode 226）
+
+> 上一版把 Gitee 放进「更新渠道」，但两个地址写的是 `gitee.com/shynekoo/CampusKit`——那个
+> 用户在 Gitee 上根本不存在（用户页 404），仓库自然也没有。选项在、内容没有，读者选它只会得到
+> 「暂时查不到新版本」。
+
+### 改动
+
+- **建好真实的公开仓库**：`gitee.com/sun-heyue/CampusKit`，两个固定 tag `release` / `preview`，
+  各挂清单与 APK；`UpdateSources` 的两条 Gitee 地址改到该仓库。
+- **实测匿名可下**（不带任何令牌）：`beta.json` 200 / 1169 B → 226；APK 200 / 5,465,978 B，
+  SHA-256 与清单一致；速度约 **0.83–0.95 MB/s**（同网络 GitHub 数十 KB/s、WorkBuddy 约 4 MB/s）。
+  跳转链 `gitee.com/…/download/…` → `attach_files/…` → `foruda.gitee.com/attach_file/…?token&ts`
+  与 `UpdateUrls` 的单测夹具一致。
+- **踩到并记录的坑**：建仓 API 即使传 `private: false`，仓库仍落成 **私有**，此时匿名读附件回
+  403（`{"status":403,"message":"403 Forbidden"}`），App 只能显示「该渠道没有内容」。要用
+  `PATCH /repos/{owner}/{repo}` 带 `name` 重启可见性。这条写进 `UpdateSources` 的类注释与
+  `build-and-release.md`。
+- CoreTests 增加两条：Gitee 地址的 owner 必须是真实存在的仓库（防再次写成不存在的账号），
+  重定向夹具改用 `UpdateSources.GITEE_RELEASE`，不再手抄一份会过期的字符串。
+
+### 验证状态
+
+- `test_core` **1520**（+2）、`test_ui_contract` 339、`test_diag_privacy` 679、
+  `test_diag_files` 6650、`test_webview_policy` 5、`test_build_config` 7，全部通过。
+- 产物：`delivery/科信小助手-2.6.0-beta.9.apk`，5,465,978 B，SHA-256
+  `11cbeab8…0baf5b73`，versionName `2.6.0-beta.9`、versionCode 226；dex 内同时含
+  `sun-heyue`（Gitee）与 `shynekoo`（GitHub），说明两条渠道各自指向自己的仓库。
+- **未验证**：App 内实际点「检查更新」经 Gitee 下载安装——需要真机，见
+  `docs/real-device-acceptance.md` 的 B0c。
+
+## [已构建 · 2.6.0-beta.8] — 评价页：先看结构，再谈拒绝（versionCode 225）
+
+> 2.6.0-beta.7 的真机日志里，三种请求形态（POST 仅请求体 / POST 请求体+查询串 / GET 查询串）
+> 一律回 200，又一律被判成「被拒」。可第一种与学校自己页面发出的请求逐字相同，它不可能被学校
+> 拒。真正的问题在判断顺序：先拿「参数异常」这四个字去认页面，再谈页面里有没有表——那句话也
+> 可能出现在一张正常表单的脚本或提示模板里，于是好页面被自己挡在门外，三道都堵死。
+>
+> 附带一个自找的坑：`sheet.shape` 记的值是中文（「请求体」），诊断白名单只放行
+> `[A-Za-z0-9_.:+-]`，于是三条全被写成 `form=OTHER`——日志看着"什么都没有"，其实信息在路上被
+> 自己擦掉了。
+
+### 改动
+
+- **判定顺序反转**：`EduClient.evaluationForm` 先用 `looksLikeSheet` 认结构
+  （`div.xspj-body` / `panel-pjdx` / `tr-xspj` / `input-xspj`，四个选择器即解析器用的那四个，
+  线上 `xspj_display.js` 里分别出现 9 / 28 / 36 / 12 次），命中就把整段 HTML 交给
+  `EduEvaluationForm.parse`；只有在没有任何表结构时才去读拒绝语。判断权归解析器，不归一个
+  子串。
+- **第一种请求逐字对齐浏览器**：新增 `EVAL_DISPLAY`（`/xspjgl/xspj_cxXspjDisplay.html`，无查询
+  串），POST 七项参数只在请求体；去掉此前自加的 `gnmkdm` 与 `nd` 时间戳。后两种（带
+  `gnmkdm` + 查询串、GET 查询串）作为部署差异的退路保留。
+- **日志记回包大小**：`EVAL / sheet.shape` 增加 `bytes` 字段，形态值改成 ASCII
+  （`body` / `body+query` / `query`），不再被脱敏改写成 `OTHER`。
+- **失败提示自带证据**：无表时提示里直接写「学校回的是 X KB 的页面」，被拒时同样附上大小——
+  一张截图就能区分「2 KB 的错误页」与「30 KB 的正常表」，不必再去导日志。
+
+### 验证状态
+
+- `test_core` **1518**、`test_build_config` 7、`test_diag_privacy` 679、`test_diag_files` 6650、
+  `test_webview_policy` 5、`test_ui_contract` **339**（较上一版 +3：结构优先、请求逐字对齐、
+  回包字节数入日志），全部通过。
+- 产物：`delivery/科信小助手-2.6.0-beta.8.apk`，5,465,978 B，SHA-256
+  `f4569dc6…8e325796`，versionName `2.6.0-beta.8`、versionCode 225；dex 内可见
+  `looksLikeSheet` / `EVAL_DISPLAY` / `xspj-body` / `panel-pjdx`。
+- **未验证**：真实账号下这张表到底是不是正常表单——本次改动只是不再替它下结论。真机若仍失败，
+  提示语里的 KB 数会直接说明回的是什么。
+
+## [已构建 · 2.6.0-beta.7] — 评教请求改试三种载体 + 更新渠道增加 Gitee（versionCode 224）
+
+> 两条真机反馈在同一版里处理：① 切到 GitHub 渠道后能检查到更新，但 APK 下载慢到不可用；
+> ② 2.6.0-beta.6 装了之后评价页仍显示「学校说这次请求的参数不对」——说明拒绝页分型生效了，
+> 但「双写」并没有解决学校的拒绝。
+
+### 评教：不再猜学校读哪一处
+
+- **现象**：beta.6 已把七个 id 同时放进查询串和请求体，学校仍回「课程号ID,教学班ID,教职工ID参数异常」。
+- **判断**：三种可能都成立且互斥——学校的过滤器只读请求体（网页是
+  `$(panel_content).load(url, data)`，即 POST + 仅请求体）、只读查询串、或把空值参数当成
+  「给了但是错的」。继续按一种形态赌下去没有意义。
+- **修法**：`evaluationForm()` 改成按「最接近网页」到「最不接近」依次试三种载体——
+  `POST 仅请求体` → `POST 请求体+查询串` → `GET 仅查询串`，任一次不被判拒绝就采用并返回；
+  三种都被拒时，把学校那句话原样抛给读者，不再自造原因。
+- **空值不发**：新增 `putIfPresent`，`xsdm / tjzt / pjmbmcb_id / sfcjlrjs` 为空时根本不进参数表。
+  发一个空串等于告诉学校「这个参数给了，但是错的」。
+- **可观测**：真正生效的那一种形态记进诊断（`EVAL / sheet.shape`，字段 `form`，新增词条
+  「评价表单换了一种请求形态」），下次再失败能一眼看出卡在哪一步。
+- **未验证**：哪一种是学校接受的，只有真机能回答；这一版就是把三种都试一遍。
+
+### 更新渠道增加 Gitee
+
+- `UpdateSources` 从两个渠道扩到三个：`HOSTS = {"WorkBuddy", "GitHub", "Gitee"}`，
+  并列一张 `KEYS = {"workbuddy", "github", "gitee"}`；新增 `keyOf(int)` / `indexOf(String)` /
+  `normalize(String)`，让页面和落盘都不再自己写渠道名。未知值仍一律回落 WorkBuddy。
+- `MoreActivity.sourceSetting`：单选项从两项变三项，名称、当前值、Toast 全部取自 `UpdateSources`，
+  页面里不再出现硬编码的 `"github"` / `"GitHub"` 分支。
+- `UpdateCheck.setSource` / `source`：落盘与读取都过 `UpdateSources.normalize`，存进去的值一定是
+  三个键之一，读出来的未知值一定回到默认。
+- Gitee 侧的两个固定清单：`releases/download/release/update.json`（正式）与
+  `releases/download/preview/beta.json`（预览）。Gitee 没有 `latest/download` 路由，所以正式
+  清单也挂在固定 tag 上，每次发版替换 tag 内同名资产。
+- 常量里的仓库暂定与 GitHub 同名：`gitee.com/shynekoo/CampusKit`。Gitee 用户名若不同，改这一处
+  常量即可，两个地址都由它拼出。
+
+### 为什么是 Gitee 而不是别的
+
+实测（同一网络、同一时段）：WorkBuddy 托管约 **4 MB/s**，Gitee 附件约 **0.7 MB/s**，GitHub 的
+release CDN 在境内常在数十 KB/s 量级甚至超时。Gitee 的价值是「境内稳定可达」，不是最快。
+它的发布附件对**公开仓库匿名可下**：先 302 到 `gitee.com/<owner>/<repo>/attach_files/…`，再 302
+到 `foruda.gitee.com/attach_file/…?token=…&ts=…`，最终 200，不需要登录。私有仓库不行。
+
+### 验证状态
+
+- `test_core` **1518**、`test_build_config` 7、`test_diag_privacy` **681**、`test_diag_files` 6650、
+  `test_webview_policy` 5、`test_ui_contract` **336**，全部通过。
+- 新增断言：三个渠道各给出两条 HTTPS 清单；Gitee 的两跳 302（含 `token` / `ts`）在
+  `UpdateUrls.next` 下都能通过，且签名参数不被剥掉；评教三种载体的顺序、空值不发、
+  生效形态记诊断各自有锚点。
+- 产物：`delivery/科信小助手-2.6.0-beta.7.apk`（5,465,978 B，SHA-256
+  `9001d4fb…f5ad2b8b`，224 / 2.6.0-beta.7，用水版，v2/v3 验签通过；dex 内可见 `sheet.shape` /
+  `putIfPresent` / `gitee`，beta.6 里没有）。已上传 GitHub `preview`。
+- **未验证**：三种载体里哪一种会被学校接受（真机 B0c / E4）；Gitee 仓库尚未创建、资产尚未上传，
+  所以 App 内实际拉取一次都没跑过。
+
+## [未发布 · 2.6.0-beta.6] — 学生评价：问卷请求的参数要双写（versionCode 223）
+
+> 2.6.0-beta.5 的真机反馈：卡片能展开了，点「开始评价」进到原生答题页，但学校回
+> 「课程号ID,教学班ID,教职工ID参数异常！」——三个 id 一定有值，因为列表就是靠它们渲染的。
+
+### 根因
+
+`xspj_cxXspjDisplay.html` 这组参数只放进了请求体。学校的页面用 `$(panel_content).load(url, data)`
+（jQuery 把 data 编码进请求体），但它自己的过滤器**还从查询串取一份**；只给请求体时服务端读到的是
+空参数表，于是回那句话。这不是新问题：2.5.10 的真机就是同一句报错，2.5.11 把同一组参数同时拼进
+查询串后解决；原生重写时这一步漏掉了。
+
+### 修法
+
+- `EduClient.evaluationForm()`：七个 id（`jxb_id / kch_id / xsdm / jgh_id / tjzt / pjmbmcb_id /
+  sfcjlrjs`）**同时**进查询串与请求体，查询串用与请求体同一个编码器（`SmsLoginProtocol.form`）。
+- 新增 `refusal(html)`：学校把拒绝写成一整页 200 响应里的一句话。现在分别识别「参数异常」「模块维护」
+  「已放弃」，给出对应的中文提示，不再一律显示「学校没有下发评价项」——那会让人以为是学校没题。
+- 三个 id 先判空：真的缺 id 时直接说明缺哪个，读者才知道该重读列表还是去网页完成。
+- `test_ui_contract.py` 增加三条守卫（双写、`refusal` 存在、三个 id 先判空），锚点 323 → **326**。
+
+### 验证状态
+
+- `test_core` 1505、`test_build_config` 7、`test_diag_privacy` 672、`test_diag_files` 6650、
+  `test_webview_policy` 5、`test_ui_contract` **326**，全部通过；`javac --release 8` 通过。
+- **仍需真机确认**：E4（题目是否出现）。提交/暂存仍未实测。
 
 ---
 

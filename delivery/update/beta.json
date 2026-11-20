@@ -1,15 +1,14 @@
 {
-  "version": "2.6.0-beta.5",
-  "versionCode": 222,
+  "version": "2.6.0-beta.9",
+  "versionCode": 226,
   "notes": [
-    "新增「更新渠道」设置：更多页可选 WorkBuddy（默认）或 GitHub 拉取更新，切换后按所选渠道检查",
-    "修掉课程卡片「点开就缩回去」：折叠动画结束后高度被错误压成 0，现在能正常展开看到「开始评价」",
-    "学生评价为原生页面：不再打开教务网页，题目、选项、评语都在应用里直接填写",
-    "列表按学校分页逐页取全，本期所有待评课程都会出现",
-    "顶部显示未评 / 已评 / 暂存数量，可按状态筛选；卡片样式与动效和「学业情况」一致",
-    "支持暂存与提交：提交前检查必填项并二次确认，提交后自动回列表并重新读取学校状态"
+    "评价页改成「先看结构、再谈拒绝」：先认 div.xspj-body / panel-pjdx / tr-xspj / input-xspj，命中就交给解析器，不再让一句「参数异常」把正常表单挡在门外",
+    "读表单的第一种请求与学校页面逐字一致（POST /xspjgl/xspj_cxXspjDisplay.html，七项参数只在请求体，不带 gnmkdm、不带查询串、不带时间戳）",
+    "诊断里每次尝试都记形态与回包字节数（EVAL / sheet.shape，form=body|body+query|query，bytes=…），失败提示也直接写「学校回的是 X KB 的页面」",
+    "更新渠道的 Gitee 已经可用：指向新建的公开仓库 gitee.com/sun-heyue/CampusKit，实测匿名下载约 0.95 MB/s（GitHub 同网络只有数十 KB/s）",
+    "其余沿用上一版：原生评价页、卡片可展开、按状态筛选、分页取全、暂存与二次确认提交"
   ],
-  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.6.0-beta.5.apk?sharecode=BZD63HRP4B",
-  "bytes": 5449594,
-  "sha256": "d6b4a346a3e546975faf39846044c9d9f391c3e51c160c06de7308717384af7a"
+  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.6.0-beta.9.apk?sharecode=BZD63HRP4B",
+  "bytes": 5465978,
+  "sha256": "11cbeab8cc8ee97c786c364ae3cd64b76cfb8efeb3b919dddddd75430baf5b73"
 }
