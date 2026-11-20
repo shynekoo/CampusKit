@@ -91,9 +91,18 @@
 
 `ScheduleWidget` / `ScheduleWidgetMedium` / `ScheduleWidgetWide` 三种尺寸，`AppWidgetProvider` 实现，课表变动后刷新。
 
-## 双渠道更新开关（`MoreActivity`）
+## 更新设置（`MoreActivity`）
 
-- 位置：「更多」页卡片里，紧接「更新日志」一条的下一行，不新开页面、不新开卡片、不动页面其余结构。图标为 `AppUi` 的 `beaker`（锥形瓶）。
+「更多」页卡片里紧跟「更新日志」的两行，不新开页面、不新开卡片、不动页面其余结构。两项彼此独立：**更新渠道**决定从哪个主机读清单，**接收预览版更新**决定读正式版还是预览版。
+
+### 更新渠道
+
+- 位置：更新日志下一行，紧挨「接收预览版更新」上方。图标 `AppUi` 的 `globe`。
+- 文案：标题「更新渠道」；副标题随选择显示「WorkBuddy（默认）」或「GitHub」；右侧显示当前值。整行可点，行高 ≥ 56dp，带 `contentDescription`。
+- 交互：单选弹窗，「WorkBuddy」/「GitHub」两项，「确定」才落盘，「取消」不动。选择后更新副标题、读屏文案并给短 Toast。
+- 默认 WorkBuddy；`update-v1` 偏好的 `source` 键，未保存或未知值都按 WorkBuddy 处理。切换会作废正在进行的检查（generation 计数），下一手动检查按新渠道执行。
+
+### 接收预览版更新
 - 文案：标题「接收预览版更新」，副标题「提前体验新功能，可能存在不稳定情况」。
 - 控件：系统 `Switch`，轨道与拇指都上实色（同「外观与主题」页），深色模式下开/关都分得清；整行可点（行高 ≥ 56dp），行与开关各自带 `contentDescription`，切换后更新读屏文案并给一条短 Toast 反馈。
 - 默认值：**一律默认关闭，任何安装包都一样**（含 `X.Y.Z-beta.N` 的首次安装）。预览开关只能由读者自己打开，不按安装包类型猜默认值。
@@ -114,4 +123,4 @@
 
 ## 自动化守卫的边界
 
-`scripts/test_ui_contract.py` 当前有 **297 个静态锚点**：底部导航三项、WeekBoard onMeasure、滚动保存恢复、CardLayer 手势与快照、S4 策略、A3 就地更新分支、三个 Screen 存在、学业情况入口与卡片单一挂载点、教务卡 tile 顺序，以及 UI-1 的 token 常量、UI-2 的 shell/底栏不重建与转场防旧回调守卫、底栏外观修正的房屋图标/固定尺寸图标图标槽/胶囊只包图标的 64×32dp 守卫、UI-3 的转场参数（alpha 0.7→1 / ±8dp / 220ms 进 180ms 出）、快速连点竞态守卫（快照 cancel、各动画自带 end 清理、4 处 generation 守卫），以及 UI-3 收尾的滚动恢复守卫（恢复带 generation、同屏重建才搬运滚动、`OnPreDrawListener` 布局后恢复、stale 恢复不得落到别的 tab、离场页移出无障碍树）与跨周跳转守卫（回本周走 jumpWeek、先落周次再整页滑入、保留滚动位置；两处共用 WEEK_SLIDE_DURATION；Pager 滑出位移只取一屏），「数据与隐私 / 使用公告」守卫（文案只在 `LegalText`、待填项必须存在、教务密码与 AES 表述、不得声称充值、manifest 权限逐项披露、公告唯一入口在 `PrivacyActivity` 页末（`MoreActivity` 不得再挂一条）、页面与弹窗同源、`NoticeDialog.VERSION = 3`、两页不得加载网页或发请求），、双渠道更新守卫（`beta.json` 独立清单、`UpdateChannel.pick` 选版、开关落盘与 generation 作废、预览渠道六道校验原样保留、manifest 版名格式与 versionCode 高于线上、`beta.json` 字段与版名格式）以及更新日志守卫（版本号唯一、版本代码严格递减、日期合法、最新条目必须等于 `delivery/update/update.json`、不得出现尚未发布的版本、每版都要有发布记录可查、页面只取 `released()`、展开动画取 `MotionSpec`、连点 cancel 与 generation 守卫、入口与 exported=false 注册、离线可读），学业情况只让叶子课组可点、计划内与计划外两个取课端点都在只读白名单内且请求必须按节点 `jdkcsx` 选端点，以及学生评价（列表走 `EduClient.evaluations()`、只读白名单按端点名放行、表单由学校页面提交、返回后重读、**两个页面都不得出现 `xspj_tjXspj` / `xspj_bcXspj`**、禁止 postUrl 与自拼表单请求、**模块必须在菜单壳 `EduClient.MENU_PAGE` 里打开（禁止把模块 url 当顶层文档 `loadUrl`）**、必须先用 `ajaxPrefilter` 给 `/xspjgl/` 请求补 `gnmkdm`、必须 `j(host).load('/xspjgl/xspj_cxXspjIndex.html?gnmkdm=N401605'` 装进宿主、必须按 `getGridParam','data'` 匹配 `jxb_id`（禁止读行文本）且 `setSelection(…,true)` 触发学校 `onSelectRow`、成功判据必须是 `.panel-pjdx` 节点数而不是面板文本长度、必须有 `BUDGET_MS` 预算超时）与教务卡第一行四件查询的 tile 顺序。**它是静态守卫，不验证视觉/手势/真机效果**；UI 2.0 的真机清单（快速切换、320dp、主题、滚动恢复、返回手势、关动画、今日 60s）本轮未实测，D/E 组真机清单未完成前不得发布。
+`scripts/test_ui_contract.py` 当前有 **314 个静态锚点**：底部导航三项、WeekBoard onMeasure、滚动保存恢复、CardLayer 手势与快照、S4 策略、A3 就地更新分支、三个 Screen 存在、学业情况入口与卡片单一挂载点、教务卡 tile 顺序，以及 UI-1 的 token 常量、UI-2 的 shell/底栏不重建与转场防旧回调守卫、底栏外观修正的房屋图标/固定尺寸图标图标槽/胶囊只包图标的 64×32dp 守卫、UI-3 的转场参数（alpha 0.7→1 / ±8dp / 220ms 进 180ms 出）、快速连点竞态守卫（快照 cancel、各动画自带 end 清理、4 处 generation 守卫），以及 UI-3 收尾的滚动恢复守卫（恢复带 generation、同屏重建才搬运滚动、`OnPreDrawListener` 布局后恢复、stale 恢复不得落到别的 tab、离场页移出无障碍树）与跨周跳转守卫（回本周走 jumpWeek、先落周次再整页滑入、保留滚动位置；两处共用 WEEK_SLIDE_DURATION；Pager 滑出位移只取一屏），「数据与隐私 / 使用公告」守卫（文案只在 `LegalText`、待填项必须存在、教务密码与 AES 表述、不得声称充值、manifest 权限逐项披露、公告唯一入口在 `PrivacyActivity` 页末（`MoreActivity` 不得再挂一条）、页面与弹窗同源、`NoticeDialog.VERSION = 3`、两页不得加载网页或发请求），、双渠道更新守卫（`beta.json` 独立清单、`UpdateChannel.pick` 选版、开关落盘与 generation 作废、预览渠道六道校验原样保留、manifest 版名格式与 versionCode 高于线上、`beta.json` 字段与版名格式）以及更新日志守卫（版本号唯一、版本代码严格递减、日期合法、最新条目必须等于 `delivery/update/update.json`、不得出现尚未发布的版本、每版都要有发布记录可查、页面只取 `released()`、展开动画取 `MotionSpec`、连点 cancel 与 generation 守卫、入口与 exported=false 注册、离线可读），学业情况只让叶子课组可点、计划内与计划外两个取课端点都在只读白名单内且请求必须按节点 `jdkcsx` 选端点，以及学生评价（列表走 `EduClient.evaluations()` 并**按教务分页逐页取全**、头部三格是 未评/已评/暂存、有 全部/未评/暂存/已评 四个筛选 chip、卡片折叠用 `MotionSpec.LIST_TOGGLE_DURATION` 且关动画时直接落终态、再次点击先 cancel 前一条动画、打开答题页要带上全部六个 id、返回后必须重读；答题页**不得出现 WebView 或 loadUrl**、不得出现写死的「优秀/良好/及格」、必须 `EduEvaluationForm.parse()` 读学校片段、必须 `EduEvaluationForm.body()` 组参数、必须 `Theme.dialog` 二次确认并写明提交不可撤销、必填项未答完不得提交、不支持的题型必须阻止提交、成败只按学校自己的回话判断、暂存过的问卷要回填本人上次的选择、已提交的只读；核心侧 `EduEvaluationForm` 必须按 `panel-pjdx` / `tr-xspj` / `input-xspj` 与 `modelList[i].xspjList[j].childXspjList[k]` 处理，`EduEvaluation.pageCount` 必须存在））与教务卡第一行四件查询的 tile 顺序。**它是静态守卫，不验证视觉/手势/真机效果**；UI 2.0 的真机清单（快速切换、320dp、主题、滚动恢复、返回手势、关动画、今日 60s）本轮未实测，D/E 组真机清单未完成前不得发布。

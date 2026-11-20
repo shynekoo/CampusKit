@@ -30,6 +30,7 @@ import java.util.Set;
 
 import io.qzxy.lite.core.UpdateChannel;
 import io.qzxy.lite.core.UpdateManifest;
+import io.qzxy.lite.core.UpdateSources;
 import io.qzxy.lite.core.UpdateUrls;
 
 /**
@@ -57,24 +58,19 @@ import io.qzxy.lite.core.UpdateUrls;
  */
 final class UpdateCheck {
     /**
-     * The published manifests. The {@code sharecode} is what the host uses to authorise an anonymous
-     * read of this one site; it is not a secret — it is part of the public link — and it is fixed for
-     * the life of the app, so re-publishing a new manifest under the same link needs no code change.
-     *
-     * <p>{@code beta.json} sits beside {@code update.json} by convention and is deployed with the
-     * preview build it announces. Until it is deployed the read answers 404, which is handled as a
-     * missing list: the release check is unaffected and nothing is offered from a channel that has
-     * published nothing.</p>
+     * The published manifests live on two hosts. WorkBuddy is the default, GitHub is the
+     * alternative; the reader picks one in 更多 → 更新渠道. Both hosts carry the same two files, so
+     * switching changes only where they are read from — every field still goes through the same
+     * {@link UpdateManifest} checks and the download through the same signature verification.
+     * The addresses are in {@link UpdateSources} so the JVM tests read the exact same list.
      */
-    private static final String MANIFEST =
-        "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/update.json?sharecode=BZD63HRP4B";
-    private static final String BETA_MANIFEST =
-        "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/beta.json?sharecode=BZD63HRP4B";
     private static final String PREFS = "update-v1";
     /** A version the reader declined once. Kept as a code, so a newer release asks again. */
     private static final String KEY_SKIPPED = "skipped";
     /** The reader's channel choice. Absent on a fresh install, where the build itself decides. */
     private static final String KEY_BETA = "beta";
+    /** The reader's channel choice. Absent on a fresh install means WorkBuddy, the default. */
+    private static final String KEY_SOURCE = "source";
     private static final int CONNECT_TIMEOUT_MS = 8000, READ_TIMEOUT_MS = 15000;
     private static final int MAX_MANIFEST_BYTES = 65536, BUFFER = 16384;
 
@@ -104,6 +100,18 @@ final class UpdateCheck {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putBoolean(KEY_BETA, enabled).apply();
         synchronized (UpdateCheck.class) { generation++; }
+    }
+
+    /** Saves the channel choice and retires any check already in flight. */
+    static void setSource(Context context, String source) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString(KEY_SOURCE, "github".equals(source) ? "github" : "workbuddy").apply();
+        synchronized (UpdateCheck.class) { generation++; }
+    }
+
+    /** "workbuddy" (the default) or "github". */
+    static String source(Context context) {
+        return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_SOURCE, "workbuddy");
     }
 
     private static synchronized int generation() { return generation; }
@@ -152,15 +160,18 @@ final class UpdateCheck {
         // Read once, on the calling thread: the check itself runs on whichever channel was chosen
         // when it started, and the generation guard below stops a later switch from being undone.
         final boolean beta = betaEnabled(activity);
+        final String source = source(activity);
+        final String[] addresses = UpdateSources.manifests(source);
         final int ticket = generation();
         Thread worker = new Thread(new Runnable() {
             @Override public void run() {
                 String trace = Diag.trace();
                 long mark = Diag.mark();
-                Diag.event(Diag.INFO, "UPDATE", "check.start", "trace", trace, "beta", beta ? "1" : "0");
-                UpdateManifest release = readManifest(MANIFEST, trace);
+                Diag.event(Diag.INFO, "UPDATE", "check.start", "trace", trace,
+                    "beta", beta ? "1" : "0");
+                UpdateManifest release = readManifest(addresses[0], trace);
                 // The preview list costs one request and is only spent when it can be used.
-                UpdateManifest preview = beta ? readManifest(BETA_MANIFEST, trace) : null;
+                UpdateManifest preview = beta ? readManifest(addresses[1], trace) : null;
                 if (release == null && preview == null) {
                     // 检查更新失败一直是不打扰的静默失败；日志里留原因，界面仍然不弹窗。
                     if (manual) say(activity, "暂时查不到新版本", "读不到版本信息，请确认网络后重试。");

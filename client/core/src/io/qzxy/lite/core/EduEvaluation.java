@@ -156,6 +156,45 @@ public final class EduEvaluation {
             text(value(body, "pjtsxx")));
     }
 
+    /**
+     * How many pages the grid's reply says it holds.
+     *
+     * <p>A term can hold more 教学班 than one page, and the school's own grid pages them — so a list
+     * that only reads page one silently drops courses. The key differs between 正方 builds
+     * ({@code totalPage}, or {@code total} which the table plugin uses for pages), so both are read
+     * and the row count is used to work the number out when neither is there. 0 means "unknown".</p>
+     */
+    public static int pageCount(String json, int pageSize) {
+        String body = body(json);
+        int pages = number(body, "totalPage");
+        if (pages <= 0) pages = number(body, "total");
+        if (pages > 0) return pages;
+        int rows = number(body, "totalResult");
+        if (rows <= 0) rows = number(body, "records");
+        if (rows <= 0 || pageSize <= 0) return 0;
+        return (rows + pageSize - 1) / pageSize;
+    }
+
+    /** The number of rows the reply says exist in total; 0 when it does not say. */
+    public static int rowCount(String json) {
+        String body = body(json);
+        int rows = number(body, "totalResult");
+        return rows > 0 ? rows : number(body, "records");
+    }
+
+    /** A report assembled from several pages, dropping a 教学班 that arrived twice. */
+    public static Report of(List<Item> rows) {
+        List<Item> out = new ArrayList<Item>();
+        Map<String, Boolean> seen = new LinkedHashMap<String, Boolean>();
+        for (Item item : rows) {
+            if (seen.containsKey(item.classId)) continue;
+            seen.put(item.classId, Boolean.TRUE);
+            out.add(item);
+            if (out.size() >= MAX_ROWS) break;
+        }
+        return new Report(out);
+    }
+
     /** The school's state code as one of the constants above. */
     public static int stateOf(String code) {
         String value = code == null ? "" : code.trim();

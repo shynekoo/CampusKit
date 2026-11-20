@@ -41,7 +41,7 @@
 用户 → 原生 View → core 规则/协议 → HTTPS 官方接口（教务 / 慧生活 / 趣智校园）
                               └→ 支付 SDK（支付宝收银台 / 免密）
 凭据 → AccountVault / LifeSessionVault / EduVault → Android Keystore + AES-256-GCM → 应用私有目录
-更新 → update.json（正式）/ beta.json（预览，开关打开时才读）→ UpdateManifest 校验 → 两渠道按 versionCode 取大 → 下载 → 字节数+SHA-256+包身份校验 → 用户点安装
+更新 → 更新渠道（WorkBuddy 默认 / GitHub 可选，更多页选）→ 对应 update.json（正式）/ beta.json（预览，开关打开时才读）→ UpdateManifest 校验 → 两渠道按 versionCode 取大 → 下载 → 字节数+SHA-256+包身份校验 → 用户点安装
 诊断 → Diag.event（白名单字段）→ 队列 → files/diag/*.log（256 KB × 4，7 天）→ 诊断页 / 导出 / 故障报告
 ```
 

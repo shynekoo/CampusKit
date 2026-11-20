@@ -16,7 +16,7 @@
 | 安全策略 | `TrustedUrlPolicy`、`SnapshotPolicy`、`DiagPolicy` | WebView 准入、敏感页快照、诊断默认关 |
 | 诊断 | `DiagRedact`、`DiagEvent`、`DiagCatalog` | 字段白名单与脱敏、行格式与解析、事件中文文案 |
 | 教务学业 | `EduAcademic` | 学生学业情况：GPA/统计/去重学分树解析（含 `appendTo` 层级还原与 `jdkcsx` 端点分流），课程明细 JSON 解析（`parseCourses`） |
-| 教务评价 | `EduEvaluation` | 学生评价列表与统计解析：教学班/课程/教师/学时类型、状态码 `-1/0/1` 归一（`stateOf`）、`withState` 分组、`counts` |
+| 教务评价 | `EduEvaluation`、`EduEvaluationForm` | 列表与统计解析：教学班/课程/教师/学时类型、状态码 `-1/0/1` 归一（`stateOf`）、`withState` 分组、`counts`、分页（`pageCount`/`rowCount`/`of`）；问卷片段按学校 `xspj_display.js` 的选择器读成题目/选项（`parse`），并把作答还原成学校那套 `modelList[i].xspjList[j].childXspjList[k]` 请求体（`body`），成败只按学校回话判断（`outcome`） |
 | 其他 | `DailyQuote`、`AlipayWaterLink`、`PickupCodeLinks`、`RechargeSignature`、`NativeSigningV6528` | 文案、跳转链接、签名/协议辅助 |
 
 测试：`client/core/test/.../CoreTests.java` —— 当前工作区实跑 1418 项断言（含 `jdkcsx` 课程端点分流与诊断脱敏），涵盖上述状态机、解析与策略。
@@ -46,7 +46,7 @@
 | `scripts/test_build_config.py` | 7 项诊断开关检查（含 `DIAG_BASIC` 恒开） |
 | `scripts/test_diag_privacy.py` | 644 项诊断隐私守卫（调用点字段/文案、已移除入口、导出路径） |
 | `scripts/test_diag_files.py` | 5 组 `DiagFiles` 实跑场景（轮转、1 MB 封顶、行序连续、超限裁剪、清空、7 天清理） |
-| `scripts/test_webview_policy.py` | 5 处 WebView 导航 HTTPS 守卫 |
+| `scripts/test_webview_policy.py` | 5 处 WebView 导航 HTTPS 守卫（学生评价改成原生后不再有第 6 处） |
 | `scripts/test_ui_contract.py` | 259 个 UI 结构锚点（当前工作区实跑；静态守卫，非真机测试；含 UI-1/UI-2 守卫、两个取课端点守卫与诊断页锚点） |
 
 ## 改动时的落点建议

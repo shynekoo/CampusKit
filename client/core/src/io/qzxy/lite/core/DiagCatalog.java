@@ -50,10 +50,14 @@ public final class DiagCatalog {
             case "auth.returned": return "支付宝已返回";
             case "auth.failed": return "支付宝授权失败";
 
-            case "shell.mount": return "评价页已装进教务菜单";
-            case "form.ready": return "评价表单已打开";
-            case "form.empty": return "评价表单没有内容";
-            case "form.failed": return "评价页没能打开";
+            case "sheet.start": return "开始读取评价表单";
+            case "sheet.ready": return "评价表单已读取";
+            case "sheet.empty": return "评价表单没有评价项";
+            case "sheet.failed": return "评价表单没能读取";
+            case "sheet.unsupported": return "评价表单里有不支持的题型";
+            case "write.sent": return "评价已提交";
+            case "write.saved": return "评价已暂存";
+            case "write.failed": return "学校没有接受这次评价";
 
             case "load.start": return "开始获取课表数据";
             case "load.success": return "课表已加载";

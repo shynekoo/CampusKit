@@ -90,6 +90,19 @@ final class EduClient {
     private static final String EVAL_QUERY = "/xspjgl/xspj_cxXspjIndex.html?gnmkdm=N401605&doType=query";
     /** 评价情况: the term's own 暂存 / 已提交 / 未评 totals. */
     private static final String EVAL_COUNTS = "/xspjgl/xspj_cxXspjqk.html";
+    /**
+     * 评价表单: the fragment the school's list page loads into its own panel with exactly these ids
+     * (see {@code xspj_index.js}). It is plain server-rendered HTML — questions, options and the
+     * {@code data-*} ids — so it is read directly instead of being shown in a WebView.
+     */
+    private static final String EVAL_FORM = "/xspjgl/xspj_cxXspjDisplay.html?gnmkdm=N401605";
+    /** 暂存 / 提交. Same route names the school's own two buttons post to. */
+    private static final String EVAL_SAVE = "/xspjgl/xspj_bcXspj.html?gnmkdm=N401605";
+    private static final String EVAL_SEND = "/xspjgl/xspj_tjXspj.html?gnmkdm=N401605";
+    /** Rows asked for per page. The grid pages; 100 keeps a normal term to one or two requests. */
+    private static final int EVAL_PAGE_SIZE = 100;
+    /** A guard against a reply that never stops claiming another page. */
+    private static final int EVAL_MAX_PAGES = 12;
     /** The student timetable page, used as Referer for its own query endpoints. */
     private static final String TIMETABLE_PAGE = "/kbcx/xskbcx_cxXskbcxIndex.html?gnmkdm=N2151&layout=default";
     /** 正方 names this query differently across deployments; try each with the same term fields. */
@@ -585,20 +598,37 @@ final class EduClient {
      *
      * <p>The page itself is a jqGrid shell; the rows arrive from its {@code doType=query} endpoint as
      * one flat object per 教学班. This is a read-only query — no {@code doType} command beyond the
-     * one the school's own grid sends, and nothing here scores or submits anything. Sorting by
-     * course/teacher is what the school's script asks for, so an unchanged term lists the same way
-     * here as on the page.</p>
+     * one the school's own grid sends, and nothing here scores or submits anything.</p>
+     *
+     * <p>It follows the grid's own paging instead of assuming one page. A term with more 教学班 than
+     * the page size would otherwise show a truncated list, which reads as "the app lost my courses".
+     * The loop stops on the school's own page count, on a short page, or on a page that repeats rows
+     * it already returned — whichever comes first.</p>
      */
     static EduEvaluation.Report evaluations() throws IOException {
-        Map<String, String> form = new LinkedHashMap<>();
-        form.put("queryModel.showCount", "100");
-        form.put("queryModel.currentPage", "1");
-        form.put("queryModel.sortName", "kcmc,jzgmc");
-        form.put("queryModel.sortOrder", "asc");
-        form.put("_search", "false");
-        form.put("nd", Long.toString(System.currentTimeMillis()));
-        JSONObject reply = ask(EVAL_QUERY, form, "学生评价");
-        return EduEvaluation.parse(reply.toString());
+        List<EduEvaluation.Item> all = new ArrayList<>();
+        for (int page = 1; page <= EVAL_MAX_PAGES; page++) {
+            Map<String, String> form = new LinkedHashMap<>();
+            form.put("queryModel.showCount", Integer.toString(EVAL_PAGE_SIZE));
+            form.put("queryModel.currentPage", Integer.toString(page));
+            form.put("queryModel.sortName", "kcmc,jzgmc");
+            form.put("queryModel.sortOrder", "asc");
+            form.put("_search", "false");
+            form.put("nd", Long.toString(System.currentTimeMillis()));
+            String reply = ask(EVAL_QUERY, form, "学生评价").toString();
+            EduEvaluation.Report part = EduEvaluation.parse(reply);
+            int before = all.size();
+            all.addAll(part.items);
+            // A page that adds nothing new is the last one, whatever the counters claim.
+            EduEvaluation.Report merged = EduEvaluation.of(all);
+            if (part.items.isEmpty() || merged.size() == before) break;
+            all = merged.items;
+            int pages = EduEvaluation.pageCount(reply, EVAL_PAGE_SIZE);
+            int rows = EduEvaluation.rowCount(reply);
+            if (pages > 0 && page >= pages) break;
+            if (rows > 0 && all.size() >= rows) break;
+        }
+        return EduEvaluation.of(all);
     }
 
     /**
@@ -607,6 +637,41 @@ final class EduClient {
      */
     static EduEvaluation.Counts evaluationCounts() throws IOException {
         return EduEvaluation.counts(ask(EVAL_COUNTS, new LinkedHashMap<String, String>(), "评价统计").toString());
+    }
+
+    /**
+     * The question sheet for one 教学班, as the school's own page would load it: same six ids, same
+     * module id. Returns the fragment's HTML for {@link EduEvaluationForm}.
+     *
+     * <p>Takes the ids one by one rather than an {@code Item} because the screen that opens the
+     * sheet got them from the list Intent; rebuilding a row object just to read seven strings would
+     * pretend those values were re-derived.</p>
+     */
+    static String evaluationForm(String classId, String courseId, String teacherId, String studentType,
+                                 String modelId, String gradeEntry, String statusCode) throws IOException {
+        Map<String, String> form = new LinkedHashMap<>();
+        form.put("jxb_id", classId);
+        form.put("kch_id", courseId);
+        form.put("xsdm", studentType);
+        form.put("jgh_id", teacherId);
+        form.put("tjzt", statusCode);
+        form.put("pjmbmcb_id", modelId);
+        form.put("sfcjlrjs", gradeEntry);
+        form.put("nd", Long.toString(System.currentTimeMillis()));
+        String html = fetch(EVAL_FORM, form);
+        if (html.trim().isEmpty()) throw new IOException("学校返回了空的评价表单。");
+        return html;
+    }
+
+    /**
+     * 暂存 or 提交 one 教学班, with exactly the fields {@link EduEvaluationForm#body} built.
+     *
+     * <p>{@code submit} only chooses the route; what is scored is whatever the reader picked, and
+     * nothing is sent for a question they left alone. The body is already form-encoded (a
+     * multi-select question repeats its field name), so it bypasses the map-based transport.</p>
+     */
+    static String evaluationWrite(String body, boolean submit) throws IOException {
+        return fetchEncoded(submit ? EVAL_SEND : EVAL_SAVE, body);
     }
 
     /**
@@ -890,11 +955,30 @@ final class EduClient {
     }
 
     /**
+     * Same transport, but the body arrives already form-encoded.
+     *
+     * <p>Needed by 提交/暂存: a multi-select 评价项 sends the same field name several times, which a
+     * {@code Map} cannot express. Nothing else about the request changes — the allow-list, the
+     * HTTPS-only origin, the Referer and the one re-login attempt are all still applied.</p>
+     */
+    private static String fetchEncoded(String path, String body) throws IOException {
+        checkPath(path);
+        cancelSignOut();
+        String referer = ORIGIN + (path.startsWith("/xspjgl/") ? EVAL_PAGE : pageOf(path));
+        try {
+            return checked(send(ORIGIN + path, "POST", body, jar(), referer));
+        } catch (NotSignedIn expired) {
+            if (!hasCredentials() || rejected || closed) throw expired;
+            signIn();
+            return checked(send(ORIGIN + path, "POST", body, jar(), referer));
+        }
+    }
+
+    /**
      * Runs a query and, if the school refuses the POST, repeats the same parameters as a GET.
      * A few deployments answer 400 or 500 to the form post but still serve the URL query.
      */
-    private static JSONObject ask(String path, Map<String, String> form, String what) throws IOException {
-        try {
+    private static JSONObject ask(String path, Map<String, String> form, String what) throws IOException {        try {
             return json(fetch(path, form), what);
         } catch (HttpFailure refused) {
             if (refused.status != 400 && refused.status < 500) throw refused;
@@ -999,7 +1083,18 @@ final class EduClient {
     /** School-host HTTPS with redirects followed by hand, so a jump to the login page stays visible. */
     private static String request(String url, String method, Map<String, String> form,
                                   Map<String, String> jar, String referer) throws IOException {
-        String body = form == null ? null : SmsLoginProtocol.form(form);
+        return send(url, method, form == null ? null : SmsLoginProtocol.form(form), jar, referer);
+    }
+
+    /**
+     * The same request with the body already encoded.
+     *
+     * <p>{@code null} is a GET; an empty {@code ""} is a real POST with no fields. Keeping the two
+     * apart is what lets a multi-select 评价项 repeat a field name, which the {@code Map} form
+     * cannot express.</p>
+     */
+    private static String send(String url, String method, String body,
+                               Map<String, String> jar, String referer) throws IOException {
         String trace = Diag.trace();
         long mark = Diag.mark();
         for (int redirect = 0; redirect < 6; redirect++) {
@@ -1145,10 +1240,15 @@ final class EduClient {
         // 正方's other grade module. Named one path, not the whole folder, so this stays as narrow as
         // the feature needs: two read-only modules, nothing else.
         if (path.startsWith("/kwgl/kscjcx_kscjcx.html")) return;
-        // 学生评价: the grid query and the term's totals. Both are reads; the form that submits an
-        // evaluation is opened in a WebView, so no write endpoint is reachable from here.
+        // 学生评价: the grid query, the term's totals, and — for the native form — the question
+        // fragment plus the two endpoints the school's own 暂存/提交 buttons post to. The write pair
+        // is named individually and only receives a body the reader built by hand; nothing here
+        // fills a score in on their behalf.
         if (path.startsWith("/xspjgl/xspj_cxXspjIndex.html")
-            || path.startsWith("/xspjgl/xspj_cxXspjqk.html")) return;
+            || path.startsWith("/xspjgl/xspj_cxXspjqk.html")
+            || path.startsWith("/xspjgl/xspj_cxXspjDisplay.html")
+            || path.startsWith("/xspjgl/xspj_bcXspj.html")
+            || path.startsWith("/xspjgl/xspj_tjXspj.html")) return;
         // A grade module the school moved out of /cjcx/: allowed only once its own menu named it.
         String named = gradesPage.isEmpty() ? discovery : gradesPage;
         if (!named.isEmpty() && path.startsWith(named)) return;

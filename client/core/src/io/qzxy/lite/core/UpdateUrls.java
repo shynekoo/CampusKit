@@ -11,9 +11,11 @@ import java.util.Set;
  * that will quietly regress.
  *
  * <p>Redirects are followed one hop at a time by the caller. Every hop must stay on HTTPS, may not
- * revisit a URL, is capped, and must not carry the manifest's query (notably {@code sharecode}) to
- * a host that did not issue it. A legitimate CDN hop is fine; a silent downgrade to HTTP or a loop
- * is not.</p>
+ * revisit a URL, is capped, and must not carry the previous host's query parameters (notably
+ * sharecode) to a new host. A query written in the Location header itself is normally the next
+ * host's own parameter — GitHub signs its release CDN hop that way — and is preserved, except for
+ * keys inherited from the old host. A legitimate CDN hop is fine; a silent downgrade to HTTP or a
+ * loop is not.</p>
  */
 public final class UpdateUrls {
     public static final int MAX_REDIRECTS = 5;
@@ -44,16 +46,37 @@ public final class UpdateUrls {
         }
         requireHttps(target.toString());
         if (!seen.add(canonical(target))) throw new IllegalArgumentException("redirect loop");
-        // Do not hand the manifest's query (notably sharecode) to an unrelated host.
-        if (!host(base.toString()).equals(host(target.toString())) && target.getRawQuery() != null) {
+        // Preserve the new host's own parameters (GitHub's CDN signature), but never forward a key
+        // that came from the previous host (sharecode), even if the redirect echoes it back.
+        if (!host(base.toString()).equals(host(target.toString())) && base.getRawQuery() != null
+                && target.getRawQuery() != null) {
+            String kept = withoutKeys(target.getRawQuery(), base.getRawQuery());
             try {
                 target = new URI(target.getScheme(), target.getUserInfo(), target.getHost(),
-                    target.getPort(), target.getPath(), null, target.getFragment());
+                    target.getPort(), target.getPath(), kept, target.getFragment());
             } catch (URISyntaxException impossible) {
                 throw new IllegalArgumentException("bad redirect");
             }
         }
         return target.toString();
+    }
+
+    /** Removes from {@code query} every parameter whose key appears in {@code inherited}. */
+    private static String withoutKeys(String query, String inherited) {
+        String[] foreign = inherited.split("&");
+        StringBuilder out = new StringBuilder();
+        for (String pair : query.split("&")) {
+            if (pair.isEmpty()) continue;
+            String key = pair.split("=", 2)[0];
+            boolean repeated = false;
+            for (String old : foreign) {
+                if (!old.isEmpty() && old.split("=", 2)[0].equals(key)) { repeated = true; break; }
+            }
+            if (repeated) continue;
+            if (out.length() > 0) out.append('&');
+            out.append(pair);
+        }
+        return out.length() == 0 ? null : out.toString();
     }
 
     public static String host(String address) {

@@ -245,91 +245,122 @@ def main():
     require(status, '"未通过", report.failed', "AcademicStatusActivity",
             "the headline must show the counts the school reports, not a subset")
 
-    # 学生评价 (2.5.10): a read-only list on the shared session, one form per 教学班 opened as the
-    # school's own page. The guard that matters most is the last one: submission is one-way at the
-    # school, so no screen here may post to 暂存/提交 on the student's behalf.
+    # 学生评价 (2.6.1): a native list and a native question sheet — no WebView anywhere in the
+    # flow. The two things that must never come back: opening the school's page as a document, and
+    # a screen that posts a score the reader did not pick.
     evaluation = PREVIEW / "EvaluationActivity.java"
     evaluation_src = evaluation.read_text(encoding="utf-8") if evaluation.exists() else ""
     form_activity = PREVIEW / "EvaluationFormActivity.java"
     form_src = form_activity.read_text(encoding="utf-8") if form_activity.exists() else ""
-    core_evaluation = (ROOT / "client/core/src/io/qzxy/lite/core/EduEvaluation.java")
+    core_evaluation = ROOT / "client/core/src/io/qzxy/lite/core/EduEvaluation.java"
     core_evaluation_src = core_evaluation.read_text(encoding="utf-8") if core_evaluation.exists() else ""
+    sheet = ROOT / "client/core/src/io/qzxy/lite/core/EduEvaluationForm.java"
+    sheet_src = sheet.read_text(encoding="utf-8") if sheet.exists() else ""
+
+    # The list: from the shared session, paged, and filterable by state.
     require(evaluation_src, "EduClient.evaluations()", "EvaluationActivity",
             "the list must come from the shared signed-in client, not a scraped page")
-    require(core_evaluation_src, "public static Report parse(String json)", "EduEvaluation",
-            "the list reply must be parsed in the testable core")
-    require(core_evaluation_src, "public static final class Item", "EduEvaluation",
-            "evaluation rows need a typed model carrying the form ids")
-    require(client, 'path.startsWith("/xspjgl/xspj_cxXspjIndex.html")', "EduClient",
-            "the evaluation list query must be on the read-only allow-list by name")
-    require(client, 'path.startsWith("/xspjgl/xspj_cxXspjqk.html")', "EduClient",
-            "the term totals query must be on the read-only allow-list too")
-    require(client, "static final String EVAL_PAGE", "EduClient",
-            "the list page route must be named by the feature")
-    require(form_src, "web.loadUrl(EduClient.ORIGIN + EduClient.MENU_PAGE, headers)",
-            "EvaluationFormActivity",
-            "the module must be loaded inside the menu shell: a 正方 module page is a fragment that "
-            "uses _path / BaseJqGrid / $.i18n / loadJqGrid from that shell, so opened as a top-level "
-            "document it throws before it builds a grid (which is the legend + 0% Complete the user saw)")
-    require(form_src, 'headers.put("Referer", EduClient.ORIGIN + "/")',
-            "EvaluationFormActivity",
-            "the shell is the top-level document, so its Referer is the site root; the module id is "
-            "carried by the ajax prefilter instead of by a hand-made Referer")
-    require(form_src, "ajaxPrefilter", "EvaluationFormActivity",
-            "the module's own /xspjgl/ requests must be given gnmkdm: loaded by url they arrive "
-            "without the module id that the menu link would have carried, and the endpoint answers 500")
-    require(form_src, "j(host).load('/xspjgl/xspj_cxXspjIndex.html?gnmkdm=N401605'",
-            "EvaluationFormActivity",
-            "the module must be mounted the way the menu mounts it — into the shell document")
-    require(form_src, "'gnmkdm=N401605'", "EvaluationFormActivity",
-            "the module id must be present, or the panel stays at its placeholder")
-    require(form_src, "getGridParam','data'", "EvaluationFormActivity",
-            "the 教学班 must be matched on the grid's own row data: jxb_id is a hidden column, so "
-            "jqGrid never writes it into a cell and reading the row's text can never find it")
-    require(form_src, "'setSelection',hit,true", "EvaluationFormActivity",
-            "the row must be selected through the grid, which fires the page's own onSelectRow")
-    require(form_src, "j(node).trigger('click');", "EvaluationFormActivity",
-            "the row must also be opened the way a finger would, so the page's own handler loads the form")
-    require(form_src, ".panel-pjdx", "EvaluationFormActivity",
-            "success must be counted in 评价项 nodes; a panel that merely has text is the skeleton "
-            "the page ships with, and calling that a loaded form is what hid the failure")
-    require(form_src, "BUDGET_MS", "EvaluationFormActivity",
-            "the screen must give up on a budget and say what went wrong instead of waiting forever")
-    checks += 1
-    if "web.postUrl(" in form_src:
-        failures.append("学生评价: postUrl is not a page load — the school's form needs its own page")
-    checks += 1
-    if "evaluationFormUrl" in form_src or "handoffPage" in form_src:
-        failures.append("学生评价: the form must not be rebuilt as a hand-made request")
-    require(form_src, 'getElementById(\'panel_content\')', "EvaluationFormActivity",
-            "the panel the school loads the form into must be watched, or a dropped selection "
-            "reads as an open form")
-    require(form_src, "EduClient.browserCookie()", "EvaluationFormActivity",
-            "the form must reuse the shared session cookie instead of signing in twice")
-    require(evaluation_src, "section(\"未评\", report.withState(EduEvaluation.UNEVALUATED)",
-            "EvaluationActivity", "the list must lead with what still needs evaluating")
+    require(core_evaluation_src, "public static int pageCount(String json, int pageSize)", "EduEvaluation",
+            "the grid pages; a list that reads only page one silently drops courses")
+    require(client, "EduEvaluation.pageCount(reply, EVAL_PAGE_SIZE)", "EduClient",
+            "the paging loop must follow the count the school reports")
+    require(evaluation_src, 'stat(row, "未评", pending)', "EvaluationActivity",
+            "the headline must show 未评 / 已评 / 暂存 as three separate counts")
+    require(evaluation_src, 'stat(row, "已评", done)', "EvaluationActivity",
+            "已评 belongs on the headline next to 未评")
+    require(evaluation_src, 'stat(row, "暂存", saved)', "EvaluationActivity",
+            "暂存 belongs on the headline too")
+    require(evaluation_src, "private static final int PENDING = 1;", "EvaluationActivity",
+            "the list needs a state filter")
+    require(evaluation_src, "filter = which;", "EvaluationActivity",
+            "tapping a filter chip must actually change what is shown")
+    require(evaluation_src, "report.withState(EduEvaluation.UNEVALUATED)", "EvaluationActivity",
+            "the 未评 filter must select on the parsed state, not on a string")
+    require(evaluation_src, "MotionSpec.LIST_TOGGLE_DURATION", "EvaluationActivity",
+            "the card fold must use the shared list toggle duration, like 学业情况 and 更新日志")
+    require(evaluation_src, "MotionSpec.shouldAnimate(this)", "EvaluationActivity",
+            "with system animations off the fold must land on its end state instead of animating")
+    require(evaluation_src, "card.running.cancel()", "EvaluationActivity",
+            "a second tap mid-fold must cancel the first animator, not race it")
+    require(evaluation_src, "int target = opening ? expandHeight(card.body) : 0;", "EvaluationActivity",
+            "the fold must animate the body's own height")
+    require(evaluation_src, "EvaluationFormActivity.EXTRA_GRADE_ENTRY", "EvaluationActivity",
+            "every id the form request needs must cross over: re-deriving them would be a second "
+            "source of truth for the same values")
     require(evaluation_src, "openedForm", "EvaluationActivity",
-            "returning from the form must reload the list, or a submitted row stays 未评")
+            "returning from the sheet must reload the list, or a submitted row stays 未评")
+
+    # The native sheet: parsed from the school's markup, answered on native controls.
+    require(sheet_src, "public static Form parse(String html)", "EduEvaluationForm",
+            "the school returns its form as an HTML fragment; reading it is what makes the screen native")
+    require(sheet_src, "public static String body(Form form", "EduEvaluationForm",
+            "the request body must be built from the parsed questions, not from fixed field names")
+    require(sheet_src, "\"panel-pjdx\"", "EduEvaluationForm",
+            "the 评价模板 div is how the school's own script groups questions")
+    require(sheet_src, "\"tr-xspj\"", "EduEvaluationForm",
+            "one tr-xspj is one 评价项; the ids live on its data-* attributes")
+    require(sheet_src, "\"input-xspj\"", "EduEvaluationForm",
+            "the visible label of an option is the text of its div.input-xspj wrapper")
+    require(sheet_src, "modelList[", "EduEvaluationForm",
+            "the school's request nests modelList[i].xspjList[j].childXspjList[k]")
+    require(sheet_src, "public static final int UNSUPPORTED", "EduEvaluationForm",
+            "a question whose control cannot be reproduced must be reported, not faked")
+    require(form_src, "EduEvaluationForm.parse(html)", "EvaluationFormActivity",
+            "the sheet screen must render what the parser read")
+    require(form_src, "EduEvaluationForm.body(form, answers, notes, submit)", "EvaluationFormActivity",
+            "the screen must post the parsed answers, not a hand-built request")
+    require(form_src, "EduClient.evaluationForm(", "EvaluationFormActivity",
+            "the questions must come from the school's own endpoint")
+    require(form_src, "EduClient.evaluationWrite(", "EvaluationFormActivity",
+            "暂存/提交 go through the client's allow-listed transport")
+    require(form_src, "Theme.dialog(this)", "EvaluationFormActivity",
+            "提交 is one-way, so it must be confirmed once more before it is sent")
+    require(form_src, '"提交后学校不再接收修改', "EvaluationFormActivity",
+            "the confirmation must say that a submission cannot be undone")
+    require(form_src, "int missing = missing();", "EvaluationFormActivity",
+            "提交 must refuse while a 必填项 is unanswered")
+    require(form_src, "if (!item.question.supported()) {", "EvaluationFormActivity",
+            "an unsupported question must block 提交 instead of sending a wrong parameter")
+    require(form_src, "EduEvaluationForm.outcome(reply)", "EvaluationFormActivity",
+            "success must be read from the school's own sentence, not assumed")
+    require(form_src, "carryOver(parsed)", "EvaluationFormActivity",
+            "a 暂存 sheet must show the reader's own previous answers")
+    require(form_src, "readOnly", "EvaluationFormActivity",
+            "a submitted evaluation is history: it must open without its buttons")
     require(activity, "EvaluationActivity.class", "TimetableActivity",
             "the 教务 card must launch the evaluation screen")
+
+    # The regressions this round is fixing, kept as guards so they cannot come back silently.
     checks += 1
-    if "xspj_tjXspj" in evaluation_src or "xspj_bcXspj" in evaluation_src \
-            or "xspj_tjXspj" in client or "xspj_bcXspj" in client:
-        failures.append("学生评价: a submit/save endpoint reached the app; scoring must stay on the school's page")
+    if "Math.max(0, value)" in evaluation_src or "Math.max(0, pixels)" in evaluation_src:
+        failures.append("学生评价: the fold's height writer must not floor the value — WRAP_CONTENT "
+                        "is -2 and MATCH_PARENT -1, and clamping either to 0 is what made every "
+                        "card snap shut right after its open animation")
     checks += 1
-    if "xspj_tjXspj" in form_src or "xspj_bcXspj" in form_src:
-        failures.append("学生评价: the form screen must not post 提交/暂存 itself")
-    # Regressions this round is fixing, kept as guards so they cannot come back silently:
-    # (1) the module url must not be loaded as a top-level document — that document cannot run;
-    # (2) success must not be inferred from how much text the panel holds — the module ships text.
+    if "android.webkit" in form_src or "new WebView(" in form_src or ".loadUrl(" in form_src:
+        failures.append("学生评价: the sheet must be native — a WebView here is what the rewrite "
+                        "replaced, and it is what left the panel at 0% Complete")
     checks += 1
-    if "web.loadUrl(EduClient.ORIGIN + EduClient.EVAL_PAGE" in form_src:
-        failures.append("学生评价: the module url must not be loaded as a top-level document — it "
-                        "uses the menu shell's globals and throws before it builds a grid")
+    if "MENU_PAGE" in form_src or "ajaxPrefilter" in form_src:
+        failures.append("学生评价: the menu-shell mounting is gone with the WebView; a native sheet "
+                        "reads the fragment directly")
     checks += 1
-    if "length >= 40" in form_src:
-        failures.append("学生评价: a panel that only has text is the page's own skeleton, not a "
-                        "loaded form; count .panel-pjdx instead")
+    if "优秀" in form_src or "良好" in form_src or "及格" in form_src:
+        failures.append("学生评价: option labels must come from the school's form; a hardcoded "
+                        "等级 word would drift the moment the template changes")
+    checks += 1
+    if "answer.pick = option.value" in form_src and "setOnClickListener" not in form_src:
+        failures.append("学生评价: nothing may be picked without the reader tapping it")
+    require(client, 'path.startsWith("/xspjgl/xspj_cxXspjDisplay.html")', "EduClient",
+            "the question fragment must be on the allow-list by name")
+    require(client, 'path.startsWith("/xspjgl/xspj_tjXspj.html")', "EduClient",
+            "提交 is a named route, not a folder")
+    require(client, 'path.startsWith("/xspjgl/xspj_bcXspj.html")', "EduClient",
+            "暂存 is a named route too")
+    require(client, "static String evaluationWrite(String body, boolean submit)", "EduClient",
+            "the write path must be one method taking the body the parser built")
+    require(client, "EVAL_PAGE_SIZE", "EduClient",
+            "the list must ask for a page size it can reason about")
 
     # --- CampusKit UI 2.0 / UI-1: centralized design + motion tokens ------------------------
     ui_tokens = (PREVIEW / "UiTokens.java")
@@ -695,6 +726,16 @@ def main():
     require(more_src, "setOnCancelListener(dialog -> revert(", "MoreActivity",
             "点弹窗外或返回键取消，开关也要拨回关闭")
     require(more_src, "previewChannel(card, true)", "MoreActivity", "开关挨着更新日志，不另开块")
+    # 更新渠道是独立的一项，与「接收预览版更新」并列：一个选去哪读，一个选读哪个通道。
+    require(more_src, "sourceSetting(card, true)", "MoreActivity", "更新渠道挨着更新日志")
+    require(more_src, 'text("更新渠道"', "MoreActivity", "更新渠道的可视标题")
+    require(more_src, "WorkBuddy（默认）", "MoreActivity", "WorkBuddy 是默认渠道")
+    require(more_src, '"GitHub"', "MoreActivity", "GitHub 是可切换的渠道")
+    require(more_src, "final String[] names = UpdateSources.HOSTS", "MoreActivity", "选项来自 core 的渠道表")
+    require(more_src, "UpdateCheck.setSource(this, next)", "MoreActivity", "渠道选择要落盘")
+    require(more_src, "setSingleChoiceItems(names, picked[0]", "MoreActivity", "渠道是二选一")
+    require(update_src, 'getString(KEY_SOURCE, "workbuddy")', "UpdateCheck", "渠道默认是 WorkBuddy")
+    require(update_src, "UpdateSources.manifests(source)", "UpdateCheck", "两个渠道都从同一份清单表取地址")
     checks += 1
     # 确认框只在「打开」这一侧：关掉是安全方向，不必再问一次。
     if more_src.count("UpdateCheck.setBetaEnabled(this, true)") != 1:

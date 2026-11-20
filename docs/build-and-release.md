@@ -57,17 +57,21 @@ python scripts/build_preview.py                # 普通只读版出包（默认�
 - 已核查的现状：线上正式版 `2.5.9` = 210（下载站与 `update.json` 一致）；工作区最新构建为 `2.5.13-beta.2` = 216；正式版 2.5.13 必须 ≥ 217。
 - 包名 `io.qzxy.lite.preview` 与签名身份保持不变，覆盖安装不丢本地数据。签名材料只写约束，见本文末节。
 
-## 双渠道更新清单
+## 双通道 × 双渠道更新清单
 
-| 文件 | 渠道 | 现状 |
+每个渠道各有一份正式清单和一份预览清单，字段相同：`version`、`versionCode`、`notes`、`url`、`bytes`、`sha256`；都必须指向真实存在、已按 SHA-256 与字节数核对过的 APK。
+
+| 渠道 | 正式清单 | 预览清单 |
 | :-- | :-- | :-- |
-| `delivery/update/update.json` | 正式版 | 线上 2.5.9 / 210，字段与 URL 保持不变 |
-| `delivery/update/beta.json` | 预览版 | 已按约定写在仓库里（2.5.13-beta.1 / 215），**尚未部署上线** |
+| WorkBuddy（默认） | `update.json?sharecode=…` | `beta.json?sharecode=…` |
+| GitHub（可选） | `releases/latest/download/update.json` | `releases/download/preview/beta.json`（固定 `preview` tag，因 latest 排除预发布版本） |
 
-- 两份清单字段相同：`version`、`versionCode`、`notes`、`url`、`bytes`、`sha256`；都必须指向真实存在、已按 SHA-256 与字节数核对过的 APK。
-- 预览清单的线上路径约定与正式清单同目录（`…/beta.json?sharecode=…`）。地址常量在 `UpdateCheck.BETA_MANIFEST`，若部署位置不同改这一处。
-- 部署顺序：先把 beta.json 指向的 APK 上传到下载站目录，再上传 beta.json。**在 beta.json 上线之前，App 打开预览渠道会读到 404，被当作「该渠道没有内容」而静默回退到正式渠道**——不会弹错，也不会推到任何不存在的包。
-- 未发布的测试包不得写进 beta.json；`test_ui_contract.py` 会核对 beta.json 的版名格式、必填字段与 versionCode 高于正式清单。
+- 四个地址集中在 core 的 `UpdateSources`，测试与应用读同一份。地址常量不再放在 `UpdateCheck`。
+- 清单里的 APK `url` 必须指向固定 tag/固定文件名（例：`releases/download/v2.5.9/kexin-xiaozhushou-2.5.9.apk`）；**不要**用 `releases/latest/download/<带版本号的文件名>`——发新版后旧文件名在 latest 下不存在，链接会 404。
+- GitHub Release 资产下载 302 到带签名 query 的 CDN；`UpdateUrls` 保留 Location 自带的参数、剥掉与上一跳同名（如 `sharecode`）的参数。改动这个文件后必须跑 `test_core.py`。
+- 部署顺序：先上传 APK 资产，再用同名覆盖上传清单。清单未上线期间该渠道返回 404，被当作「该渠道没有内容」静默回退，**不影响另一渠道**。
+- 未发布的测试包不得写进任何清单；`test_ui_contract.py` 会核对 beta.json 的版名格式、必填字段与 versionCode 高于正式清单。
+- 已安装旧版 App 不会自动识别 GitHub 渠道（旧包只有 WorkBuddy 地址）。若 WorkBuddy 站点不可发布，用户需手动安装一次带「更新渠道」设置的新版本。
 
 
 ## 发布清单（用户明确要求，每次发版必须全做）
@@ -80,7 +84,7 @@ python scripts/build_preview.py                # 普通只读版出包（默认�
 6. 同步更新 `CHANGELOG.md` 与 [`agent-handoff.md`](agent-handoff.md)；核对版本号与对应 Git Commit；检查无敏感信息写入文档。
 7. **预览版另走一条**：`python scripts/build_preview.py --beta --field-water --version-code <新号>` → 把 APK 放进 `delivery/update/` → 写 `beta.json`（同字段，URL 指向该 APK）→ 上传 APK 后再上传 beta.json → 核对线上两个直链 200。`update.json` 与下载站首页的正式版信息此时**不动**。
 
-分发链接的具体参数见 `README.md` 下载章节（去掉后会 403）。主源为 WorkBuddy 托管，备源为 GitHub Releases。网络安全约束见 [`security.md`](security.md)。
+分发链接的具体参数见 `README.md` 下载章节（去掉后会 403）。WorkBuddy 是默认渠道，GitHub 是可切换的备选：换 WorkBuddy 账号后仍可切到 GitHub 继续收更新，不被站点所有权卡住。网络安全约束见 [`security.md`](security.md)。
 
 ## 签名材料（只写约束，不写值）
 

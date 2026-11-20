@@ -31,7 +31,8 @@
 
 - **HTTPS only**：manifest `usesCleartextTraffic=false`；应用自身连接禁用自动重定向，逐跳校验 HTTPS、跳数上限、环路与跨主机 query 清理（`UpdateUrls`）；WebView 准入统一走 `TrustedUrlPolicy`（scheme + host + port）。
 - **固定依赖**：ZXing / PDFBox / Bouncy Castle / 支付宝 AAR 以 SHA-256 锁定，构建时校验；手工合并 AAR。
-- **WebView**：6 处 WebView 页面全部 HTTPS-aware（由 `test_webview_policy.py` 静态守卫）；禁混合内容；拦截导航与新窗口；`addJavascriptInterface` 零命中。学生评价的表单页先把学校的菜单壳（`index_initMenu.html`）作为顶层文档加载，再把模块装进壳内的全屏宿主 —— 宿主仍是学校 HTTPS 文档，不引入新导航来源；评分与提交都在学校页面上完成，应用自身不调用评教的保存/提交端点。
+- **WebView**：5 处 WebView 页面全部 HTTPS-aware（由 `test_webview_policy.py` 静态守卫）；禁混合内容；拦截导航与新窗口；`addJavascriptInterface` 零命中。学生评价**不使用 WebView**：问卷片段由 `EduEvaluationForm` 当纯文本读出来，题目与选项在原生控件上渲染，因此这条链路不引入任何网页执行环境。
+- **评教的写入边界**：`EduClient.checkPath()` 只按名字放行五个 `/xspjgl/` 端点（列表查询、评价情况统计、问卷片段、暂存、提交）。写端点只接收 `EduEvaluationForm.body()` 按读者实际选择拼出的请求体：应用不预填、不代选、不批量代评，提交前必须由读者在二次确认框里确认，且只提交当前这一个教学班。评语只存在内存里，不写盘、不进诊断。
 
 ## 支付与用水控制
 
@@ -46,7 +47,8 @@
 
 `UpdateManifest` 要求 `version` / `versionCode` / `notes` / `url` / `bytes` / `sha256` 字段合法且 `sha256` 小写 64 位；下载必须 HTTPS、逐跳受控，落地前校验字节数与 SHA-256，并比对 APK 包名 / versionCode / 签名身份（比对逻辑存在，具体指纹值不记录在文档）。最后一步必须由用户点「安装」。
 
-预览渠道（`beta.json`）**不降低任何一项**：同一份 `UpdateManifest` 校验、同一套逐跳 HTTPS 策略、同一套字节数 / SHA-256 / 包名 / versionCode / 签名证书比对都在下载链路上，与渠道无关；清单缺字段、指向明文 HTTP、或包里任何一项对不上，一律删除下载而不安装。
+- 更新渠道（WorkBuddy / GitHub，更多页选）只决定「从哪个主机读清单」，**不构成权限提升**：两处清单都过同一套 `UpdateManifest` 校验，GitHub 的 `sharecode` 不存在、WorkBuddy 的也不因换渠道而泄露。GitHub Release 资产会 302 到带签名 query 的 CDN，`UpdateUrls` 保留 Location 自带的参数，但剥掉与上一跳同名（如 `sharecode`）的参数，防止查询参数跨 host 泄漏；逐跳 HTTPS、跳数上限与防环保持不变。
+- 预览通道（`beta.json`）**不降低任何一项**：同一份 `UpdateManifest` 校验、同一套逐跳 HTTPS 策略、同一套字节数 / SHA-256 / 包名 / versionCode / 签名证书比对都在下载链路上，与渠道无关；清单缺字段、指向明文 HTTP、或包里任何一项对不上，一律删除下载而不安装。
 
 - 版本名只用于显示与分渠道，**新旧一律由 `versionCode` 决定**（`core/UpdateChannel`）。不比较字符串，因此不存在「`2.10` 比 `2.9` 旧」这类误判。
 - 渠道开关只影响「是否读取预览清单」，不构成权限提升：关闭后即使已安装预览版，也不会被推回更旧的正式版（候选必须严格大于当前 `versionCode`）。

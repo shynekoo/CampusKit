@@ -1383,6 +1383,36 @@ public final class CoreTests {
             UpdateUrls.MAX_REDIRECTS));
         System.out.println("PASS: update redirects stay on HTTPS, are bounded and loop-free, and drop query on a new host");
 
+        // A query written in the Location header belongs to the new host (GitHub signs its release
+        // CDN hop this way) and must survive; a query merely inherited from the old host must not.
+        equal("https://release-assets.githubusercontent.com/a.apk?sp=r&sig=xyz",
+            UpdateUrls.next("https://github.com/o/r/releases/download/v1/a.apk",
+                "https://release-assets.githubusercontent.com/a.apk?sp=r&sig=xyz",
+                new java.util.HashSet<String>(), 0));
+        equal("https://cdn.example.com/app.apk",
+            UpdateUrls.next("https://host/app.apk?sharecode=ABC",
+                "https://cdn.example.com/app.apk?sharecode=ABC",
+                new java.util.HashSet<String>(), 0));
+        System.out.println("PASS: a signed CDN redirect keeps its own query while a sharecode is never forwarded");
+
+        // Two update channels: WorkBuddy default, GitHub alternative. Both carry a release and a
+        // preview list; an absent or unknown value must resolve to WorkBuddy, never to a blank host.
+        equal(2, UpdateSources.HOSTS.length);
+        equal("WorkBuddy", UpdateSources.HOSTS[0]);
+        equal("GitHub", UpdateSources.HOSTS[1]);
+        equal(true, UpdateSources.isWorkBuddy(null));
+        equal(true, UpdateSources.isWorkBuddy(""));
+        equal(true, UpdateSources.isWorkBuddy("workbuddy"));
+        equal(false, UpdateSources.isWorkBuddy("github"));
+        equal(2, UpdateSources.manifests(null).length);
+        equal(true, UpdateSources.manifests(null)[0].contains("workbuddy.host"));
+        equal(true, UpdateSources.manifests(null)[1].contains("beta.json"));
+        equal(true, UpdateSources.manifests("github")[0].startsWith("https://github.com/"));
+        equal(true, UpdateSources.manifests("github")[1].contains("/preview/beta.json"));
+        for (String url : UpdateSources.manifests(null)) UpdateUrls.requireHttps(url);
+        for (String url : UpdateSources.manifests("github")) UpdateUrls.requireHttps(url);
+        System.out.println("PASS: both update channels resolve to two HTTPS manifests with WorkBuddy as the default");
+
         // Diagnostics must be opt-in at runtime even when compiled into a release variant. The
         // default is a policy, not an accident of a null context or a failed SharedPreferences read.
         equal(false, DiagPolicy.ENABLED_BY_DEFAULT);
@@ -1767,7 +1797,173 @@ public final class CoreTests {
         EduEvaluation.Counts noCounts = EduEvaluation.counts("{}");
         equal(true, noCounts.empty());
         equal("", noCounts.note);
+        // The grid pages, so the reply's own page count decides whether another request is needed.
+        equal(3, EduEvaluation.pageCount("{\"totalPage\":3}", 100));
+        equal(2, EduEvaluation.pageCount("{\"total\":2}", 100));          // the plugin's own key
+        equal(2, EduEvaluation.pageCount("{\"totalResult\":150}", 100));  // worked out from rows
+        equal(0, EduEvaluation.pageCount("{\"items\":[]}", 100));         // nothing to page
+        equal(150, EduEvaluation.rowCount("{\"totalResult\":150}"));
+        equal(0, EduEvaluation.rowCount("{}"));
+        equal(3, EduEvaluation.of(evaluationReport.items).size());
+        equal(1, EduEvaluation.of(Arrays.asList(
+            evaluationReport.items.get(0), evaluationReport.items.get(0))).size());  // the same row twice
         System.out.println("PASS: student evaluation rows carry their own state and the form keys");
+
+        // ---- 学生评价问卷: the fragment is read the way the school's own script reads it ---------
+        // The markup below is the shape xspj_display.js walks: panel-pjdx per 评价模板, table-xspj
+        // per 指标, tr-xspj per 评价项 with the ids on data-*, options inside div.input-xspj.
+        String sheet = "<div class=\"xspj-body\" data-jxb_id=\"J1\" data-kch_id=\"K1\" data-jgh_id=\"T1\""
+            + " data-xsdm=\"01\" data-ztpjbl=\"30\" data-jszdpjbl=\"20\" data-xykzpjbl=\"10\">"
+            + "<div class=\"panel-pjdx\" data-pjmbmcb_id=\"MB1\" data-pjmbmc=\"学生评价\""
+            + " data-pjdxdm=\"01\" data-fxzgf=\"0\" data-xspfb_id=\"F1\">"
+            + "<table class=\"table table-xspj\" data-pjzbxm_id=\"ZB1\"><tbody>"
+            + "<tr class=\"tr-xspj\" data-pjzbxm_id=\"ZB1\" data-pfdjdmb_id=\"D1\" data-dtlx=\"2\""
+            + " data-sfbt=\"1\" data-qzz=\"10\"><td><span class=\"red\">*</span>教学内容充实</td>"
+            + "<td><div class=\"input-xspj\"><input type=\"radio\" class=\"radio-pjf\""
+            + " name=\"MB1_ZB1_D1\" data-pfdjdmxmb_id=\"X1\" value=\"10\"><span>优秀</span></div>"
+            + "<div class=\"input-xspj\"><input type=\"radio\" class=\"radio-pjf\""
+            + " name=\"MB1_ZB1_D1\" data-pfdjdmxmb_id=\"X2\" value=\"8\" checked><span>良好</span></div>"
+            + "</td></tr>"
+            + "<tr class=\"tr-xspj\" data-pjzbxm_id=\"ZB2\" data-pfdjdmb_id=\"D2\" data-dtlx=\"3\""
+            + " data-sfbt=\"0\" data-qzz=\"5\"><td>课堂互动</td>"
+            + "<td><div class=\"input-xspj\"><input type=\"checkbox\" name=\"MB1_ZB2_D2\""
+            + " data-pfdjdmxmb_id=\"X3\"><span>提问</span></div>"
+            + "<div class=\"input-xspj\"><input type=\"checkbox\" name=\"MB1_ZB2_D2\""
+            + " data-pfdjdmxmb_id=\"X4\"><span>讨论</span></div></td></tr>"
+            + "</tbody></table>"
+            + "<table class=\"table table-xspj\" data-pjzbxm_id=\"ZB3\"><tbody>"
+            + "<tr class=\"tr-xspj\" data-pjzbxm_id=\"ZB3\" data-pfdjdmb_id=\"D3\" data-dtlx=\"1\""
+            + " data-sfbt=\"1\"><td>对课程的建议</td><td><textarea class=\"form-control input-zgpj\""
+            + " name=\"zgpj\"></textarea></td></tr>"
+            + "</tbody></table>"
+            + "<textarea class=\"form-control\" name=\"py\" id=\"MB1_py\"></textarea>"
+            + "</div></div>";
+
+        EduEvaluationForm.Form parsedSheet = EduEvaluationForm.parse(sheet);
+        equal("J1", parsedSheet.classId);
+        equal("K1", parsedSheet.courseId);
+        equal("T1", parsedSheet.teacherId);
+        equal("01", parsedSheet.studentType);
+        equal("30", parsedSheet.ztpjbl);
+        equal(1, parsedSheet.panels.size());
+        equal(3, parsedSheet.count());
+        equal(false, parsedSheet.empty());
+        EduEvaluationForm.Panel sheetPanel = parsedSheet.panels.get(0);
+        equal("MB1", sheetPanel.modelId);
+        equal("学生评价", sheetPanel.modelName);
+        equal("F1", sheetPanel.xspfbId);
+        equal(true, sheetPanel.comment);
+        equal(2, sheetPanel.groups.size());          // two 指标 tables, kept apart on purpose
+
+        List<EduEvaluationForm.Question> questions = parsedSheet.questions();
+        equal("教学内容充实", questions.get(0).title);   // the leading * is decoration, not the name
+        equal(EduEvaluationForm.CHOICE, questions.get(0).kind);
+        equal(EduEvaluationForm.FIELD_OPTION, questions.get(0).field);
+        equal(true, questions.get(0).required);
+        equal(2, questions.get(0).options.size());
+        equal("优秀", questions.get(0).options.get(0).label);
+        equal("X1", questions.get(0).options.get(0).value);
+        equal(true, questions.get(0).options.get(1).checked);
+        equal(EduEvaluationForm.MULTI, questions.get(1).kind);
+        equal(2, questions.get(1).options.size());
+        equal(EduEvaluationForm.TEXT, questions.get(2).kind);
+        equal(EduEvaluationForm.FIELD_TEXT, questions.get(2).field);
+        equal(true, questions.get(2).supported());
+
+        // A 暂存 sheet comes back with the previous choice already checked.
+        List<EduEvaluationForm.Answer> sheetAnswers = parsedSheet.answers();
+        equal(3, sheetAnswers.size());
+        equal("", sheetAnswers.get(0).pick);   // the parser reports, the screen decides
+        sheetAnswers.get(0).pick = "X1";
+        sheetAnswers.get(1).toggle("X3");
+        sheetAnswers.get(1).toggle("X4");
+        sheetAnswers.get(2).text = "希望多讲例题";
+        List<String> sheetComments = new ArrayList<String>();
+        sheetComments.add("讲得很好");
+        String savedBody = EduEvaluationForm.body(parsedSheet, sheetAnswers, sheetComments, false);
+        equal(true, savedBody.contains("jxb_id=J1"));
+        equal(true, savedBody.contains("kch_id=K1"));
+        equal(true, savedBody.contains("jgh_id=T1"));
+        equal(true, savedBody.contains("xsdm=01"));
+        equal(true, savedBody.contains("ztpjbl=30"));
+        equal(true, savedBody.contains("tjzt=0"));           // 暂存
+        equal(true, savedBody.contains("modelList%5B0%5D.pjmbmcb_id=MB1"));
+        equal(true, savedBody.contains("modelList%5B0%5D.xspfb_id=F1"));
+        // The school numbers the tables and the rows inside them; both indices must be theirs.
+        equal(true, savedBody.contains(
+            "modelList%5B0%5D.xspjList%5B0%5D.childXspjList%5B0%5D.pfdjdmxmb_id=X1"));
+        equal(true, savedBody.contains(
+            "modelList%5B0%5D.xspjList%5B0%5D.childXspjList%5B1%5D.pfdjdmxmb_id=X3"));
+        equal(true, savedBody.contains(
+            "modelList%5B0%5D.xspjList%5B0%5D.childXspjList%5B1%5D.pfdjdmxmb_id=X4"));
+        equal(true, savedBody.contains(
+            "modelList%5B0%5D.xspjList%5B1%5D.childXspjList%5B0%5D.zgpj="));
+        equal(true, savedBody.contains("zgpj=%E5%B8%8C%E6%9C%9B%E5%A4%9A%E8%AE%B2%E4%BE%8B%E9%A2%98"));
+        // 评语 is percent-encoded by the page and then by the form, so it travels twice-encoded.
+        equal(true, savedBody.contains(
+            "py=%25E8%25AE%25B2%25E5%25BE%2597%25E5%25BE%2588%25E5%25A5%25BD"));
+        equal(false, EduEvaluationForm.body(parsedSheet, sheetAnswers, sheetComments, false).contains("tjzt=1"));
+        equal(true, EduEvaluationForm.body(parsedSheet, sheetAnswers, sheetComments, true).contains("tjzt=1"));
+
+        // An unanswered question sends nothing: the school's script omits it too, and a blank
+        // 等级 id is not the same as "no answer".
+        List<EduEvaluationForm.Answer> blank = parsedSheet.answers();
+        String blankBody = EduEvaluationForm.body(parsedSheet, blank, new ArrayList<String>(), true);
+        equal(false, blankBody.contains("childXspjList%5B0%5D.pfdjdmxmb_id"));
+        equal(true, blankBody.contains("tjzt=1"));
+
+        // 十级制 rows ship a select instead of radios, and the raw score is what goes back.
+        String gradedSheet = "<div class=\"xspj-body\" data-jxb_id=\"J2\" data-kch_id=\"K2\" data-jgh_id=\"T2\""
+            + " data-xsdm=\"01\"><div class=\"panel-pjdx\" data-pjmbmcb_id=\"MB2\""
+            + " data-pjmbmc=\"教师评价\" data-pjdxdm=\"02\"><table class=\"table-xspj\"><tbody>"
+            + "<tr class=\"tr-xspj\" data-pjzbxm_id=\"ZB4\" data-pfdjdmb_id=\"D4\" data-dtlx=\"2\""
+            + " data-sfbt=\"1\"><td>授课水平</td><td><select name=\"pjf\">"
+            + "<option value=\"\">请选择</option><option value=\"10\">10</option>"
+            + "<option value=\"9\" selected>9</option></select></td></tr>"
+            + "</tbody></table></div></div>";
+        EduEvaluationForm.Form gradedForm = EduEvaluationForm.parse(gradedSheet);
+        equal(1, gradedForm.count());
+        EduEvaluationForm.Question gradedQuestion = gradedForm.questions().get(0);
+        equal(EduEvaluationForm.CHOICE, gradedQuestion.kind);
+        equal(EduEvaluationForm.FIELD_SCORE, gradedQuestion.field);
+        equal(2, gradedQuestion.options.size());          // the "请选择" placeholder is not an answer
+        equal("9", gradedQuestion.options.get(1).value);
+        equal(true, gradedQuestion.options.get(1).checked);
+        List<EduEvaluationForm.Answer> gradedAnswers = gradedForm.answers();
+        gradedAnswers.get(0).pick = "9";
+        equal(true, EduEvaluationForm.body(gradedForm, gradedAnswers, new ArrayList<String>(), true)
+            .contains("childXspjList%5B0%5D.pjf=9"));
+
+        // A row whose control this parser does not recognise must be reported, never faked.
+        String oddSheet = "<div class=\"xspj-body\" data-jxb_id=\"J3\"><div class=\"panel-pjdx\""
+            + " data-pjmbmcb_id=\"MB3\"><table class=\"table-xspj\"><tbody>"
+            + "<tr class=\"tr-xspj\" data-pjzbxm_id=\"ZB5\" data-pfdjdmb_id=\"D5\" data-dtlx=\"9\">"
+            + "<td>奇怪题型</td><td><div class=\"widget-unknown\"></div></td></tr>"
+            + "</tbody></table></div></div>";
+        equal(EduEvaluationForm.UNSUPPORTED, EduEvaluationForm.parse(oddSheet).questions().get(0).kind);
+        equal(false, EduEvaluationForm.parse(oddSheet).questions().get(0).supported());
+
+        // No 评价项 is not an error to hide: the screen says so, so the parser says so.
+        String noItems = "<div class=\"xspj-body\" data-jxb_id=\"J4\"></div>";
+        rejects(() -> EduEvaluationForm.parse(noItems));
+        rejects(() -> EduEvaluationForm.parse(""));
+        rejects(() -> EduEvaluationForm.parse(null));
+        // The school's own refusal text is carried into the message instead of being swallowed.
+        try {
+            EduEvaluationForm.parse("<div class=\"alert alert-danger\">课程号ID,教学班ID,教职工ID参数异常!</div>");
+            throw new AssertionError("a refusal page must not parse as a form");
+        } catch (IllegalArgumentException expected) {
+            assertions++;
+            equal(true, expected.getMessage().contains("参数异常"));
+        }
+
+        // The reply to 暂存/提交 is a sentence, so only the school's own words decide the outcome.
+        equal(EduEvaluationForm.OK, EduEvaluationForm.outcome("\"整体提交成功\""));
+        equal(EduEvaluationForm.OK, EduEvaluationForm.outcome("\"操作成功\""));
+        equal(EduEvaluationForm.FAILED, EduEvaluationForm.outcome("\"提交失败\""));
+        equal(EduEvaluationForm.UNCLEAR, EduEvaluationForm.outcome("<html><body>系统升级维护中</body></html>"));
+        equal("还没到评教时间", EduEvaluationForm.note("<b>还没到评教时间</b>"));
+        System.out.println("PASS: the evaluation sheet is read from the school's own markup, never invented");
 
         // ---- diagnostics: a record is structured, and sensitive values have no way in --------
         // The whitelist is the security boundary: an unknown key is dropped, not scrubbed. A

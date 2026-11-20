@@ -12,7 +12,8 @@
 | 当前开发分支 | `feat/diag-2.5.8`（诊断系统改造，**未提交、未合并**） |
 | 最新包 | `delivery/科信小助手-2.5.9.apk`（versionCode 210，已发布，sha256 `b022159d…c82ef605`，`--field-water` 用水版）；`2.5.8.1`/209 因四段版名检查不到更新已被取代 |
 | 发布公告 | `delivery/release-2.5.8.md`（短版 / 长版公告 + 上线记录 + 原始清单） |
-| 最新 tag / Release | `v2.5.9`（[Release](https://github.com/shynekoo/CampusKit/releases/tag/v2.5.9)，附 ASCII 资产 `kexin-xiaozhushou-2.5.9.apk`） |
+| 最新 tag / Release | `v2.5.9`（[Release](https://github.com/shynekoo/CampusKit/releases/tag/v2.5.9)，附 ASCII 资产 `kexin-xiaozhushou-2.5.9.apk` 与 `update.json`）；另有 `preview` 预发布，附 beta.3 APK 与 `beta.json` |
+| GitHub 登录 | `gh auth login` 已登录 `shynekoo`（ADMIN，repo scope）；按 AGENTS.md，push/tag/Release 仍需用户逐次确认 |
 | 工作区 | `feat/diag-2.5.8` 上未提交；主线 `main` 未改 |
 | 核心断言 | 实测 **1418 项全过**；UI 契约守卫 **291 锚点**；诊断隐私守卫 **651 项**；WebView 守卫 **6 处** |
 | 发布状态 | **2.5.8 已发布**：清单、直链、下载站、App 内更新日志已同步；早期 2.5.8.x 开发包未单独发布 |
@@ -177,6 +178,57 @@ UI-3 本轮修 5 处：滚动恢复带 generation 且改为布局后（pre-draw�
   `delivery/update/beta.json` 已指向它；**线上未部署**（`SITES_ACCOUNT_MISMATCH`，需切回原发布账号）。
 - **仍未验证**：真机 E1–E4e（尤其：菜单壳是否被学校重定向、模块装进宿主后表格能否建起来、片段能否装载）。
 - **证据留存**：`tmp/idx.js`（列表页脚本）、`tmp/disp.js`（片段脚本）是从学校页面抓下的原始脚本，`tmp/` 已被 gitignore，不随仓库分发。
+
+## 三之十一、学生评价改成原生列表 + 原生答题页（2.6.0-beta.3，工作区改动）
+
+- **为什么换做法**：前三版（2.5.10–2.6.0-beta.2）都是「把学校页面搬进 WebView」，定位、渲染、提交全依赖
+  学校脚本按预期跑起来；真机三次失败（参数异常 → 系统升级维护 → 仍是 0 个评价项）。这一版不再打开网页。
+- **核实过的事实**（不是推断）：
+  - `xspj_cxXspjDisplay.html?gnmkdm=N401605` 返回的是**服务端渲染的 HTML 片段**，题目/选项/全部 id 都在里面；
+    未登录访问 302 到登录页（端点存在），学校脚本 230 270 B 的 `xspj_display.js` 可匿名取到，与本地 `tmp/disp.js`
+    **字节一致**，因此下面的选择器是当前线上版本，不是猜测。
+  - 学校脚本读的 DOM：`div.panel-pjdx`（评价模板）→ `table.table-xspj`（一级指标）→ `tr.tr-xspj`（评价项，
+    `data-pjzbxm_id / pfdjdmb_id / dtlx / sfbt / qzz`）→ 选项 `input.radio-pjf`（`data-pfdjdmxmb_id`，
+    标签是外层 `div.input-xspj` 的文字）/ `input[type=checkbox]` / `select[name=pjf]`（十级制）；
+    主观题 `textarea.input-zgpj`，评语 `textarea[name=py]`。
+  - 提交参数由 `buildRequestMap()` 拼：`modelList[i].pjmbmcb_id / pjmbmc / pjdxdm / fxzgf / py / xspfb_id`，
+    题目在 `modelList[i].xspjList[j].childXspjList[k].` 下（单选 `pfdjdmxmb_id`、十级制 `pjf`、主观题 `zgpj`），
+    评语先 `encodeURIComponent` 再被表单编码（**双重编码**）。
+  - 列表是 jqGrid，**会分页**；旧代码固定 `currentPage=1`，只读一页就会漏课（截图里 20 门未评）。
+- **改法**：
+  - 新增 `core/EduEvaluationForm`：`parse()` 读片段 → 模板/题目/选项/必填/已选；`body()` 按学校同构拼请求体
+    （未作答不发字段，多选重复同名字段，故走字符串拼装而非 `Map`）；`outcome()`/`note()` 只按学校回话判断成败；
+    识别不了的题型记 `UNSUPPORTED`。
+  - `EduEvaluation.pages/rowCount/of`：分页与跨页去重。
+  - `EduClient`：`evaluations()` 循环取页；新增 `evaluationForm(...)`（七个 id）、`evaluationWrite(body, submit)`、
+    `fetchEncoded()`（已编码请求体，支持重复字段）；`checkPath()` 放行五个 `/xspjgl/` 端点（含暂存/提交）。
+  - `EvaluationActivity` 重写：三格计数 + 四个筛选 chip + 卡片折叠动画（`MotionSpec.LIST_TOGGLE_DURATION`，
+    连点先 cancel，关动画直接落终态）；打开答题页时把六个 id 一起带过去。
+  - `EvaluationFormActivity` 重写为原生页：选项行/多选/输入框/评语框，必填 `*`、暂存/提交按钮、
+    提交前必填校验 + `Theme.dialog` 二次确认、成功后返回列表重读；已提交只读；暂存过的回填本人上次选择。
+  - 诊断：`EVAL` 事件改为 `sheet.start / sheet.ready / sheet.empty / sheet.failed / sheet.unsupported /
+    write.sent / write.saved / write.failed`（只记阶段与题数）。
+- 测试：`test_core` **1491** / `test_build_config` 7 / `test_diag_privacy` **672** / `test_diag_files` 6650 /
+  `test_webview_policy` **5** / `test_ui_contract` **313**，全过；`javac --release 8` 通过；manifest `220 / 2.6.0-beta.3`。
+- **仍未验证**：真实账号下的问卷渲染与暂存/提交（无可用账号）。提交一次性，必须按
+  `docs/real-device-acceptance.md` E4c/E4d 在评教窗口内实测一次。
+
+## 三之十二、学生评价卡片「点开就缩回」：高度写入把 WRAP_CONTENT 钳成 0（2.6.0-beta.4）
+
+- **现象**（真机截图）：列表与分页正常（17 门全在），但点任一课程卡片的头部，卡片只是闪一下展开又立刻
+  合上；右侧箭头停在 ▾（已展开），正文却一片空白。
+- **根因**：`EvaluationActivity.height(View, int)` 里写的是 `params.height = Math.max(0, value)`。动画每帧
+  传的是像素值，钳制无害；但折叠结束调 `settle(body, WRAP_CONTENT)`，`WRAP_CONTENT` 的值是 **-2**，
+  被钳成 0 → 正文高度 0。于是「展开动画走完立刻塌回 0」，而 `card.open` 与箭头已经置为展开态。
+  这也解释了为什么不是所有卡片都收不起来：只有被点过、跑完一次动画的那张会停在「箭头已展开、高度 0」。
+- **修法**：`height()` 原样写回（负值就是 `WRAP_CONTENT` / `MATCH_PARENT` 的语义，像素值无需钳制）；
+  `settle()` 的两条终态（0 / `WRAP_CONTENT`）因此都成立。`test_ui_contract.py` 增加防回退守卫，
+  禁止折叠高度写入再出现 `Math.max(0, …)` 形式（锚点 313 → 314）。
+- **对照**：`ChangelogActivity` 的同类折叠一直正常，它的 `height(Card, int)` 就是直接 `params.height = pixels`，
+  没有钳制——这也是本次判断的旁证。
+- 测试：`test_core` 1491 / `test_build_config` 7 / `test_diag_privacy` 672 / `test_diag_files` 6650 /
+  `test_webview_policy` 5 / `test_ui_contract` **314**，全过；`javac --release 8` 通过。
+- **仍需真机**：E2（展开/收起、连点不抢动画）；其余链路（答题、暂存、提交）与 beta.3 相同，未实测。
 
 ## 四、验证状态（如实）
 

@@ -1,445 +1,612 @@
 package io.qzxy.lite.preview;
 
-import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
-import android.os.SystemClock;
+import android.graphics.Typeface;
+import android.text.Editable;
+import android.text.InputType;
+import android.view.Gravity;
 import android.view.View;
-import android.view.ViewGroup;
-import android.webkit.CookieManager;
-import android.webkit.SslErrorHandler;
-import android.webkit.WebResourceError;
-import android.webkit.WebResourceRequest;
-import android.webkit.WebSettings;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
-import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import io.qzxy.lite.core.EduEvaluationForm;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
- * The school's own 学生评价 page, opened on one 教学班 and left to the school to drive.
+ * 学生评价的答题页: the school's own questions, answered on native controls.
  *
- * <p>A 正方 module page is not a page: it is a fragment written against globals the menu shell
- * declares — {@code _path} for every url it builds, {@code BaseJqGrid} and {@code loadJqGrid} for
- * its grid, {@code $.i18n} for every label. Opened as a top-level document it throws on the first
- * of those ({@code BaseJqGrid is not defined}) inside its own {@code $(function(){…})}, so the grid
- * is never created, {@code onSelectRow} is never bound, and the panel keeps the static skeleton it
- * shipped with — the 状态备注 legend and "评价内容 / 0% Complete" the user saw. That is why the
- * school's own menu entry works while a direct url did not: the menu loads the module <em>into the
- * shell document</em>, where those globals exist.</p>
+ * <p>The school renders its form as a fragment of HTML. Instead of showing that fragment in a
+ * WebView, {@link EduEvaluationForm} reads it back out of the markup — the same {@code data-*} ids
+ * and {@code div.input-xspj} labels its own script reads — and this screen draws the result: a card
+ * per 评价模板, one block per 评价项, a row of options per choice.</p>
  *
- * <p>So this screen loads the shell first, then mounts the module into a full-screen host inside
- * it, exactly as the menu does. Everything after that — the grid, the row, the fragment the row
- * loads, the 暂存 / 提交 buttons the fragment wires — is the school's own code running on its own
- * terms. Nothing about the evaluation is built on this side: the app never scores and never
- * submits.</p>
- *
- * <p>Two things are added to that document, both inert to the school's logic: a
- * {@code $.ajaxPrefilter} that appends {@code gnmkdm=N401605} to its {@code /xspjgl/} requests
- * (the shell's own referer does not carry the module id, and the endpoint answers 500 without it),
- * and an error listener, so a page that throws says so in the status line instead of waiting.</p>
+ * <p>Nothing is pre-filled and nothing is scored by the app. 暂存 and 提交 post exactly the answers
+ * on screen; 提交 asks once more first, because the school accepts it only once. A question the
+ * parser could not recognise is reported instead of being drawn, and blocks 提交 — a control that
+ * silently posts the wrong parameter would be worse than an honest "这一项要在学校页面上填".</p>
  */
 public final class EvaluationFormActivity extends Page {
-    /** The 教学班 to land on; the only thing this screen needs from the list. */
-    static final String EXTRA_CLASS = "jxb_id";
-    static final String EXTRA_TITLE = "title";
+    static final String EXTRA_CLASS = "eval.class";
+    static final String EXTRA_COURSE = "eval.course";
+    static final String EXTRA_TEACHER_ID = "eval.teacher_id";
+    static final String EXTRA_TYPE = "eval.type";
+    static final String EXTRA_MODEL = "eval.model";
+    static final String EXTRA_GRADE_ENTRY = "eval.grade_entry";
+    static final String EXTRA_STATUS = "eval.status";
+    static final String EXTRA_TITLE = "eval.title";
 
-    /** How many times to look for the row: the grid answers over two round trips. */
-    private static final int MAX_POLLS = 30;
-    /** Whole-screen budget. Past this the screen says what is wrong rather than waiting. */
-    private static final long BUDGET_MS = 30_000;
-    /** How many row selections may produce nothing before the panel counts as not loading. */
-    private static final int MAX_MISSES = 3;
+    /** A 评语 is a sentence or two; the school's own box is smaller than this. */
+    private static final int MAX_TEXT = 300;
 
-    private WebView web;
+    private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private DeviceScreen screen;
     private TextView status;
-    private TextView heading;
-    private Button backButton;
-    private String classId = "";
-    private int polls;
-    private int misses;
-    private boolean mounted;
-    private long startedAt;
-    private final Handler main = new Handler(Looper.getMainLooper());
+    private LinearLayout body, actions;
+    private int generation;
+    private boolean busy;
+
+    private EduEvaluationForm.Form form;
+    private List<EduEvaluationForm.Answer> answers = new ArrayList<EduEvaluationForm.Answer>();
+    private final List<Item> items = new ArrayList<Item>();
+    private final List<Comment> comments = new ArrayList<Comment>();
+    /** 已提交: the school no longer accepts changes, so the sheet is shown without its buttons. */
+    private boolean readOnly;
+    private final android.os.Handler watchdog = new android.os.Handler(android.os.Looper.getMainLooper());
 
     private int dp(int n) { return Math.round(n * getResources().getDisplayMetrics().density); }
 
-    private static boolean school(String url) {
-        if (url == null) return false;
-        Uri uri = Uri.parse(url);
-        String host = uri.getHost();
-        return "https".equals(uri.getScheme()) && host != null
-            && (host.equals("hebeu.edu.cn") || host.endsWith(".hebeu.edu.cn"))
-            && (uri.getPort() == -1 || uri.getPort() == 443);
-    }
-
-    /** A jqGrid id comes from the school, but it is spliced into script: keep it to id characters. */
-    private String safeId() {
-        StringBuilder out = new StringBuilder();
-        for (int i = 0; i < classId.length(); i++) {
-            char c = classId.charAt(i);
-            if ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
-                || c == '-' || c == '_') out.append(c);
+    /** One 评价项 on screen, with the controls that carry its answer. */
+    private static final class Item {
+        EduEvaluationForm.Question question;
+        EduEvaluationForm.Answer answer;
+        final List<TextView> options = new ArrayList<TextView>();
+        EditText input;
+        void paint() {
+            for (int i = 0; i < options.size(); i++) {
+                EduEvaluationForm.Option option = question.options.get(i);
+                boolean on = question.kind == EduEvaluationForm.MULTI
+                    ? answer.picks.contains(option.value) : option.value.equals(answer.pick);
+                mark(options.get(i), on);
+            }
         }
-        return out.toString();
     }
 
-    private Button action(LinearLayout row, String title, Runnable task) {
-        Button button = new Button(this);
-        button.setText(title);
-        button.setAllCaps(false);
-        button.setTextSize(13);
-        button.setMinWidth(0);
-        button.setMinimumWidth(0);
-        button.setPadding(dp(4), 0, dp(4), 0);
-        button.setTextColor(AppUi.ACCENT);
-        AppUi.press(button, 0x00ffffff, 10);
-        button.setOnClickListener(v -> task.run());
-        row.addView(button, new LinearLayout.LayoutParams(0, dp(44), 1));
-        return button;
+    /** One 评语 box, kept next to the panel it belongs to. */
+    private static final class Comment {
+        EditText field;
+        String text = "";
     }
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
-        classId = text(getIntent().getStringExtra(EXTRA_CLASS));
-        String title = text(getIntent().getStringExtra(EXTRA_TITLE));
-
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(AppUi.BG);
-        root.setPadding(dp(10), dp(10), dp(10), dp(10));
-        if (Build.VERSION.SDK_INT >= 30) {
-            getWindow().setDecorFitsSystemWindows(false);
-            root.setOnApplyWindowInsetsListener((v, insets) -> {
-                android.graphics.Insets bars = insets.getInsets(android.view.WindowInsets.Type.systemBars()
-                    | android.view.WindowInsets.Type.ime());
-                v.setPadding(dp(10) + bars.left, dp(10) + bars.top, dp(10) + bars.right, dp(10) + bars.bottom);
-                return insets;
-            });
-        }
-
-        LinearLayout bar = new LinearLayout(this);
-        backButton = action(bar, WebBack.CLOSE, () -> WebBack.go(this, web));
-        action(bar, "重新打开", this::load);
-        root.addView(bar);
-
-        heading = new TextView(this);
-        heading.setText(title.isEmpty() ? "学生评价" : title);
-        heading.setTextSize(14);
-        heading.setTextColor(AppUi.INK);
-        heading.setSingleLine(true);
-        heading.setPadding(dp(2), dp(2), dp(2), dp(2));
-        root.addView(heading);
+        String title = value(EXTRA_TITLE);
+        readOnly = "1".equals(value(EXTRA_STATUS));
+        screen = new DeviceScreen(this, title.isEmpty() ? "学生评价" : title);
+        screen.icon("↻", "重新读取", this::reload);
 
         status = new TextView(this);
         status.setTextSize(12);
         status.setTextColor(AppUi.MUTED);
-        status.setPadding(dp(2), 0, dp(2), dp(6));
-        status.setText("正在打开学校的教务菜单…");
-        root.addView(status);
+        status.setPadding(dp(2), 0, dp(2), dp(10));
+        status.setText("正在读取这份评价…");
+        screen.root.addView(status);
 
-        web = new WebView(this);
-        WebSettings settings = web.getSettings();
-        settings.setJavaScriptEnabled(true);
-        settings.setDomStorageEnabled(true);
-        settings.setAllowFileAccess(false);
-        settings.setAllowContentAccess(false);
-        settings.setAllowFileAccessFromFileURLs(false);
-        settings.setAllowUniversalAccessFromFileURLs(false);
-        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-        settings.setBuiltInZoomControls(true);
-        settings.setDisplayZoomControls(false);
-        settings.setUseWideViewPort(true);
-        settings.setLoadWithOverviewMode(true);
-        settings.setSupportMultipleWindows(false);
-        settings.setJavaScriptCanOpenWindowsAutomatically(false);
-        settings.setSaveFormData(false);
-        if (Build.VERSION.SDK_INT >= 26)
-            web.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
-        CookieManager.getInstance().setAcceptThirdPartyCookies(web, false);
-        web.setWebViewClient(new WebViewClient() {
-            @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                String target = request.getUrl().toString();
-                if (!school(target)) {
-                    status.setText("该跳转不属于学校 HTTPS 网站，未在此页打开。");
-                    return true;
-                }
-                // 提交后学校会问「要不要评选最佳教师」并跳到另一个模块页。作为顶层文档打开它同样
-                // 缺 _path / BaseJqGrid，只剩白页——所以改成就地装进壳里，和进来时一样。
-                if (mounted && target.contains("/zjjspxgl/")) {
-                    view.evaluateJavascript(hostLoad(target), null);
-                    status.setText("已在评价页内打开学校的后续页面。");
-                    return true;
-                }
-                return false;
-            }
-            @Override public void onPageFinished(WebView view, String url) {
-                refreshBackMode();  // 历史变了，返回该不该缩卡片也跟着变
-                WebBack.caption(backButton, view);
-                if (url == null) return;
-                if (url.contains("login_slogin")) {
-                    status.setText("登录状态已失效：返回上一页会重新登录，再进来就能评。");
-                    return;
-                }
-                if (url.contains("/xspjgl/")) {   // 学校自己跳到了模块页，就当已经装好
-                    status.setText("页面已打开，正在定位这门课…");
-                    located();
-                    return;
-                }
-                // Anything else is the shell, or where the shell redirected to — the document the
-                // module's globals live in either way, so mount into it. The flag keeps a redirect
-                // chain from mounting twice.
-                mount();
-            }
-            @Override public void doUpdateVisitedHistory(WebView view, String url, boolean reload) {
-                WebBack.caption(backButton, view);
-            }
-            @Override public void onReceivedSslError(WebView view, SslErrorHandler handler,
-                                                     android.net.http.SslError error) {
-                handler.cancel();
-                status.setText("学校网站证书校验失败，已停止加载。");
-            }
-            @Override public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
-                if (request.isForMainFrame()) status.setText("网页加载失败，请检查网络后点「重新打开」。");
-            }
-        });
-        root.addView(web, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
-        setContentView(root);
+        body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        screen.root.addView(body, new LinearLayout.LayoutParams(-1, -2));
+
+        actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        actions.setPadding(0, dp(4), 0, 0);
+        screen.root.addView(actions);
         load();
     }
 
-    /**
-     * Opens the menu shell with the app's session cookie already installed.
-     *
-     * <p>The shell is the whole point: it is the document that declares {@code _path},
-     * {@code BaseJqGrid}, {@code $.i18n} and {@code loadJqGrid}. Loading the module url instead is
-     * what left the screen with a legend and "0% Complete".</p>
-     */
+    private String value(String key) {
+        String text = getIntent() == null ? null : getIntent().getStringExtra(key);
+        return text == null ? "" : text;
+    }
+
+    // ---- loading ---------------------------------------------------------------------------
+
+    private void reload() {
+        if (busy) return;
+        body.removeAllViews();
+        actions.removeAllViews();
+        items.clear();
+        comments.clear();
+        load();
+    }
+
     private void load() {
-        CookieManager cookies = CookieManager.getInstance();
-        for (String part : EduClient.browserCookie().split(";"))
-            if (part.contains("=")) cookies.setCookie(EduClient.ORIGIN, part.trim());
-        cookies.flush();
-        if (safeId().isEmpty()) {
-            status.setText("没有拿到这门课的教学班编号，请返回上一页重新点一次。");
+        if (busy) return;
+        EduClient.capture();
+        busy = true;
+        screen.loading(true);
+        status.setText("正在读取这份评价…");
+        Diag.event(Diag.INFO, "EVAL", "sheet.start", "stage", "read");
+        final int ticket = ++generation;
+        watchdog.removeCallbacksAndMessages(null);
+        watchdog.postDelayed(() -> {
+            if (ticket != generation || !busy) return;
+            busy = false;
+            screen.loading(false);
+            status.setText("读取超时了。教学系统可能没响应，请检查网络后点右上角重新读取。");
+        }, 45000);
+        worker.execute(() -> {
+            try {
+                EduVault.Credential credential = new EduVault(getApplicationContext()).load();
+                EduClient.remember(credential == null ? "" : credential.user,
+                    credential == null ? "" : credential.password,
+                    credential != null && credential.refused);
+                String html = EduClient.evaluationForm(value(EXTRA_CLASS), value(EXTRA_COURSE),
+                    value(EXTRA_TEACHER_ID), value(EXTRA_TYPE), value(EXTRA_MODEL),
+                    value(EXTRA_GRADE_ENTRY), value(EXTRA_STATUS));
+                EduEvaluationForm.Form parsed = EduEvaluationForm.parse(html);
+                post(ticket, () -> show(parsed));
+            } catch (EduClient.NotSignedIn expired) {
+                post(ticket, this::askLogin);
+            } catch (EduClient.BadPassword wrong) {
+                post(ticket, () -> fail(wrong.getMessage()));
+            } catch (EduClient.CaptchaNeeded captcha) {
+                post(ticket, () -> fail(captcha.getMessage()));
+            } catch (Exception failure) {
+                post(ticket, () -> fail(EduClient.describe(failure)));
+            }
+        });
+    }
+
+    private void askLogin() {
+        busy = false;
+        screen.loading(false);
+        status.setText("登录过期了。回到上一页点「网页登录」重新登一次，再进来就能评。");
+        body.removeAllViews();
+        body.addView(hint("这份评价要先登录教务系统才能读。"));
+    }
+
+    private void fail(String message) {
+        busy = false;
+        screen.loading(false);
+        Diag.event(Diag.WARN, "EVAL", "sheet.failed", "stage", "read");
+        status.setText(message == null || message.isEmpty() ? "这份评价没读出来。" : message);
+        body.removeAllViews();
+        body.addView(hint("可以点右上角「重新读取」再试一次。如果提示还没开放，等评教窗口开了再来。"));
+    }
+
+    // ---- rendering -------------------------------------------------------------------------
+
+    private void show(EduEvaluationForm.Form parsed) {
+        busy = false;
+        screen.loading(false);
+        form = parsed;
+        answers = parsed.answers();
+        body.removeAllViews();
+        items.clear();
+        comments.clear();
+
+        if (parsed.empty()) {
+            Diag.event(Diag.WARN, "EVAL", "sheet.empty", "count", 0);
+            status.setText("学校这次没有下发评价项。");
+            body.addView(hint("这门课可能还没开放评教，或者学校把题目留到了评教窗口内。稍后再来。"));
             return;
         }
-        polls = 0;
-        misses = 0;
-        mounted = false;
-        startedAt = SystemClock.elapsedRealtime();
-        status.setText("正在打开学校的教务菜单…");
-        java.util.HashMap<String, String> headers = new java.util.HashMap<>();
-        headers.put("Referer", EduClient.ORIGIN + "/");
-        web.loadUrl(EduClient.ORIGIN + EduClient.MENU_PAGE, headers);
+        Diag.event(Diag.INFO, "EVAL", "sheet.ready", "count", parsed.count());
+        carryOver(parsed);
+        status.setText(readOnly
+            ? "共 " + parsed.count() + " 个评价项 · 已提交，这里只显示当时的选择"
+            : "共 " + parsed.count() + " 个评价项");
+
+        int index = 0;
+        for (EduEvaluationForm.Panel panel : parsed.panels) {
+            panelCard(panel, index);
+            index += panel.count();
+        }
+        if (!readOnly) buttons();
     }
 
     /**
-     * Mounts the module into the shell document and starts looking for the row.
-     *
-     * <p>Done the way the menu does it — {@code $(host).load(url)} — so the module's own scripts run
-     * with the shell's globals in scope. The host covers the shell so the student sees the
-     * evaluation, not a menu.</p>
+     * Takes the answers the school already recorded (a 暂存 sheet, or a submitted one) so the reader
+     * sees their own previous choices instead of a blank form.
      */
-    private void mount() {
-        if (mounted) return;
-        mounted = true;
-        web.evaluateJavascript(shellScript(), value -> {
-            String token = value == null ? "" : value.replace("\"", "");
-            if (token.contains("ok")) {
-                status.setText("页面已打开，正在定位这门课…");
-                located();
+    private void carryOver(EduEvaluationForm.Form parsed) {
+        int index = 0;
+        for (EduEvaluationForm.Panel panel : parsed.panels) {
+            for (List<EduEvaluationForm.Question> group : panel.groups) {
+                for (EduEvaluationForm.Question question : group) {
+                    if (index >= answers.size()) return;
+                    EduEvaluationForm.Answer answer = answers.get(index++);
+                    for (EduEvaluationForm.Option option : question.options) {
+                        if (!option.checked) continue;
+                        if (question.kind == EduEvaluationForm.MULTI) answer.picks.add(option.value);
+                        else answer.pick = option.value;
+                    }
+                }
+            }
+        }
+    }
+
+    /** One 评价模板: its name, its questions, and its 评语 box. */
+    private void panelCard(EduEvaluationForm.Panel panel, int start) {
+        LinearLayout card = card();
+        TextView name = new TextView(this);
+        name.setText(panel.name());
+        name.setTextSize(15);
+        name.setTypeface(null, Typeface.BOLD);
+        name.setTextColor(AppUi.INK);
+        card.addView(name);
+
+        TextView count = new TextView(this);
+        count.setText(panel.count() + " 个评价项");
+        count.setTextSize(11);
+        count.setTextColor(AppUi.MUTED);
+        count.setPadding(0, dp(2), 0, dp(2));
+        card.addView(count);
+
+        int index = start;
+        for (List<EduEvaluationForm.Question> group : panel.groups) {
+            for (EduEvaluationForm.Question question : group) {
+                EduEvaluationForm.Answer answer = index < answers.size()
+                    ? answers.get(index) : new EduEvaluationForm.Answer();
+                card.addView(questionBlock(question, answer));
+                index++;
+            }
+        }
+        if (panel.comment) card.addView(commentBlock());
+        addCard(card);
+    }
+
+    /** One question: what is asked, then whichever control its shape calls for. */
+    private LinearLayout questionBlock(EduEvaluationForm.Question question, EduEvaluationForm.Answer answer) {
+        LinearLayout block = new LinearLayout(this);
+        block.setOrientation(LinearLayout.VERTICAL);
+        block.setPadding(0, dp(12), 0, 0);
+
+        LinearLayout titleRow = new LinearLayout(this);
+        titleRow.setGravity(Gravity.TOP);
+        TextView title = new TextView(this);
+        title.setText(question.title.isEmpty() ? "评价项" : question.title);
+        title.setTextSize(14);
+        title.setTextColor(AppUi.INK);
+        title.setLineSpacing(dp(4), 1);
+        titleRow.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
+        if (question.required) {
+            TextView star = new TextView(this);
+            star.setText("*");
+            star.setTextSize(13);
+            star.setTextColor(AppUi.DANGER);
+            star.setPadding(dp(4), 0, 0, 0);
+            star.setContentDescription("必填");
+            titleRow.addView(star);
+        }
+        block.addView(titleRow);
+
+        Item item = new Item();
+        item.question = question;
+        item.answer = answer;
+
+        if (question.kind == EduEvaluationForm.CHOICE || question.kind == EduEvaluationForm.MULTI) {
+            for (EduEvaluationForm.Option option : question.options) {
+                TextView row = optionRow(option.label);
+                row.setContentDescription(option.label);
+                row.setOnClickListener(v -> {
+                    if (readOnly || busy) return;
+                    if (question.kind == EduEvaluationForm.MULTI) answer.toggle(option.value);
+                    else answer.pick = option.value;
+                    item.paint();
+                });
+                item.options.add(row);
+                block.addView(row);
+            }
+            item.paint();
+        } else if (question.kind == EduEvaluationForm.TEXT) {
+            EditText input = new EditText(this);
+            boolean sentence = EduEvaluationForm.FIELD_TEXT.equals(question.field);
+            input.setText(answer.text);
+            input.setTextSize(14);
+            input.setTextColor(AppUi.INK);
+            input.setHint(sentence ? "填写你的评价" : "填写分数");
+            input.setHintTextColor(AppUi.MUTED);
+            input.setInputType(sentence
+                ? InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                : InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+            if (sentence) input.setMinLines(2);
+            input.setEnabled(!readOnly && !question.readOnly);
+            input.setBackground(AppUi.outlined(this, AppUi.SURFACE, 10, AppUi.LINE));
+            input.setPadding(dp(10), dp(8), dp(10), dp(8));
+            input.addTextChangedListener(new Watcher(answer, null));
+            item.input = input;
+            block.addView(input, new LinearLayout.LayoutParams(-1, -2));
+        } else {
+            TextView note = new TextView(this);
+            note.setText("这一项是学校提供的特殊题型，本页还不能代替，请到教务网页里完成。");
+            note.setTextSize(12);
+            note.setTextColor(AppUi.DANGER);
+            note.setPadding(0, dp(6), 0, 0);
+            block.addView(note);
+        }
+        items.add(item);
+        return block;
+    }
+
+    private TextView optionRow(String label) {
+        TextView row = new TextView(this);
+        row.setText(label);
+        row.setTextSize(14);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setMinHeight(dp(42));
+        row.setPadding(dp(12), dp(8), dp(12), dp(8));
+        mark(row, false);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
+        params.topMargin = dp(6);
+        row.setLayoutParams(params);
+        return row;
+    }
+
+    /** Selected = accent border, accent bold text; unselected = the plain card outline. */
+    private static void mark(TextView view, boolean on) {
+        view.setTextColor(on ? AppUi.ACCENT : AppUi.INK);
+        view.setTypeface(null, on ? Typeface.BOLD : Typeface.NORMAL);
+        view.setBackground(on
+            ? AppUi.outlined(view.getContext(), AppUi.SOFT, 10, AppUi.ACCENT)
+            : AppUi.outlined(view.getContext(), AppUi.SURFACE, 10, AppUi.LINE));
+    }
+
+    /** The 评语 box, only when the school's template ships one. */
+    private LinearLayout commentBlock() {
+        LinearLayout block = new LinearLayout(this);
+        block.setOrientation(LinearLayout.VERTICAL);
+        block.setPadding(0, dp(12), 0, 0);
+
+        TextView title = new TextView(this);
+        title.setText("评语");
+        title.setTextSize(14);
+        title.setTextColor(AppUi.INK);
+        block.addView(title);
+
+        TextView note = new TextView(this);
+        note.setText("学校没有在这里说明字数要求，留空也可以提交。");
+        note.setTextSize(11);
+        note.setTextColor(AppUi.MUTED);
+        note.setPadding(0, dp(2), 0, dp(4));
+        block.addView(note);
+
+        EditText input = new EditText(this);
+        input.setTextSize(14);
+        input.setTextColor(AppUi.INK);
+        input.setHint("想对这门课说的话");
+        input.setHintTextColor(AppUi.MUTED);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        input.setMinLines(2);
+        input.setEnabled(!readOnly);
+        input.setBackground(AppUi.outlined(this, AppUi.SURFACE, 10, AppUi.LINE));
+        input.setPadding(dp(10), dp(8), dp(10), dp(8));
+        Comment comment = new Comment();
+        comment.field = input;
+        input.addTextChangedListener(new Watcher(null, comment));
+        comments.add(comment);
+        block.addView(input, new LinearLayout.LayoutParams(-1, -2));
+        return block;
+    }
+
+    private void buttons() {
+        actions.removeAllViews();
+        TextView save = button("暂存", false);
+        save.setContentDescription("暂存这份评价，之后可以继续评");
+        save.setOnClickListener(v -> write(false));
+        actions.addView(save, new LinearLayout.LayoutParams(0, -2, 1));
+
+        TextView send = button("提交", true);
+        send.setContentDescription("提交这份评价，提交后不能再改");
+        send.setOnClickListener(v -> write(true));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, -2, 1);
+        params.leftMargin = dp(10);
+        actions.addView(send, params);
+    }
+
+    private TextView button(String label, boolean primary) {
+        TextView view = new TextView(this);
+        view.setText(label);
+        view.setTextSize(15);
+        view.setTypeface(null, Typeface.BOLD);
+        view.setGravity(Gravity.CENTER);
+        view.setMinHeight(dp(48));
+        if (primary) {
+            view.setTextColor(AppUi.ON_ACCENT);
+            view.setBackground(AppUi.shape(this, AppUi.ACCENT, 12));
+            AppUi.press(view, AppUi.ACCENT, 12);
+        } else {
+            view.setTextColor(AppUi.ACCENT);
+            view.setBackground(AppUi.outlined(this, AppUi.SURFACE, 12, AppUi.ACCENT));
+            AppUi.press(view, 0x00ffffff, 12);
+        }
+        return view;
+    }
+
+    // ---- writing ---------------------------------------------------------------------------
+
+    /**
+     * 暂存 or 提交. 提交 first checks that every 必填项 is answered and that no question was left
+     * unsupported, then asks once more — the school accepts a submission only once, so a mis-tap
+     * here would cost the reader a course.
+     */
+    private void write(boolean submit) {
+        if (busy || form == null) return;
+        if (submit) {
+            String blocked = blockers();
+            if (!blocked.isEmpty()) {
+                status.setText(blocked);
+                return;
+            }
+            int missing = missing();
+            if (missing > 0) {
+                status.setText("还有 " + missing + " 个必填项没选，选完再提交。");
+                return;
+            }
+        }
+        collect();
+        if (submit) confirm(); else send(false);
+    }
+
+    /** Why 提交 cannot go through at all: an unsupported question, or no answer anywhere. */
+    private String blockers() {
+        boolean any = false;
+        for (Item item : items) {
+            if (!item.question.supported()) {
+                Diag.event(Diag.WARN, "EVAL", "sheet.unsupported", "count", items.size());
+                return "这份表单里有本页还不支持的题型，请到教务网页里完成这一次评价。";
+            }
+            if (item.question.answered(item.answer)) any = true;
+        }
+        return any ? "" : "一个选项都还没选。";
+    }
+
+    private int missing() {
+        int count = 0;
+        for (Item item : items) {
+            if (item.question.required && !item.question.answered(item.answer)) count++;
+        }
+        return count;
+    }
+
+    private void confirm() {
+        int answered = 0;
+        for (Item item : items) if (item.question.answered(item.answer)) answered++;
+        Theme.dialog(this)
+            .setTitle("确认提交这份评价？")
+            .setMessage("共 " + items.size() + " 个评价项，已选 " + answered + " 个。\n\n"
+                + "提交后学校不再接收修改，这门课会记为已评。")
+            .setNegativeButton("再看看", null)
+            .setPositiveButton("确认提交", (dialog, which) -> send(true))
+            .show();
+    }
+
+    /** Copies whatever is typed in the free-text fields into the answers before building a body. */
+    private void collect() {
+        for (Item item : items) {
+            if (item.input != null) item.answer.text = item.input.getText().toString();
+        }
+        for (Comment comment : comments) comment.text = comment.field.getText().toString();
+    }
+
+    private void send(boolean submit) {
+        if (busy || form == null) return;
+        collect();
+        List<String> notes = new ArrayList<String>();
+        for (Comment comment : comments) notes.add(comment.text);
+        final String payload = EduEvaluationForm.body(form, answers, notes, submit);
+        busy = true;
+        screen.loading(true);
+        status.setText(submit ? "正在提交…" : "正在暂存…");
+        setButtonsEnabled(false);
+        final int ticket = generation;
+        worker.execute(() -> {
+            try {
+                String reply = EduClient.evaluationWrite(payload, submit);
+                final int outcome = EduEvaluationForm.outcome(reply);
+                final String words = EduEvaluationForm.note(reply);
+                post(ticket, () -> done(submit, outcome, words));
+            } catch (EduClient.NotSignedIn expired) {
+                post(ticket, () -> {
+                    setButtonsEnabled(true);
+                    askLogin();
+                });
+            } catch (Exception failure) {
+                post(ticket, () -> {
+                    busy = false;
+                    screen.loading(false);
+                    setButtonsEnabled(true);
+                    status.setText("没成功：" + EduClient.describe(failure));
+                });
+            }
+        });
+    }
+
+    private void done(boolean submit, int outcome, String words) {
+        busy = false;
+        screen.loading(false);
+        setButtonsEnabled(true);
+        Diag.event(outcome == EduEvaluationForm.OK ? Diag.INFO : Diag.WARN, "EVAL",
+            outcome == EduEvaluationForm.OK
+                ? (submit ? "write.sent" : "write.saved")
+                : "write.failed",
+            "result", Integer.toString(outcome), "count", items.size());
+        if (outcome == EduEvaluationForm.OK) {
+            if (submit) {
+                status.setText("已提交。" + words);
+                // The list behind this screen re-reads on resume; closing here is what makes the
+                // 已提交 state visible right away instead of after a manual refresh.
+                watchdog.postDelayed(this::finish, 900);
             } else {
-                status.setText(token.contains("nojquery")
-                    ? "学校的教务菜单没有加载完整（缺少页面脚本），请点「重新打开」再试。"
-                    : "学校的教务菜单没有加载完整，请点「重新打开」再试。");
-                Diag.event(Diag.WARN, "EVAL", "shell.mount", "stage", "menu", "result", token);
+                status.setText("已暂存，可以继续评或直接提交。");
             }
-        });
-    }
-
-    /**
-     * The shell-side script: prefilter, error listener, host, mount.
-     *
-     * <p>The prefilter is the one thing the school's own code cannot know it needs: inside the menu
-     * the module is opened from a link carrying {@code gnmkdm}, while this one is loaded by url, so
-     * every {@code /xspjgl/} request the module makes would arrive without the module id and the
-     * endpoint answers 500. The error listener writes the first message into the page so a failure
-     * can be read back without a debugger.</p>
-     */
-    private static String shellScript() {
-        return "(function(){try{"
-            + "var j=window.jQuery;"
-            + "if(!j||!j.fn||typeof j.fn.load!=='function')return 'nojquery';"
-            + "if(!window.__ckEvalFix){window.__ckEvalFix=true;"
-            + "try{j.ajaxPrefilter(function(o){"
-            + "if(!o||typeof o.url!=='string')return;"
-            + "if(o.url.indexOf('/xspjgl/')<0)return;"
-            + "if(o.url.indexOf('gnmkdm')>=0)return;"
-            + "o.url+=(o.url.indexOf('?')>=0?'&':'?')+'gnmkdm=N401605';});}catch(e){}"
-            + "window.__ckEvalErr=[];"
-            + "try{window.addEventListener('error',function(e){"
-            + "if(window.__ckEvalErr.length<3)"
-            + "window.__ckEvalErr.push(String((e&&e.message)||'').slice(0,80));});}catch(e){}"
-            + "}"
-            + "var host=document.getElementById('ckEvalHost');"
-            + "if(!host){"
-            + "host=document.createElement('div');host.id='ckEvalHost';"
-            + "host.style.cssText='position:fixed;left:0;top:0;right:0;bottom:0;z-index:2147480000;"
-            + "background:#fff;overflow:auto;-webkit-overflow-scrolling:touch;';"
-            + "(document.body||document.documentElement).appendChild(host);"
-            + "j(host).load('/xspjgl/xspj_cxXspjIndex.html?gnmkdm=N401605',function(r,s){"
-            + "window.__ckEvalMount=s;});"
-            + "}"
-            + "return 'ok';}catch(e){return 'fail';}})()";
-    }
-
-    /** Loads one more module page into the same host, so the shell's globals stay in scope. */
-    private static String hostLoad(String url) {
-        String safe = url == null ? "" : url.replace("\\", "").replace("'", "%27");
-        return "(function(){try{var h=document.getElementById('ckEvalHost');"
-            + "if(!h||!window.jQuery)return;"
-            + "window.jQuery(h).load('" + safe + "');}catch(e){}})()";
-    }
-
-    /** Resets the look-for-the-row counter after a fresh mount or a retry. */
-    private void located() {
-        polls = 0;
-        pick();
-    }
-
-    /**
-     * Looks for the row, and selects it once the grid has one.
-     *
-     * <p>Matched through the grid's own data rather than the rendered cells: {@code jxb_id} is a
-     * hidden column, so jqGrid never writes it into a {@code <td>} and no amount of reading the row's
-     * text would find it. {@code getGridParam('data')} returns the rows as the school sent them, and
-     * {@code setSelection(rowid, true)} fires {@code onSelectRow} — the same handler a tap fires,
-     * which is what loads the fragment.</p>
-     */
-    private void pick() {
-        if (SystemClock.elapsedRealtime() - startedAt > BUDGET_MS) {
-            fail("页面打开了，但课程列表一直没有出现。可以点「重新打开」，或返回上一页用「教务系统」里的菜单进入。",
-                "timeout");
             return;
         }
-        if (polls++ > MAX_POLLS) {
-            fail("没能定位到这门课，请返回上一页重新点一次，或在「教务系统」的菜单里打开学生评价。",
-                "nocourse");
+        if (outcome == EduEvaluationForm.FAILED) {
+            status.setText("学校没有接受：" + (words.isEmpty() ? "请检查必填项后再试。" : words));
             return;
         }
-        web.evaluateJavascript("(function(){"
-            + "try{"
-            + "var j=window.jQuery;if(!j)return 'wait';"
-            + "var g=j('#tempGrid');if(!g.length)return 'wait';"
-            + "var t='" + safeId() + "';"
-            + "var rows=null;try{rows=g.jqGrid('getGridParam','data');}catch(e){return 'wait';}"
-            + "if(!rows||!rows.length){"
-            + "if(g.find('tr.jqgrow').length)return 'null';"
-            + "return 'wait';}"
-            + "var hit='';"
-            + "for(var i=0;i<rows.length;i++){var r=rows[i]||{};"
-            + "if(String(r.jxb_id)===t){hit=(r._id_!=null?String(r._id_):String(r.jxb_id));break;}}"
-            + "if(!hit)return 'missing'+rows.length;"
-            + "try{g.jqGrid('setSelection',hit,true);}catch(e){}"
-            + "var node=document.getElementById(hit);if(node){j(node).trigger('click');}"
-            + "return 'open';"
-            + "}catch(e){return 'fail';}})()", value -> {
-            String token = value == null ? "" : value.replace("\"", "");
-            if (token.contains("open")) {
-                main.postDelayed(this::verify, 1600);
-            } else if (token.contains("missing")) {
-                String rows = token.replaceAll("[^0-9]", "");
-                fail("列表里没找到这门课（这一页 " + (rows.isEmpty() ? "?" : rows)
-                    + " 行），请返回上一页重新点一次。", "missing");
-            } else if (token.contains("null")) {
-                fail("学校没有返回这门课的评价列表（0 门），可以返回上一页看看这门课的状态。", "empty");
-            } else if (token.contains("fail")) {
-                fail("学校的评价页脚本出错了，没能读出课程列表。", "script");
-            } else {
-                main.postDelayed(this::pick, 500);
-            }
-        });
+        status.setText("学校回了这句话，没能判断成功与否：" + (words.isEmpty() ? "（空）" : words));
     }
 
-    /**
-     * Did the form actually land in the panel, and did the school send items with it?
-     *
-     * <p>Three numbers, because they fail differently: an empty panel means the row selection was
-     * dropped (the page ignores one while it is still loading the row it selected on arrival), an
-     * {@code .alert-error} in the panel means the school itself refused the course (已放弃 / 无评价
-     * 内容) and no retry will change that, and a panel with items is the only success. A panel that
-     * merely has text is <em>not</em> success — the skeleton ships with text, which is exactly what
-     * made an earlier version report a loaded form over an empty one.</p>
-     */
-    private void verify() {
-        web.evaluateJavascript("(function(){var p=document.getElementById('panel_content');"
-            + "if(!p)return '0|0|0';"
-            + "var t=(p.textContent||'').replace(/\\s+/g,'').length;"
-            + "var n=p.querySelectorAll('.panel-pjdx').length;"
-            + "var e=p.querySelector('.alert-error')?1:0;"
-            + "return t+'|'+n+'|'+e;})()", value -> {
-            String raw = value == null ? "" : value.replace("\"", "");
-            String[] parts = raw.split("\\|");
-            int length = number(parts.length > 0 ? parts[0] : "");
-            int items = number(parts.length > 1 ? parts[1] : "");
-            int refused = number(parts.length > 2 ? parts[2] : "");
-            if (items > 0) {
-                status.setText("表单已打开：共 " + items + " 个评价项，评完点页面里的「提交」，返回上一页会刷新状态。");
-                Diag.event(Diag.INFO, "EVAL", "form.ready", "stage", "form", "count", items);
-                reveal();
-                return;
-            }
-            if (refused > 0) {
-                fail("这门课现在不能评价（学校页面已给出提示），返回上一页可以看到它的状态。", "refused");
-                return;
-            }
-            if (misses++ < MAX_MISSES) {
-                polls = 0;
-                pick();
-                return;
-            }
-            Diag.event(Diag.WARN, "EVAL", "form.empty", "stage", "form", "count", length);
-            fail("评价表单没有加载出来（面板 " + length + " 字，0 个评价项）。点「重新打开」再试一次；"
-                + "如果一直这样，请用「教务系统」里的菜单进入。", "formempty");
-        });
+    private void setButtonsEnabled(boolean enabled) {
+        for (int i = 0; i < actions.getChildCount(); i++) {
+            View child = actions.getChildAt(i);
+            child.setEnabled(enabled);
+            child.setAlpha(enabled ? 1f : 0.5f);
+        }
     }
 
-    /** Says what went wrong and stops polling: a status line that never settles is not an answer. */
-    private void fail(String message, String code) {
-        status.setText(message);
-        Diag.event(Diag.WARN, "EVAL", "form.failed", "stage", code);
+    // ---- plumbing --------------------------------------------------------------------------
+
+    /** Feeds an EditText's changes into the answer or the comment it belongs to. */
+    private static final class Watcher implements android.text.TextWatcher {
+        private final EduEvaluationForm.Answer answer;
+        private final Comment comment;
+        Watcher(EduEvaluationForm.Answer answer, Comment comment) {
+            this.answer = answer;
+            this.comment = comment;
+        }
+        @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
+        @Override public void onTextChanged(CharSequence s, int start, int before, int count) { }
+        @Override public void afterTextChanged(Editable text) {
+            String value = text == null ? "" : text.toString();
+            if (value.length() > MAX_TEXT) value = value.substring(0, MAX_TEXT);
+            if (answer != null) answer.text = value;
+            if (comment != null) comment.text = value;
+        }
     }
 
-    private static int number(String value) {
-        String digits = value == null ? "" : value.replaceAll("[^0-9]", "");
-        if (digits.isEmpty()) return 0;
-        try { return Integer.parseInt(digits); } catch (NumberFormatException tooBig) { return 0; }
+    private LinearLayout card() {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(16), dp(14), dp(16), dp(14));
+        card.setBackground(AppUi.outlined(this, AppUi.SURFACE, 12, AppUi.LINE));
+        return card;
     }
 
-    /** Brings the panel into view: the list above it is the school's, not what was asked for. */
-    private void reveal() {
-        web.evaluateJavascript("(function(){var p=document.getElementById('panel_content');"
-            + "if(p&&p.scrollIntoView)p.scrollIntoView({block:'start'});})()", null);
+    private void addCard(LinearLayout card) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
+        params.bottomMargin = dp(10);
+        body.addView(card, params);
     }
 
-    private static String text(String value) { return value == null ? "" : value.trim(); }
-
-    /** 网页还有上一页时返回只是后退，窗口不会关——这种时候不能让系统先缩卡片。 */
-    @Override protected boolean backMayStay() { return web != null && web.canGoBack(); }
-
-    @Override public void onBackPressed() {
-        WebBack.go(this, web);
+    private TextView hint(String text) {
+        TextView view = new TextView(this);
+        view.setText(text);
+        view.setTextSize(13);
+        view.setTextColor(AppUi.MUTED);
+        view.setPadding(0, dp(16), 0, dp(16));
+        return view;
     }
 
-    @Override protected void onDestroy() {
-        main.removeCallbacksAndMessages(null);
-        if (web != null) { web.stopLoading(); web.destroy(); }
-        // Same as the other academic screens: leaving keeps the session the list reuses.
-        EduClient.release();
-        super.onDestroy();
+    private void post(int ticket, Runnable task) {
+        runOnUiThread(() -> { if (!isDestroyed() && !isFinishing() && ticket == generation) task.run(); });
     }
+
+    @Override protected void onStop() { super.onStop(); EduClient.release(); }
+
+    @Override protected void onDestroy() { generation++; worker.shutdownNow(); super.onDestroy(); }
 }

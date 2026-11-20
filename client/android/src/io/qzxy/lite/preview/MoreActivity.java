@@ -27,6 +27,8 @@ import android.widget.Toast;
  * repository is a link, because a copy of GitHub inside this app would be a second browser nobody
  * asked for; the page hands the address to whatever app already handles web pages.</p>
  */
+import io.qzxy.lite.core.UpdateSources;
+
 public final class MoreActivity extends Page {
     private static final String REPO = "https://github.com/shynekoo/CampusKit";
 
@@ -99,6 +101,63 @@ public final class MoreActivity extends Page {
 
         AppUi.press(row, AppUi.SURFACE, 12);
         row.setOnClickListener(v -> action.run());
+        parent.addView(row, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT));
+        if (divider) rule(parent);
+    }
+
+    /**
+     * 更新渠道：WorkBuddy（默认）或 GitHub。两处清单同名同字段，切换只改变「去哪读」，不改变
+     * 校验强度。选择落盘（{@link UpdateCheck#setSource}），重启后保持，并作正在飞的检查。
+     * 副标题会跟着当前选择变，读者不必点开才知道现在用的是哪一处。
+     */
+    private void sourceSetting(LinearLayout parent, boolean divider) {
+        final String current = UpdateCheck.source(this);
+        final boolean workbuddy = UpdateSources.isWorkBuddy(current);
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(14), 0, dp(14));
+        row.setMinimumHeight(dp(56));
+
+        android.widget.ImageView mark = new android.widget.ImageView(this);
+        mark.setImageDrawable(AppUi.icon(this, "globe", AppUi.ACCENT, 22));
+        mark.setBackground(AppUi.shape(this, AppUi.SOFT, 11));
+        mark.setPadding(dp(8), dp(8), dp(8), dp(8));
+        mark.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        row.addView(mark, new LinearLayout.LayoutParams(dp(38), dp(38)));
+
+        LinearLayout labels = new LinearLayout(this);
+        labels.setOrientation(LinearLayout.VERTICAL);
+        labels.setPadding(dp(14), 0, dp(8), 0);
+        TextView name = text("更新渠道", 16, AppUi.INK);
+        name.setTypeface(null, Typeface.BOLD);
+        labels.addView(name);
+        final TextView caption = text(workbuddy ? "WorkBuddy（默认）" : "GitHub", 12, AppUi.MUTED);
+        caption.setPadding(0, dp(2), 0, 0);
+        labels.addView(caption);
+        row.addView(labels, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+
+        TextView value = text(workbuddy ? "WorkBuddy" : "GitHub", 13, AppUi.MUTED);
+        row.addView(value);
+
+        final String[] names = UpdateSources.HOSTS;
+        final int[] picked = {workbuddy ? 0 : 1};
+        row.setFocusable(true);
+        row.setContentDescription("更新渠道，" + value.getText());
+        AppUi.press(row, AppUi.SURFACE, 12);
+        row.setOnClickListener(v -> Theme.dialog(this)
+            .setTitle("更新渠道")
+            .setSingleChoiceItems(names, picked[0], (dialog, which) -> picked[0] = which)
+            .setPositiveButton("确定", (dialog, which) -> {
+                String next = picked[0] == 1 ? "github" : "workbuddy";
+                UpdateCheck.setSource(this, next);
+                caption.setText(picked[0] == 1 ? "GitHub" : "WorkBuddy（默认）");
+                value.setText(picked[0] == 1 ? "GitHub" : "WorkBuddy");
+                row.setContentDescription("更新渠道，" + value.getText());
+                Toast.makeText(this, "已切换到 " + (picked[0] == 1 ? "GitHub" : "WorkBuddy"), Toast.LENGTH_SHORT).show();
+            })
+            .setNegativeButton("取消", null)
+            .show());
         parent.addView(row, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT));
         if (divider) rule(parent);
@@ -272,6 +331,8 @@ public final class MoreActivity extends Page {
         // 更新日志挨着「检查更新」的入口放：想知道这版改了什么的人，先找的通常是这里。
         entry(card, "refresh", "更新日志", "查看版本更新与历史记录", true,
             () -> startActivity(new Intent(this, ChangelogActivity.class)));
+        // 更新渠道挨着更新日志：先看这版改了什么，再决定从 WorkBuddy 还是 GitHub 取下一版。
+        sourceSetting(card, true);
         // 渠道开关紧跟在更新日志后面：先看这版改了什么，再决定要不要提前拿到下一版。
         previewChannel(card, true);
         // 诊断页从 2.5.8 起对所有构建开放：正文只含白名单字段，运行期默认关，由使用者

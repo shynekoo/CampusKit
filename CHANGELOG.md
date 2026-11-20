@@ -14,14 +14,87 @@
 - 已构建、尚未发版：`2.5.8.8`（versionCode `206`，2026-11-19），在合并后的主线上重建。
 - **线上正式版（2026-11-19 发布）**：`2.5.8`（versionCode `208`），把 2.5.8.1–2.5.8.9 合并成一个正式版本号；
   产物 `delivery/科信小助手-2.5.8.apk`，发布公告见 [`delivery/release-2.5.8.md`](delivery/release-2.5.8.md)。
-- 核心断言：`python scripts/test_core.py` → **1418 项全过**；UI 守卫 **297 锚点**；诊断隐私守卫 **666 项**（2026-11-20）。
+- 核心断言：`python scripts/test_core.py` → **1491 项全过**；UI 守卫 **314 锚点**；诊断隐私守卫 **672 项**（2026-11-20）。
 - 2.5.8 的 tag / Release / 下载站随本次发布同步；早期 2.5.8.x 开发迭代仍**未**各自建 tag。
 
 更早版本的发布说明见 [`delivery/release-*.md`](delivery/)。
 
 ---
 
-## [未发布 · 2.6.0-beta.2] — 学生评价：模块页必须在菜单壳里打开（工作区改动，未构建）
+## [未发布 · 更新渠道] — WorkBuddy 默认 + GitHub 可选
+
+- 「更多」页在「接收预览版更新」上方新增独立一行「更新渠道」：WorkBuddy（默认）/ GitHub，单选弹窗、确定才落盘，切换作废在飞的检查。与预览开关互不干扰。
+- 新增 core `UpdateSources`：四个清单地址集中管理，JVM 测试与应用共用；未保存/未知值回落 WorkBuddy。
+- `UpdateUrls` 重定向规则细化：保留 Location 自带的签名 query（GitHub CDN 必需），仅剥掉与上一跳同名的参数（防 sharecode 跨 host 泄漏）。
+- GitHub Release 建立两条稳定清单地址：正式 `releases/latest/download/update.json`，预览 `releases/download/preview/beta.json`（固定 tag，因 latest 排除预发布版本）；v2.5.9 附正式清单，preview 附 beta.3 APK 与预览清单。
+- 测试：core 1491 → **1505**；UI 守卫 314 → **323**；build_config 7 / diag_privacy 672 / diag_files 6650 / webview_policy 5 全过。
+- 真机未验证；GitHub 直链下载在本机受代理 502 限制，仅通过 GitHub API 元数据核对资产名/大小，待网络可用时复核。
+
+## [未发布 · 2.6.0-beta.4] — 学生评价：卡片能真正展开了（versionCode 221）
+
+> 2.6.0-beta.3 的真机反馈：列表正常，但每张课程卡片「一点开就缩回去」，状态栏与箭头都显示已展开，
+> 内容却是一片空白。这是折叠动画里的一个数值错误，不是学校接口的问题。
+
+### 根因
+
+`EvaluationActivity.height()` 在写卡片正文高度时做了 `Math.max(0, value)`。这个兜底对动画每帧的像素值
+无害，但折叠结束时 `settle()` 传进来的是 `WRAP_CONTENT`，它的值是 **-2**；钳到 0 后正文高度变成 0，
+于是「展开动画播完 → 立刻塌成 0 高度」。箭头与 `card.open` 已经置为展开，所以视觉上就是
+「点一下展开、马上缩回，页面还是原样」。同一页面里 `Math.max` 是本轮唯一一处会碰到负值的高度写入。
+
+### 修法
+
+- `height()` 改为原样写回（负值即 `WRAP_CONTENT` / `MATCH_PARENT` 的语义），像素值不再需要钳制；
+  `settle()` 的 0 与 `WRAP_CONTENT` 两条终态因此都成立。
+- `test_ui_contract.py` 新增一条防回退守卫：`EvaluationActivity` 的折叠高度写入不得再出现
+  `Math.max(0, …)` 形式的钳制（314 锚点）。
+- 其余逻辑未动：列表、分页、筛选、答题页、暂存/提交、诊断事件都与 beta.3 相同。
+
+### 验证状态
+
+- `test_core` 1491、`test_build_config` 7、`test_diag_privacy` 672、`test_diag_files` 6650、
+  `test_webview_policy` 5、`test_ui_contract` **314**，全部通过；`javac --release 8` 通过。
+- **仍需真机确认**：展开/收起、连点两次不抢动画（`docs/real-device-acceptance.md` E2）。
+
+---
+
+## [未发布 · 2.6.0-beta.3] — 学生评价改成原生列表 + 原生答题页（versionCode 220）
+
+> 上一版（2.6.0-beta.2）把学校的模块页装进菜单壳，仍然只是「把网页搬进应用」：定位、渲染、提交全都
+> 依赖学校页面的脚本按预期跑起来，任何一环断了用户只看到一片空白。这一版不再打开网页。
+
+### 改了什么
+
+- **列表**：`EvaluationActivity` 沿用学业情况的卡片与动效——顶部三格 未评 / 已评 / 暂存，四个筛选
+  chip（全部/未评/暂存/已评），每门课一张卡片，卡头显示课程名、状态与 ▸，第二行常显教师 · 教学班 · 学时类型，
+  点卡头用 `MotionSpec.LIST_TOGGLE_DURATION` 展开出开课单位/分数与「开始评价」按钮。
+- **分页**：`EduClient.evaluations()` 按 jqGrid 的 `queryModel.currentPage` 逐页取全（每页 100，页数取
+  `totalPage`/`total`，缺失时用 `totalResult ÷ 每页数` 估算），跨页按 `jxb_id` 去重。只读第一页会漏课程。
+- **答题页**：`EvaluationFormActivity` 重写为原生页面，不再有 WebView。`EduEvaluationForm.parse()` 按学校
+  `xspj_display.js` 的选择器把问卷片段读成「评价模板 → 评价项 → 选项」：单选渲染成选项行、多选可多选、
+  十级制的 `select[name=pjf]` 同样渲染成选项行、主观题渲染成输入框、`textarea[name=py]` 渲染成评语框；
+  必填项（`data-sfbt=1`）标红星。识别不了的题型明确写「这一项要在学校页面上填」并**阻止提交**。
+- **暂存 / 提交**：`EduEvaluationForm.body()` 生成与学校 `buildRequestMap()` 同构的请求体
+  （`modelList[i].xspjList[j].childXspjList[k]`），未作答的题目不发字段；评语按学校做法双重编码。
+  提交前校验必填项 + 二次确认（写明不可撤销），成功后自动返回列表并重读学校状态。
+- **如实处理失败**：未开放（片段里 0 个评价项）、会话过期、网络失败、学校回「失败」各有中文提示；
+  学校只回一句话，因此 `outcome()` 只按这句话判断成败，判不出来的原样显示，不假装成功。
+- **安全边界**：`checkPath()` 按名字放行五个 `/xspjgl/` 端点（列表、统计、问卷、暂存、提交）；
+  写端点只接受读者自己选出来的请求体，不预填、不代选、不批量代评；评语只在内存。
+- 诊断新增 `EVAL` 事件：`sheet.start / sheet.ready / sheet.empty / sheet.failed / sheet.unsupported /
+  write.sent / write.saved / write.failed`，只记阶段与题数，不记题目文本、评语、Cookie、Token。
+
+### 验证状态
+
+- `test_core` **1491**（新增 `EduEvaluationForm` 与分页 73 条断言）、`test_build_config` 7、
+  `test_diag_privacy` **672**、`test_diag_files` 6650、`test_webview_policy` **5**（学生评价不再是 WebView 页面）、
+  `test_ui_contract` **313**，全部通过；`javac --release 8` 全量编译通过。
+- **未验证**：真实账号下的问卷渲染与提交（无可用账号）。提交是一次性的，必须在真实评教窗口内按
+  `docs/real-device-acceptance.md` E4c/E4d 实测一次才可置信。
+
+---
+
+## [未发布 · 2.6.0-beta.2] — 学生评价：模块页必须在菜单壳里打开（已被 2.6.0-beta.3 取代）
 
 > 2.6.0-beta.1 真机仍然失败：能打开这门课的页面，但状态栏一直停在「页面已打开，正在定位这门课…」，
 > 面板里只有图例（`状态备注`）和「评价内容 / 0% Complete」，**一个题目都没有，连表格都没有**。
