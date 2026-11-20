@@ -59,6 +59,7 @@ public final class DiagCatalog {
             case "write.sent": return "评价已提交";
             case "write.saved": return "评价已暂存";
             case "write.failed": return "学校没有接受这次评价";
+            case "write.unverified": return "学校说成功，但状态还没变更";
 
             case "load.start": return "开始获取课表数据";
             case "load.success": return "课表已加载";

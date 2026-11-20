@@ -1,14 +1,15 @@
 {
-  "version": "2.6.0-beta.9",
-  "versionCode": 226,
+  "version": "2.6.0-beta.10",
+  "versionCode": 227,
   "notes": [
-    "评价页改成「先看结构、再谈拒绝」：先认 div.xspj-body / panel-pjdx / tr-xspj / input-xspj，命中就交给解析器，不再让一句「参数异常」把正常表单挡在门外",
-    "读表单的第一种请求与学校页面逐字一致（POST /xspjgl/xspj_cxXspjDisplay.html，七项参数只在请求体，不带 gnmkdm、不带查询串、不带时间戳）",
-    "诊断里每次尝试都记形态与回包字节数（EVAL / sheet.shape，form=body|body+query|query，bytes=…），失败提示也直接写「学校回的是 X KB 的页面」",
-    "更新渠道的 Gitee 已经可用：指向新建的公开仓库 gitee.com/sun-heyue/CampusKit，实测匿名下载约 0.95 MB/s（GitHub 同网络只有数十 KB/s）",
-    "其余沿用上一版：原生评价页、卡片可展开、按状态筛选、分页取全、暂存与二次确认提交"
+    "评教接口按真实抓包重做：读评价表只发学校页面那一发（?gnmkdm=N401605 + 七项 id 只在请求体）。此前「参数异常」是同一组 id 又被拼进查询串造成的",
+    "少 gnmkdm 时学校回的是 HTTP 911 + 一段 JSON，不是表单也不是拒绝语——现在单独成句，不再混成「参数不对」",
+    "解析改按兄弟边界切片：线上片段 <div> 不闭合，按嵌套切只会读到 2 道题（共 11 道），界面于是说「学校没有下发评价项」",
+    "暂存/提交的请求体补齐每行的 pjzbxm_id / pfdjdmb_id / zsmbmcb_id 与表级 pjzbxm_id，并按必填项是否全答写 pjzt（与官方 buildRequestMap() 对比 60 个字段一致）",
+    "成败判定严格化：否定词先判，「提交不成功」不会再被当成完成；写完回读学校记的 tjzt，只有变成已评才显示「已提交」；超时不重发",
+    "实测（真实账号，草稿）：暂存回「暂存成功！」，回读时选项与主观题都在，列表该行由未评变暂存"
   ],
-  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.6.0-beta.9.apk?sharecode=BZD63HRP4B",
-  "bytes": 5465978,
-  "sha256": "11cbeab8cc8ee97c786c364ae3cd64b76cfb8efeb3b919dddddd75430baf5b73"
+  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.6.0-beta.10.apk?sharecode=BZD63HRP4B",
+  "bytes": 5470074,
+  "sha256": "c7e5cca42c3ed7088c887b9997c0d9c7dea865a889a804c45b9c96fa1e69c83c"
 }

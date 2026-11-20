@@ -9,7 +9,9 @@ import android.view.View;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import io.qzxy.lite.core.EduEvaluation;
 import io.qzxy.lite.core.EduEvaluationForm;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -502,40 +504,61 @@ public final class EvaluationFormActivity extends Page {
         status.setText(submit ? "正在提交…" : "正在暂存…");
         setButtonsEnabled(false);
         final int ticket = generation;
+        final String classId = form.classId, teacherId = form.teacherId;
         worker.execute(() -> {
+            int outcome = EduEvaluationForm.UNCLEAR;
+            String words = "";
+            String trouble = null;
             try {
                 String reply = EduClient.evaluationWrite(payload, submit);
-                final int outcome = EduEvaluationForm.outcome(reply);
-                final String words = EduEvaluationForm.note(reply);
-                post(ticket, () -> done(submit, outcome, words));
+                outcome = EduEvaluationForm.outcome(reply);
+                words = EduEvaluationForm.note(reply);
             } catch (EduClient.NotSignedIn expired) {
                 post(ticket, () -> {
                     setButtonsEnabled(true);
                     askLogin();
                 });
-            } catch (Exception failure) {
-                post(ticket, () -> {
-                    busy = false;
-                    screen.loading(false);
-                    setButtonsEnabled(true);
-                    status.setText("没成功：" + EduClient.describe(failure));
-                });
+                return;
+            } catch (IOException failure) {
+                // 超时、断网、HTTP 非 200：这次到底写没写进去，只有学校知道。先去查状态，
+                // 绝不重发——重新提交一次评价的代价比多等一步大得多。
+                trouble = EduClient.describe(failure);
+                outcome = EduEvaluationForm.UNCLEAR;
             }
+
+            // 无论学校回了什么，都以它记录里的状态为准。查不到就是「还不能确认」，不猜。
+            int state = EduEvaluation.UNKNOWN;
+            try {
+                state = EduClient.evaluationState(classId, teacherId);
+            } catch (IOException unreadable) {
+                if (trouble == null) trouble = EduClient.describe(unreadable);
+            }
+            if (submit) {
+                if (state == EduEvaluation.SUBMITTED) outcome = EduEvaluationForm.OK;
+                else if (outcome == EduEvaluationForm.OK) outcome = EduEvaluationForm.UNCLEAR;
+            } else if (state == EduEvaluation.SAVED || state == EduEvaluation.SUBMITTED) {
+                outcome = EduEvaluationForm.OK;
+            }
+            final int finalOutcome = outcome;
+            final int finalState = state;
+            final String finalWords = words;
+            final String finalTrouble = trouble;
+            post(ticket, () -> done(submit, finalOutcome, finalWords, finalState, finalTrouble));
         });
     }
 
-    private void done(boolean submit, int outcome, String words) {
+    private void done(boolean submit, int outcome, String words, int state, String trouble) {
         busy = false;
         screen.loading(false);
         setButtonsEnabled(true);
         Diag.event(outcome == EduEvaluationForm.OK ? Diag.INFO : Diag.WARN, "EVAL",
             outcome == EduEvaluationForm.OK
                 ? (submit ? "write.sent" : "write.saved")
-                : "write.failed",
+                : (submit || state != EduEvaluation.UNKNOWN ? "write.unverified" : "write.failed"),
             "result", Integer.toString(outcome), "count", items.size());
         if (outcome == EduEvaluationForm.OK) {
             if (submit) {
-                status.setText("已提交。" + words);
+                status.setText("已提交，学校已记为已评。");
                 // The list behind this screen re-reads on resume; closing here is what makes the
                 // 已提交 state visible right away instead of after a manual refresh.
                 watchdog.postDelayed(this::finish, 900);
@@ -548,7 +571,18 @@ public final class EvaluationFormActivity extends Page {
             status.setText("学校没有接受：" + (words.isEmpty() ? "请检查必填项后再试。" : words));
             return;
         }
-        status.setText("学校回了这句话，没能判断成功与否：" + (words.isEmpty() ? "（空）" : words));
+        if (state == EduEvaluation.SAVED && submit) {
+            status.setText("学校收了，但这份评价仍是暂存状态、没有记成已评。"
+                + (words.isEmpty() ? "" : "学校说：" + words));
+            return;
+        }
+        if (!words.isEmpty()) {
+            status.setText("学校回了这句话，但状态还没变更：" + words);
+            return;
+        }
+        status.setText(trouble != null
+            ? "这次没能完成：" + trouble + "。已去学校查过状态，没有重复提交，可以稍后再看。"
+            : "学校没有回话，状态也还没变更。稍后再看一次，不要重复提交。");
     }
 
     private void setButtonsEnabled(boolean enabled) {

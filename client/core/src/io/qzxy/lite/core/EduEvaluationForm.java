@@ -61,6 +61,11 @@ public final class EduEvaluationForm {
         public final String field;
         public final boolean required;
         public final boolean readOnly;
+        /**
+         * 真实模板名称表 id（{@code tr} 的 {@code data-zsmbmcb_id}）。学校自己的 buildRequestMap()
+         * 对每一道题都回填它，跟 pjzbxm_id / pfdjdmb_id 一起构成这一行的身份；少一个就记不住答案。
+         */
+        public String templateId = "";
         public final List<Option> options = new ArrayList<Option>();
         /** Group and child index, exactly as the school's own request numbers them. */
         public final int group, child;
@@ -87,6 +92,12 @@ public final class EduEvaluationForm {
         public final String modelId, modelName, dxdm, fxzgf, xspfbId;
         /** Questions grouped by 一级指标 table, so the request indices stay the school's own. */
         public final List<List<Question>> groups = new ArrayList<List<Question>>();
+        /**
+         * 每个 {@code table.table-xspj} 自己的 {@code data-pjzbxm_id}，与 {@link #groups} 一一对应。
+         * 一级指标和二级指标的 id 不是同一个：请求里 {@code xspjList[j]} 要的是表这一层的 id，
+         * {@code childXspjList[k]} 才是行那一层。混用的结果是学校收到一组对不上的 id。
+         */
+        public final List<String> groupIds = new ArrayList<String>();
         /** Whether the panel offers a 评语 box. */
         public boolean comment;
         Panel(String modelId, String modelName, String dxdm, String fxzgf, String xspfbId) {
@@ -162,7 +173,7 @@ public final class EduEvaluationForm {
 
         String classId = "", courseId = "", teacherId = "", type = "";
         String ztpjbl = "", jszdpjbl = "", xykzpjbl = "";
-        List<int[]> bodies = blocks(text, "div", "xspj-body");
+        List<int[]> bodies = flat(text, "div", "xspj-body");
         if (!bodies.isEmpty()) {
             int[] body = bodies.get(0);
             String tag = text.substring(body[0], body[1]);
@@ -176,7 +187,7 @@ public final class EduEvaluationForm {
         }
 
         Form form = new Form(classId, courseId, teacherId, type, ztpjbl, jszdpjbl, xykzpjbl);
-        for (int[] panel : blocks(text, "div", "panel-pjdx")) {
+        for (int[] panel : flat(text, "div", "panel-pjdx")) {
             if (form.count() >= MAX_QUESTIONS) break;
             form.panels.add(panel(text.substring(panel[0], panel[1]), text.substring(panel[1], panel[2])));
         }
@@ -227,15 +238,23 @@ public final class EduEvaluationForm {
             out.add(key + "xspfb_id", panel.xspfbId);
 
             int g = -1;
+            boolean allRequired = true;
             for (List<Question> group : panel.groups) {
                 g++;
+                String tablePrefix = key + "xspjList[" + g + "].";
                 int c = -1;
                 for (Question question : group) {
                     c++;
                     Answer answer = index < answers.size() ? answers.get(index) : new Answer();
                     index++;
+                    if (question.required && !question.answered(answer)) allRequired = false;
+                    String prefix = tablePrefix + "childXspjList[" + c + "].";
+                    // 这三项学校对每一行都回填，答与不答都发：它们是这一行的身份
+                    // （二级指标 / 评分等级 / 模板名称），不是答案。少发一项，学校就记不住这一行。
+                    out.add(prefix + "pjzbxm_id", question.itemId);
+                    out.add(prefix + "pfdjdmb_id", question.levelId);
+                    out.add(prefix + "zsmbmcb_id", question.templateId);
                     if (!question.supported()) continue;
-                    String prefix = key + "xspjList[" + g + "].childXspjList[" + c + "].";
                     if (question.kind == MULTI) {
                         for (String value : answer.picks) out.add(prefix + question.field, value);
                     } else if (question.kind == CHOICE) {
@@ -245,7 +264,12 @@ public final class EduEvaluationForm {
                         if (!value.isEmpty()) out.add(prefix + question.field, value);
                     }
                 }
+                // 一级指标自己的 id：学校脚本在 k 循环之后补这一条，位置与顺序都照它。
+                String tableId = g < panel.groupIds.size() ? panel.groupIds.get(g) : "";
+                if (!tableId.isEmpty()) out.add(tablePrefix + "pjzbxm_id", tableId);
             }
+            // buildRequestMap()：必填项全答了才写 1，否则 0。暂存也照这个值发。
+            out.add(key + "pjzt", allRequired ? "1" : "0");
         }
         return out.encoded();
     }
@@ -257,12 +281,34 @@ public final class EduEvaluationForm {
     public static final int FAILED = 2;
     public static final int UNCLEAR = 3;
 
-    /** Classifies that sentence. Only the school's own words are grounds for calling it success. */
+    /**
+     * Classifies that sentence. Only the school's own words are grounds for calling it success.
+     *
+     * <p>The reply is a JSON string literal — 暂存 answers {@code "暂存成功！"}, seven bytes — so the
+     * quotes are stripped first, otherwise every comparison would be made against a quoted copy.</p>
+     *
+     * <p>The order matters. 提交不成功 contains 成功, so a bare {@code contains("成功")} would report
+     * a failed submission as a finished one — the one mistake this method must never make. Negations
+     * are therefore tested first, and success needs one of the school's own phrases.</p>
+     */
     public static int outcome(String reply) {
-        String text = reply == null ? "" : reply;
-        if (text.contains("整体提交成功") || text.contains("成功")) return OK;
-        if (text.contains("失败") || text.contains("不能") || text.contains("请先")) return FAILED;
+        String text = words(reply);
+        if (text.isEmpty()) return UNCLEAR;
+        if (text.contains("不成功") || text.contains("失败") || text.contains("不能")
+            || text.contains("请先") || text.contains("错误") || text.contains("异常")
+            || text.contains("已放弃") || text.contains("维护")) return FAILED;
+        if (text.contains("整体提交成功") || text.contains("暂存成功") || text.contains("提交成功")
+            || text.contains("保存成功")) return OK;
         return UNCLEAR;
+    }
+
+    /** The reply with JSON quoting removed and escapes resolved, so only the school's words remain. */
+    private static String words(String reply) {
+        String text = reply == null ? "" : reply.trim();
+        if (text.length() >= 2 && text.charAt(0) == '"' && text.charAt(text.length() - 1) == '"') {
+            text = text.substring(1, text.length() - 1);
+        }
+        return text.replace("\\\"", "\"").replace("\\\\", "\\").trim();
     }
 
     /** The school's own sentence, tags stripped and shortened, safe to put on screen. */
@@ -273,6 +319,37 @@ public final class EduEvaluationForm {
     }
 
     // ---- html reading ---------------------------------------------------------------------
+
+    /**
+     * Keeps [tagStart, contentStart, nextStart) for every element of {@code name} carrying
+     * {@code token}, each one ending where the next begins.
+     *
+     * <p>Deliberately not nesting-aware. The school assembles this fragment from several templates and
+     * never balances its own {@code <div>}s — a live 传热学 sheet carries 63 opening and 73 closing
+     * ones — so a depth count declares the panel finished after the second question and the reader is
+     * shown 2 of 11 items, which then fails as「没有下发评价项」. Sibling boundaries survive unbalanced
+     * markup; a depth count does not.</p>
+     */
+    private static List<int[]> flat(String source, String name, String token) {
+        List<int[]> opens = new ArrayList<int[]>();
+        int at = 0;
+        while (at < source.length()) {
+            int lt = source.indexOf('<', at);
+            if (lt < 0) break;
+            if (!opens(source, lt, name)) { at = lt + 1; continue; }
+            int end = tagEnd(source, lt);
+            if (end < 0) break;
+            String tag = source.substring(lt, end);
+            if (token == null || hasClass(tag, token)) opens.add(new int[]{lt, end});
+            at = end;
+        }
+        List<int[]> out = new ArrayList<int[]>();
+        for (int i = 0; i < opens.size(); i++) {
+            int stop = i + 1 < opens.size() ? opens.get(i + 1)[0] : source.length();
+            out.add(new int[]{opens.get(i)[0], opens.get(i)[1], stop});
+        }
+        return out;
+    }
 
     /** Keeps [tagStart, contentStart, contentEnd) for every element of {@code name} carrying {@code token}. */
     private static List<int[]> blocks(String source, String name, String token) {
@@ -299,14 +376,19 @@ public final class EduEvaluationForm {
             attr(tag, "data-pjdxdm"), attr(tag, "data-fxzgf"), attr(tag, "data-xspfb_id"));
         panel.comment = body.contains("name=\"py\"") || body.contains("name='py'");
 
-        List<int[]> tables = blocks(body, "table", "table-xspj");
+        List<int[]> tables = flat(body, "table", "table-xspj");
         if (tables.isEmpty()) {
             List<Question> rows = rows(body, 0);
-            if (!rows.isEmpty()) panel.groups.add(rows);
+            if (!rows.isEmpty()) {
+                panel.groups.add(rows);
+                panel.groupIds.add("");
+            }
         } else {
             for (int g = 0; g < tables.size(); g++) {
                 int[] table = tables.get(g);
                 panel.groups.add(rows(body.substring(table[1], table[2]), g));
+                // 一级指标自己的 id 在这一层，与行上的二级指标 id 不同。
+                panel.groupIds.add(attr(body.substring(table[0], table[1]), "data-pjzbxm_id"));
             }
         }
         return panel;
@@ -314,14 +396,16 @@ public final class EduEvaluationForm {
 
     private static List<Question> rows(String html, int group) {
         List<Question> out = new ArrayList<Question>();
-        for (int[] row : blocks(html, "tr", "tr-xspj")) {
+        for (int[] row : flat(html, "tr", "tr-xspj")) {
             String tag = html.substring(row[0], row[1]);
             String body = html.substring(row[1], row[2]);
-            String title = cell(html.substring(row[1], row[2]));
+            String title = cell(body);
             int child = out.size();
             boolean required = "1".equals(attr(tag, "data-sfbt"));
-            out.add(question(attr(tag, "data-pjzbxm_id"), attr(tag, "data-pfdjdmb_id"),
-                title, required, body, group, child));
+            Question question = question(attr(tag, "data-pjzbxm_id"), attr(tag, "data-pfdjdmb_id"),
+                title, required, body, group, child);
+            question.templateId = attr(tag, "data-zsmbmcb_id");
+            out.add(question);
         }
         return out;
     }

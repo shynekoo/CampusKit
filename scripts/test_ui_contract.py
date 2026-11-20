@@ -357,42 +357,41 @@ def main():
             "提交 is a named route, not a folder")
     require(client, 'path.startsWith("/xspjgl/xspj_bcXspj.html")', "EduClient",
             "暂存 is a named route too")
-    # 真机三轮都没过：只给请求体 → 参数异常；双写查询串 → 还是参数异常；三种载体轮流试 →
-    # 三条全被记成「被拒」。可第一条与学校页面逐字相同，它不可能被学校拒。真正的问题在判断顺序：
-    # 先看页面里有没有评价表，再谈是不是被拒——那句话也可能出现在一张正常表单的脚本或提示模板里。
-    require(client, '{"body", EVAL_DISPLAY}', "EduClient",
-            "the first attempt must be the school's own address with no query at all, "
-            "POST body only — indistinguishable from the browser")
+    # 2026-11-20 用真实账号逐项实测（传热学 · 孟鑫，账号匿名化），三种失败各有确定原因：
+    #   · 查询串里再拼一份 id → 200 + 「参数异常」页（6,923 B）
+    #   · 少了 gnmkdm         → HTTP 911 + 392 B 的页面模型 JSON
+    #   · 与官方完全一致的一发 → 200、46,234 B、1 个面板 11 道题
+    # 所以这里只发一次，「多试几种载体」不再是修复手段。
+    require(client, '"/xspjgl/xspj_cxXspjDisplay.html?gnmkdm=N401605"', "EduClient",
+            "the sheet route must carry the module id the school's own menu passes; without it "
+            "this deployment answers 911 with a page-model JSON instead of a form")
+    require(client, 'form.put("jxb_id", classId)', "EduClient",
+            "all seven ids go into the body, the way the school's own $(...).load(url, data) sends them")
+    require(client, 'form.put("pjmbmcb_id", modelId)', "EduClient",
+            "pjmbmcb_id is sent even when empty: jQuery serialises an undefined data field as an "
+            "empty string, and both forms were measured to work")
+    if "EVAL_DISPLAY" in client:
+        failures.append("学生评价: the no-query variant is gone on purpose — it answered 911; "
+                        "bringing it back as a first attempt only hides the real cause")
+    checks += 1
+    if "fetch(shapes[i][1], null)" in client or '{"body+query",' in client:
+        failures.append("学生评价: the fallback matrix must stay out — a query-string copy of the "
+                        "ids is exactly what the school answers with 「参数异常」")
     require(client, "private static boolean looksLikeSheet(String html)", "EduClient",
             "a page is judged by whether it holds a 评价表, not by a sentence it may contain")
-    sheet_at = client.find("boolean sheet = looksLikeSheet(html)")
-    refusal_at = client.find("String said = refusal(html)", sheet_at if sheet_at > 0 else 0)
-    if sheet_at < 0 or refusal_at < 0 or refusal_at < sheet_at:
-        failures.append("学生评价: the refusal sentence must be read *after* the structure check; "
-                        "reading it first throws away pages that are perfectly good forms")
-    require(client, "if (sheet) return html;", "EduClient",
-            "a page that holds the sheet is returned as-is, whatever else is in it")
-    require(client, '"form", shapes[i][0], "bytes", size', "EduClient",
-            "each attempt must record its shape and the reply size: a Chinese shape label gets "
-            "redacted to OTHER, and without the size a log cannot tell a 2 KB error page from a "
-            "30 KB form")
-    require(client, '{"body+query",', "EduClient",
-            "the query-string variant must stay available for deployments whose filter reads it")
-    require(client, 'fetch(shapes[i][1], null)', "EduClient",
-            "the last shape is a GET with the ids in the query string only")
-    require(client, "private static void putIfPresent(Map<String, String> form, String key, String value)",
-            "EduClient",
-            "a blank id must not be sent at all: an empty value reads as「provided but wrong」and is "
-            "exactly the kind of thing that comes back as 参数异常")
     require(client, "private static String refusal(String html)", "EduClient",
             "a refusal arrives as a sentence inside a 200 page, so it must be read — otherwise "
             "every refusal is shown as「学校没有下发评价项」and blames the wrong side")
-    require(client, 'throw new IOException(refusal + "（学校回的是 "', "EduClient",
-            "when no shape yields a sheet, the school's own sentence is what the reader sees, "
-            "and the size it came with rides along in the same line")
-    require(client, "readable(largest)", "EduClient",
-            "when not even a sheet comes back, the size must be in the sentence the reader sees, "
-            "so one screenshot is enough to tell an error page from a form")
+    require(client, "private static String sheetFailure(int status)", "EduClient",
+            "911 and 500 mean different things on this deployment and are worth telling apart")
+    require(client, "status == 911", "EduClient",
+            "911 is「模块号没被认出」— measured, not guessed")
+    require(client, '"form", "official", "bytes", html.length()', "EduClient",
+            "the one request that ran must record its shape and reply size: without the size a log "
+            "cannot tell a 2 KB error page from a 46 KB form")
+    require(client, "readable(html.length())", "EduClient",
+            "the size must ride along in the sentence the reader sees, so one screenshot is enough")
+
     require(client, "classId.isEmpty() || courseId.isEmpty()", "EduClient",
             "the three ids must be checked before the request: the school cannot say which one is "
             "missing, and the reader needs to know whether to reload or fall back to the web page")
@@ -400,6 +399,49 @@ def main():
             "the write path must be one method taking the body the parser built")
     require(client, "EVAL_PAGE_SIZE", "EduClient",
             "the list must ask for a page size it can reason about")
+    # 请求体的三层 id：学校 buildRequestMap() 对每一行都回填 pjzbxm_id / pfdjdmb_id / zsmbmcb_id，
+    # 一级指标表自己还有一个 pjzbxm_id。缺任何一层，学校都记不住这道题。
+    require(sheet_src, 'out.add(prefix + "pjzbxm_id", question.itemId)', "EduEvaluationForm",
+            "each row must carry its 二级指标 id")
+    require(sheet_src, 'out.add(prefix + "pfdjdmb_id", question.levelId)', "EduEvaluationForm",
+            "each row must carry its 评分等级 id")
+    require(sheet_src, 'out.add(prefix + "zsmbmcb_id", question.templateId)', "EduEvaluationForm",
+            "each row must carry its 模板名称 id — the live template needs all three")
+    require(sheet_src, 'out.add(tablePrefix + "pjzbxm_id", tableId)', "EduEvaluationForm",
+            "the 一级指标 table has its own pjzbxm_id, different from the row's")
+    require(sheet_src, 'out.add(key + "pjzt", allRequired ? "1" : "0")', "EduEvaluationForm",
+            "buildRequestMap() writes pjzt=1 only when every required item is answered")
+    require(sheet_src, 'question.templateId = attr(tag, "data-zsmbmcb_id")', "EduEvaluationForm",
+            "the template id comes from the row itself, never from a guess")
+    # 真实片段不闭合：线上这张表有 63 个 <div> 和 73 个 </div>。按嵌套切会只读到 2 道题，
+    # 而按「下一个同类开始标签」切才读得到 11 道。
+    require(sheet_src, "private static List<int[]> flat(", "EduEvaluationForm",
+            "the fragment is parsed by sibling boundaries, not by counting nesting")
+    require(sheet_src, 'flat(text, "div", "panel-pjdx")', "EduEvaluationForm",
+            "panels are split at the next panel, because the markup does not balance its divs")
+    checks += 1
+    if 'blocks(text, "div", "panel-pjdx")' in sheet_src:
+        failures.append("学生评价: depth-counted panels came back — on the live 传热学 sheet they "
+                        "hold 2 of 11 questions, and the reader is told the school sent nothing")
+    # 学校对写操作只回一句话（实测 "暂存成功！"，七字节 JSON 字符串），判断必须严格。
+    require(sheet_src, 'text.contains("不成功") || text.contains("失败")', "EduEvaluationForm",
+            "negations are tested before success: 提交不成功 contains 成功, and reporting it as "
+            "finished is the one mistake this method must never make")
+    neg = sheet_src.find('text.contains("不成功")')
+    ok_at = sheet_src.find('text.contains("整体提交成功")')
+    if neg < 0 or ok_at < 0 or ok_at < neg:
+        failures.append("学生评价: success must be checked after the negations")
+    require(sheet_src, "private static String words(String reply)", "EduEvaluationForm",
+            "the reply is a JSON string literal; its quotes have to come off before comparing")
+    # 写完之后以学校记录为准，而不是以那句话为准。
+    require(form_src, "EduClient.evaluationState(classId, teacherId)", "EvaluationFormActivity",
+            "after a write the screen must re-read the school's own state")
+    require(form_src, "state == EduEvaluation.SUBMITTED", "EvaluationFormActivity",
+            "只有学校记成已提交，才显示「评价成功」")
+    require(form_src, '"write.unverified"', "EvaluationFormActivity",
+            "a success sentence without a state change is its own diagnosis, not a success")
+    require(client, "static int evaluationState(String classId, String teacherId)", "EduClient",
+            "the state check is one method, so both paths read it the same way")
 
     # --- CampusKit UI 2.0 / UI-1: centralized design + motion tokens ------------------------
     ui_tokens = (PREVIEW / "UiTokens.java")

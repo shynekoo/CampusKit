@@ -84,7 +84,11 @@ python scripts/build_preview.py                # 普通只读版出包（默认�
 4. 发布后核对线上页面与 APK 直链均返回 200。
 5. **在 `AppChangelog.java` 顶部追加本版条目**（版本号、版本代码、发布日期、面向用户的 2–5 条说明），否则 `test_ui_contract.py` 会以「最新条目与 `update.json` 不一致」失败——这是「发版忘了写更新日志」的自动拦截。**预览版不进 `AppChangelog`**：那是已发布正式版的记录，Beta 的说明来自 `beta.json` 的 `notes`。
 6. 同步更新 `CHANGELOG.md` 与 [`agent-handoff.md`](agent-handoff.md)；核对版本号与对应 Git Commit；检查无敏感信息写入文档。
-7. **预览版另走一条**：`python scripts/build_preview.py --beta --field-water --version-code <新号>` → 把 APK 放进 `delivery/update/` → 写 `beta.json`（同字段，URL 指向该 APK）→ 上传 APK 后再上传 beta.json → 核对线上两个直链 200。`update.json` 与下载站首页的正式版信息此时**不动**。
+7. **预览版另走一条**：`python scripts/build_preview.py --beta --field-water --version-code <新号>` → 把 APK 放进 `delivery/update/` → 写清单 → 上传 APK 后再上传清单 → 核对线上两个直链 200。`update.json` 与下载站首页的正式版信息此时**不动**。
+   - **一份 `beta.json` 服务不了三个渠道**：清单里的 `url` 必须指向该渠道自己的下载地址，所以按渠道各写一份——`delivery/update/beta.json`（WorkBuddy，带 `sharecode`）、`beta-github.json`（`github.com/shynekoo/CampusKit/releases/download/preview/<ASCII 名>.apk`）、`beta-gitee.json`（`gitee.com/sun-heyue/CampusKit/releases/download/preview/<ASCII 名>.apk`）。三者除 `url` 外字段完全相同，`bytes` / `sha256` 取自同一次构建的 `.build.json`。
+   - 上传时文件必须**叫 `beta.json`**（GitHub / Gitee 的固定资产名），所以在临时目录里把对应变体复制成 `beta.json` 再传：GitHub 用 `gh release upload preview … --clobber`；Gitee 先 `DELETE …/releases/{release_id}/attach_files/{attach_file_id}` 删旧附件（`204` 才算删掉，不要用不带 `release_id` 的路径，那会 404），再 `POST …/releases/{release_id}/attach_files` 传 APK 和 `beta.json`。
+   - 只传 APK 不传清单 = 用户端永远看不到更新：客户端读的是清单里的 `versionCode`，线上清单停在旧版就等于「已是最新」。
+   - WorkBuddy 站点若因发布账号不匹配（`SITES_ACCOUNT_MISMATCH`）发不出去，预览版就先只发 GitHub + Gitee，并告知用户把「更多 → 更新渠道」切到这两个之一、同时打开「接收预览版更新」；等切回原发布账号再补发 WorkBuddy 的 `beta.json`。
 
 分发链接的具体参数见 `README.md` 下载章节（去掉后会 403）。WorkBuddy 是默认渠道，GitHub / Gitee 是可切换的备选：换 WorkBuddy 账号后仍可切到 GitHub 继续收更新，不被站点所有权卡住；境内下载慢时切 Gitee。网络安全约束见 [`security.md`](security.md)。
 

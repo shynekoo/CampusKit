@@ -21,7 +21,53 @@
 
 ---
 
-## [未发布 · 2.6.0-beta.9] — Gitee 渠道接通（versionCode 226）
+## [已发 GitHub / Gitee · 2.6.0-beta.10] — 评教接口按真实抓包重做（versionCode 227）
+
+> 这一版不再猜。用真实账号（传热学 · 孟鑫）登录学校教务，把官方页面发出的每一条请求抓下来逐项复现，
+> 三条失败各有确定原因：
+>
+> | 请求形态 | 学校回应 |
+> | :-- | :-- |
+> | `POST /xspjgl/xspj_cxXspjDisplay.html?gnmkdm=N401605`，七项 id 只在请求体（**官方**） | **200，46,234 B，1 个面板 11 道题** |
+> | 同上，但把 id 也拼进查询串 | 200 + 「参数异常」页（6,923 B） |
+> | 不带 `gnmkdm` | HTTP **911** + 392 B 的页面模型 JSON |
+> | 不带 `X-Requested-With` | 照样 200 + 完整表单（所以这个头不是必需，也就不加） |
+>
+> 结论：前两个版本的「双写查询串」正是学校判参数异常的原因；「少了 gnmkdm」则根本不是话，而是一段 JSON。
+> 两件事都被读成「id 不对」，于是越修越偏。
+
+### 改动
+
+- **读表单只发一次**（`EduClient.evaluationForm`）：与官方 `load(url, {七项})` 逐字相同，删除「三种载体
+  依次试」的回退矩阵与 `putIfPresent`（空值不再跳过，`pjmbmcb_id` 为空也按官方发空串）。
+  HTTP 911 / 500 / 200+参数异常 / 200+无表 各自单独成句，不再混成一句。
+- **解析改按兄弟边界切片**（`EduEvaluationForm.parse`）：线上片段不闭合自己的 `<div>`（63 开、73 闭），
+  按嵌套计数会在第二题处收尾——**11 道题只读成 2 道**，用户看到的就是「学校没有下发评价项」。
+  改为每个 `panel-pjdx` / `table-xspj` / `tr-xspj` 延伸到下一个同类开始标签。
+- **请求体补齐三层身份**（`EduEvaluationForm.body`）：每行回填 `pjzbxm_id`（二级指标）、
+  `pfdjdmb_id`（评分等级）、`zsmbmcb_id`（模板名称，新增读取 `data-zsmbmcb_id`），一级指标表另带自己的
+  `pjzbxm_id`；并按「必填项是否全答」写 `modelList[i].pjzt`。与官方 `buildRequestMap()` 对比过 60 个字段，
+  除按钮决定的 `tjzt` 外键值全同。
+- **成败严格化 + 状态核对**：答复是 JSON 字符串（实测 `"暂存成功！"`，7 字节），先去引号；否定词先判，
+  成功必须是学校自己的短语（「提交不成功」含「成功」，旧的 `contains("成功")` 会把它报成完成）。
+  写完回读列表里这一行的 `tjzt`：只有变成 `1` 才显示「已提交，学校已记为已评」；仍是 `0`（暂存）就明说
+  「学校收了但没记成已评」；查不到记 `write.unverified`。超时或断网**不重发**，先查状态。
+- 诊断：`sheet.shape` 只记 `form=official` 与 `bytes`，新增 `sheet.failed stage=read|parse`、
+  `write.unverified`；仍不记题目、评语、id。
+
+### 验证状态
+
+- **已用真实账号验证（读 + 暂存）**：官方形态 200/46,234 B/11 题；客户端自己拼的 body 直接 POST 到暂存端点，
+  学校回 `"暂存成功！"`，回读时 10 个单选被选中、主观题文字保留，列表该行 `tjzt` 由 `-1` 变 `0`、
+  `bfzpf=84.00`，评价情况 `{"wpgs":19,"bcgs":1,"tjgs":0}`。暂存是草稿，可继续改。
+- **未验证**：真实提交（`tjzt=1`）与提交后状态同步——这需要用户本人确认后才做，本次没有代提交。
+- `test_core` **1539**（+19：三层 id、`pjzt`、不闭合片段 5 题、`outcome` 八种回话）、`test_ui_contract`
+  **354**、`test_diag_privacy` **691**、`test_diag_files` 6650、`test_webview_policy` 5、`test_build_config` 7，全部通过。
+- **分发**：APK（5,470,074 B，`c7e5cca4…1e69c83c`）已传 GitHub `preview` 与 Gitee `preview`，两侧 `beta.json`
+  同步更新为 227（Gitee 直链复验 200）。WorkBuddy 下载站因发布账号不匹配未能覆盖，其 `beta.json` 仍停在
+  beta.5；装 beta.9 的手机要收到这一版，需把「更多 → 更新渠道」切到 GitHub 或 Gitee 并打开「接收预览版更新」。
+
+## [已构建 · 2.6.0-beta.9] — Gitee 渠道接通（versionCode 226）
 
 > 上一版把 Gitee 放进「更新渠道」，但两个地址写的是 `gitee.com/shynekoo/CampusKit`——那个
 > 用户在 Gitee 上根本不存在（用户页 404），仓库自然也没有。选项在、内容没有，读者选它只会得到

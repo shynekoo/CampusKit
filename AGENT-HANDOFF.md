@@ -23,7 +23,7 @@
 | 最新 Git tag | `v2.5.9` | 2.5.8 为 `00d7bb4`；2.5.8.x 早期开发迭代未各自建 tag |
 | GitHub Release | 最新为 [v2.5.9](https://github.com/shynekoo/CampusKit/releases/tag/v2.5.9) | 附 `kexin-xiaozhushou-2.5.9.apk`（5,437,306 字节）与 `update.json`；`preview` 预发布现为 **2.6.0-beta.6 / 223**（`campuskit-2.6.0-beta.6.apk` + `beta.json`） |
 | GitHub 登录 | 已用 `gh auth login` 登录 `shynekoo`（ADMIN，token scopes 含 repo） | 技术上有 push/tag/Release 权限；按 AGENTS.md 仍需用户逐次确认才执行 |
-| 未发布开发版 | **2.6.0-beta.9**（versionCode 226，已上传 GitHub `preview` 与 Gitee `preview`） | 评价页判定顺序反转：先 `looksLikeSheet` 认结构（`xspj-body`/`panel-pjdx`/`tr-xspj`/`input-xspj`）再谈拒绝，不再让一句「参数异常」把正常表单挡在门外（beta.7 三种载体全被判拒，而第一种与浏览器逐字相同）；首请求改用 `EVAL_DISPLAY`（无 `gnmkdm`、无查询串、无 `nd`）；`sheet.shape` 形态值改 ASCII 并加 `bytes`；失败提示直接写回包大小。Gitee 渠道接通：地址改到真实公开仓库 `gitee.com/sun-heyue/CampusKit`（两个固定 tag `release`/`preview`），测得不带令牌可下、约 0.85 MB/s、sha256 与清单一致。产物 5,465,978 B，SHA-256 `11cbeab8…0baf5b73`；WorkBuddy 站点仍是 beta.5 / 222（`SITES_ACCOUNT_MISMATCH`） |
+| 未发布开发版 | **2.6.0-beta.10**（versionCode 227，工作区改动，待构建） | 评教接口按真实抓包重做：读表单只发官方那一发（`?gnmkdm=N401605` + 七项只在请求体；查询串重复 id 会被判「参数异常」、少 `gnmkdm` 回 911）；解析改兄弟边界（线上片段 `<div>` 不闭合，嵌套切会把 11 题读成 2 题）；请求体补 `pjzbxm_id`/`pfdjdmb_id`/`zsmbmcb_id` 三层身份、表级 `pjzbxm_id` 与 `pjzt`；`outcome()` 否定词先判、写完回读 `tjzt` 才算成功。实测：暂存回 `"暂存成功！"`、回读 10 个单选与文字都在、列表 `tjzt` 由 -1 变 0；**提交未验证** |
 
 - **版本号规范（2026-11-20 起）**：正式版 `X.Y.Z`、预览版 `X.Y.Z-beta.N`（N 从 1 起），四段 `X.Y.Z.W` 只保留读取兼容；
   新旧一律比 `versionCode`（`core/UpdateChannel`），不比较版本名。`build_preview.py` 的 `check_version_name()` /

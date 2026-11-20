@@ -1,0 +1,15 @@
+{
+  "version": "2.6.0-beta.10",
+  "versionCode": 227,
+  "notes": [
+    "评教接口按真实抓包重做：读评价表只发学校页面那一发（?gnmkdm=N401605 + 七项 id 只在请求体）。此前「参数异常」是同一组 id 又被拼进查询串造成的",
+    "少 gnmkdm 时学校回的是 HTTP 911 + 一段 JSON，不是表单也不是拒绝语——现在单独成句，不再混成「参数不对」",
+    "解析改按兄弟边界切片：线上片段 <div> 不闭合，按嵌套切只会读到 2 道题（共 11 道），界面于是说「学校没有下发评价项」",
+    "暂存/提交的请求体补齐每行的 pjzbxm_id / pfdjdmb_id / zsmbmcb_id 与表级 pjzbxm_id，并按必填项是否全答写 pjzt（与官方 buildRequestMap() 对比 60 个字段一致）",
+    "成败判定严格化：否定词先判，「提交不成功」不会再被当成完成；写完回读学校记的 tjzt，只有变成已评才显示「已提交」；超时不重发",
+    "实测（真实账号，草稿）：暂存回「暂存成功！」，回读时选项与主观题都在，列表该行由未评变暂存"
+  ],
+  "url": "https://github.com/shynekoo/CampusKit/releases/download/preview/campuskit-2.6.0-beta.10.apk",
+  "bytes": 5470074,
+  "sha256": "c7e5cca42c3ed7088c887b9997c0d9c7dea865a889a804c45b9c96fa1e69c83c"
+}

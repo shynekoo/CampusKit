@@ -1943,6 +1943,19 @@ public final class CoreTests {
         equal(false, blankBody.contains("childXspjList%5B0%5D.pfdjdmxmb_id"));
         equal(true, blankBody.contains("tjzt=1"));
 
+        // buildRequestMap() sends three identity fields per row — 二级指标 / 评分等级 / 模板名称 —
+        // and a fourth on the table itself. Measured against the live 传热学 sheet: without them the
+        // school accepts the request but records no score.
+        equal(true, savedBody.contains("childXspjList%5B0%5D.pjzbxm_id=ZB1"));
+        equal(true, savedBody.contains("childXspjList%5B0%5D.pfdjdmb_id=D1"));
+        equal(true, savedBody.contains("childXspjList%5B0%5D.zsmbmcb_id="));
+        equal(true, savedBody.contains("modelList%5B0%5D.xspjList%5B0%5D.pjzbxm_id=ZB1"));
+        equal(true, savedBody.contains("modelList%5B0%5D.xspjList%5B1%5D.pjzbxm_id=ZB3"));
+        // pjzt: 1 only when every required item is answered.
+        equal(true, savedBody.contains("modelList%5B0%5D.pjzt=1"));
+        equal(true, blankBody.contains("modelList%5B0%5D.pjzt=0"));
+        equal(true, blankBody.contains("childXspjList%5B0%5D.pjzbxm_id=ZB1"));  // identity still sent
+
         // 十级制 rows ship a select instead of radios, and the raw score is what goes back.
         String gradedSheet = "<div class=\"xspj-body\" data-jxb_id=\"J2\" data-kch_id=\"K2\" data-jgh_id=\"T2\""
             + " data-xsdm=\"01\"><div class=\"panel-pjdx\" data-pjmbmcb_id=\"MB2\""
@@ -1979,6 +1992,38 @@ public final class CoreTests {
         rejects(() -> EduEvaluationForm.parse(noItems));
         rejects(() -> EduEvaluationForm.parse(""));
         rejects(() -> EduEvaluationForm.parse(null));
+        // The live fragment never balances its <div>s — 63 opening, 73 closing on the 传热学 sheet —
+        // so panels must be split at the next panel, not by counting depth. With depth counting this
+        // markup yields 1 question and the reader is told the school sent nothing usable.
+        StringBuilder ragged = new StringBuilder("<div class=\"xspj-body\" data-jxb_id=\"J5\">"
+            + "<div class=\"panel-pjdx\" data-pjmbmcb_id=\"MB5\"><table class=\"table-xspj\""
+            + " data-pjzbxm_id=\"ZBT\">");
+        for (int i = 1; i <= 5; i++) {
+            ragged.append("<tr class=\"tr-xspj\" data-pjzbxm_id=\"ZB").append(i)
+                .append("\" data-pfdjdmb_id=\"D").append(i)
+                .append("\" data-dt-lx=\"\" data-dtlx=\"2\" data-sfbt=\"1\"><td>第")
+                .append(i).append("项</td><td><div class=\"input-xspj\">")
+                .append("<input type=\"radio\" class=\"radio-pjf\" data-pfdjdmxmb_id=\"X").append(i)
+                .append("\"></div></td></tr></div></div>");   // stray closers, as the school emits them
+        }
+        ragged.append("</table></div>");
+        EduEvaluationForm.Form raggedForm = EduEvaluationForm.parse(ragged.toString());
+        equal(5, raggedForm.count());
+        equal("第5项", raggedForm.questions().get(4).title);
+        equal("ZBT", raggedForm.panels.get(0).groupIds.get(0));
+
+        // The school answers 暂存/提交 with a JSON string, not a status: measured 7 bytes,
+        // "暂存成功！". A bare contains("成功") would call 提交不成功 a finished evaluation.
+        equal(EduEvaluationForm.OK, EduEvaluationForm.outcome("\"暂存成功！\""));
+        equal(EduEvaluationForm.OK, EduEvaluationForm.outcome("\"整体提交成功\""));
+        equal(EduEvaluationForm.FAILED, EduEvaluationForm.outcome("\"提交不成功\""));
+        equal(EduEvaluationForm.FAILED, EduEvaluationForm.outcome("提交失败，请先完成评课"));
+        equal(EduEvaluationForm.UNCLEAR, EduEvaluationForm.outcome("\"\""));
+        equal(EduEvaluationForm.UNCLEAR, EduEvaluationForm.outcome(""));
+        equal(EduEvaluationForm.UNCLEAR, EduEvaluationForm.outcome(null));
+        // The message shown to the reader is the school's own words, without the JSON quotes.
+        equal(true, EduEvaluationForm.note("\"暂存成功！\"").contains("暂存成功"));
+
         // The school's own refusal text is carried into the message instead of being swallowed.
         try {
             EduEvaluationForm.parse("<div class=\"alert alert-danger\">课程号ID,教学班ID,教职工ID参数异常!</div>");
@@ -1990,9 +2035,11 @@ public final class CoreTests {
 
         // The reply to 暂存/提交 is a sentence, so only the school's own words decide the outcome.
         equal(EduEvaluationForm.OK, EduEvaluationForm.outcome("\"整体提交成功\""));
-        equal(EduEvaluationForm.OK, EduEvaluationForm.outcome("\"操作成功\""));
         equal(EduEvaluationForm.FAILED, EduEvaluationForm.outcome("\"提交失败\""));
-        equal(EduEvaluationForm.UNCLEAR, EduEvaluationForm.outcome("<html><body>系统升级维护中</body></html>"));
+        equal(EduEvaluationForm.FAILED, EduEvaluationForm.outcome("<html><body>系统升级维护中</body></html>"));
+        // 「操作成功」is deliberately not enough on its own: it names no action, and 提交不成功 also
+        // carries 成功. The state re-read after the write is what settles it.
+        equal(EduEvaluationForm.UNCLEAR, EduEvaluationForm.outcome("\"操作成功\""));
         equal("还没到评教时间", EduEvaluationForm.note("<b>还没到评教时间</b>"));
         System.out.println("PASS: the evaluation sheet is read from the school's own markup, never invented");
 

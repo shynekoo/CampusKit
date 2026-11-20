@@ -16,7 +16,7 @@
 | 安全策略 | `TrustedUrlPolicy`、`SnapshotPolicy`、`DiagPolicy` | WebView 准入、敏感页快照、诊断默认关 |
 | 诊断 | `DiagRedact`、`DiagEvent`、`DiagCatalog` | 字段白名单与脱敏、行格式与解析、事件中文文案 |
 | 教务学业 | `EduAcademic` | 学生学业情况：GPA/统计/去重学分树解析（含 `appendTo` 层级还原与 `jdkcsx` 端点分流），课程明细 JSON 解析（`parseCourses`） |
-| 教务评价 | `EduEvaluation`、`EduEvaluationForm` | 列表与统计解析：教学班/课程/教师/学时类型、状态码 `-1/0/1` 归一（`stateOf`）、`withState` 分组、`counts`、分页（`pageCount`/`rowCount`/`of`）；问卷片段按学校 `xspj_display.js` 的选择器读成题目/选项（`parse`），并把作答还原成学校那套 `modelList[i].xspjList[j].childXspjList[k]` 请求体（`body`），成败只按学校回话判断（`outcome`） |
+| 教务评价 | `EduEvaluation`、`EduEvaluationForm` | 列表与统计解析：教学班/课程/教师/学时类型、状态码 `-1/0/1` 归一（`stateOf`）、`withState` 分组、`counts`、分页（`pageCount`/`rowCount`/`of`）；问卷片段按学校 `xspj_display.js` 的选择器读成题目/选项（`parse`，切片按**兄弟边界**——线上片段 `<div>` 不闭合，按嵌套切会把 11 题读成 2 题），并把作答还原成学校那套 `modelList[i].xspjList[j].childXspjList[k]` 请求体（每行必带 `pjzbxm_id`/`pfdjdmb_id`/`zsmbmcb_id`，表级再带一个 `pjzbxm_id`，并按必填项是否全答写 `pjzt`）；成败先按学校回话严格分类（`outcome`），最终以回读的 `tjzt` 为准 |
 | 其他 | `DailyQuote`、`AlipayWaterLink`、`PickupCodeLinks`、`RechargeSignature`、`NativeSigningV6528` | 文案、跳转链接、签名/协议辅助 |
 
 测试：`client/core/test/.../CoreTests.java` —— 当前工作区实跑 1418 项断言（含 `jdkcsx` 课程端点分流与诊断脱敏），涵盖上述状态机、解析与策略。

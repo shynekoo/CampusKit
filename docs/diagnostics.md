@@ -151,6 +151,7 @@ JWT、超长文本、堆栈不含异常消息）。
 | 更新 `UPDATE` | `check.start` / `check.available` / `check.failed` / `install.start` / `download.failed` / `verify.failed` | 清单读不到、下载中断、大小 / 摘要 / 包身份校验失败 |
 | 界面 `UI` | `nav.open` / `back.gesture` / `render.done`（仅内部版） | 页面是否打开、返回手势走到哪一步、渲染结果 |
 | 诊断 `DIAG` | `log.start` / `log.stop` / `log.lost` / `log.write.failed` | 诊断系统自身的状态 |
+| 学生评价 `EVAL` | `sheet.start` / `sheet.shape`（`form`+`bytes`）/ `sheet.ready` / `sheet.empty` / `sheet.failed`（`stage`）/ `write.sent` / `write.saved` / `write.failed` / `write.unverified` | 请求形态只有一种（官方那一发），`bytes` 是回包字节数；`write.unverified` 表示学校说成功、但回读的状态还没变——只记阶段、形态与计数，不记题目、评语与任何 id |
 
 业务逻辑不因记录而改变：所有调用点只读，不参与分支，不重试，不改异常类型（`EduClient.json()`
 只是补了 `cause`，消息文本不变）。

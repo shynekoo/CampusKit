@@ -96,12 +96,6 @@ final class EduClient {
      * {@code data-*} ids — so it is read directly instead of being shown in a WebView.
      */
     private static final String EVAL_FORM = "/xspjgl/xspj_cxXspjDisplay.html?gnmkdm=N401605";
-    /**
-     * The same fragment with no query at all — byte for byte the address the school's own page loads:
-     * {@code $(panel_content).load("/xspjgl/xspj_cxXspjDisplay.html", {…七项…})}. Kept apart from
-     * {@link #EVAL_FORM} so the first attempt can be indistinguishable from the browser.
-     */
-    private static final String EVAL_DISPLAY = "/xspjgl/xspj_cxXspjDisplay.html";
     /** 暂存 / 提交. Same route names the school's own two buttons post to. */
     private static final String EVAL_SAVE = "/xspjgl/xspj_bcXspj.html?gnmkdm=N401605";
     private static final String EVAL_SEND = "/xspjgl/xspj_tjXspj.html?gnmkdm=N401605";
@@ -662,54 +656,50 @@ final class EduClient {
                 + (classId.isEmpty() ? "教学班ID " : "") + (courseId.isEmpty() ? "课程号ID " : "")
                 + (teacherId.isEmpty() ? "教职工ID" : "") + " 为空），请回列表重新读取。");
         }
+        // 只发一次，形态与学校页面逐字相同：它的 load(url, {七项}) 是 POST、七项全在请求体、
+        // 地址带 gnmkdm=N401605，查询串里没有第二份。
+        //
+        // 2026-11-20 用真实账号（传热学 · 孟鑫）逐项实测，三种失败各有确定原因，都不是重试能过的：
+        //   · 查询串里再拼一份 id → 200 + 「参数异常」页（6,923 B）。之前两版正是这样，把学校
+        //     判的「参数异常」怪到了 id 头上；
+        //   · 不带 gnmkdm → HTTP 911 + 392 B 的页面模型 JSON（不是表单，也不是拒绝语）；
+        //   · 与官方一发完全一致的（带 gnmkdm + 七项只在请求体）→ 200、46,234 B、1 面板 11 题。
+        // X-Requested-With 不是必需的（不带也返回同一张表），因此不加，少一处无依据的差异。
         Map<String, String> form = new LinkedHashMap<>();
-        // 空值不发。学校把这几个 id 当「一定有值」来解析，发一个空串比干脆不发更容易被它判成
-        // 参数异常，而且日志里也看不出区别。必填的三项上面已经拦过了。
-        putIfPresent(form, "jxb_id", classId);
-        putIfPresent(form, "kch_id", courseId);
-        putIfPresent(form, "jgh_id", teacherId);
-        putIfPresent(form, "xsdm", studentType);
-        putIfPresent(form, "tjzt", statusCode);
-        putIfPresent(form, "pjmbmcb_id", modelId);
-        putIfPresent(form, "sfcjlrjs", gradeEntry);
-        String query = SmsLoginProtocol.form(form);
-        // 三种载体，第一种与学校页面逐字一致：load("/xspjgl/xspj_cxXspjDisplay.html", {七项})——
-        // 没有 gnmkdm、没有查询串、没有时间戳。后两种是这台部署改了读法时的退路。
-        String[][] shapes = {
-            {"body", EVAL_DISPLAY},
-            {"body+query", EVAL_FORM + "&" + query},
-            {"query", EVAL_FORM + "&" + query},
-        };
-        String refusal = null;
-        int largest = 0;
-        for (int i = 0; i < shapes.length; i++) {
-            boolean byQueryOnly = i == shapes.length - 1;
-            String html;
-            try {
-                html = byQueryOnly ? fetch(shapes[i][1], null) : fetch(shapes[i][1], form);
-            } catch (IOException failure) {
-                Diag.event(Diag.WARN, "EVAL", "sheet.shape", "form", shapes[i][0]);
-                if (byQueryOnly) throw failure;
-                continue;
-            }
-            // 先看页面里有没有评价表，再谈「是不是被拒了」。顺序反过来会出事：那句话也可能出现在
-            // 一整张正常表单的脚本或提示模板里，先判字就等于把好页面挡在门外——2.6.0-beta.7 的
-            // 真机正是这样：三种载体一律「被拒」，而真正的可能只是页面回来了没人打开看。
-            int size = html.length();
-            if (size > largest) largest = size;
-            boolean sheet = looksLikeSheet(html);
-            Diag.event(sheet ? Diag.INFO : Diag.WARN, "EVAL", "sheet.shape",
-                "form", shapes[i][0], "bytes", size);
-            if (sheet) return html;
-            String said = refusal(html);
-            if (said != null && refusal == null) refusal = said;
+        form.put("jxb_id", classId);
+        form.put("kch_id", courseId);
+        form.put("xsdm", studentType);
+        form.put("jgh_id", teacherId);
+        form.put("tjzt", statusCode);
+        // 学校自己的 load() 把 row.pjmbmcb_id 原样带上，为空时 jQuery 会发一个空串；
+        // 实测空串与整项不发都能拿到表，这里按官方形态发空串。
+        form.put("pjmbmcb_id", modelId);
+        form.put("sfcjlrjs", gradeEntry);
+
+        String html;
+        try {
+            html = fetch(EVAL_FORM, form);
+        } catch (HttpFailure refused) {
+            Diag.event(Diag.WARN, "EVAL", "sheet.failed", "stage", "read", "http", refused.status);
+            throw new IOException(sheetFailure(refused.status));
         }
-        // 连表都没有：把回包大小写进读者看得到的那句话里，一张截图就够定位，不必再去翻日志。
-        if (refusal != null) {
-            throw new IOException(refusal + "（学校回的是 " + readable(largest) + " 的页面）");
+        String said = refusal(html);
+        Diag.event(said == null ? Diag.INFO : Diag.WARN, "EVAL", "sheet.shape",
+            "form", "official", "bytes", html.length());
+        if (said != null) {
+            Diag.event(Diag.WARN, "EVAL", "sheet.failed", "stage", "read", "http", 200);
+            throw new IOException(said + "（学校回的是 " + readable(html.length()) + " 的页面）");
         }
-        throw new IOException("学校回了页面，但里面没有评价表（最大 " + readable(largest) + "）。"
-            + "这门课的评价可能还没开放，或者要先在网页里进一次这门课。");
+        if (html.trim().isEmpty()) {
+            Diag.event(Diag.WARN, "EVAL", "sheet.failed", "stage", "read");
+            throw new IOException("学校返回了空的评价表单。");
+        }
+        if (!looksLikeSheet(html)) {
+            Diag.event(Diag.WARN, "EVAL", "sheet.failed", "stage", "parse");
+            throw new IOException("学校回了页面，但里面没有评价表（" + readable(html.length())
+                + "）。这门课的评价可能还没开放。");
+        }
+        return html;
     }
 
     /**
@@ -727,11 +717,6 @@ final class EduClient {
         return size >= 1024 ? (size / 1024) + " KB" : size + " 字节";
     }
 
-    /** 只有非空值才进参数表，避免把空串当成「提供了这个参数」。 */
-    private static void putIfPresent(Map<String, String> form, String key, String value) {
-        if (value != null && !value.trim().isEmpty()) form.put(key, value.trim());
-    }
-
     /**
      * The school states a refusal as a sentence inside a 200 page rather than as an HTTP error, so
      * the only way to tell "no questions" from "not accepted" is to read the page.
@@ -742,8 +727,10 @@ final class EduClient {
      */
     private static String refusal(String html) {
         if (html.contains("参数异常")) {
-            return "学校说这次请求的参数不对（课程号 / 教学班 / 教职工 ID 没被接受）。"
-                + "请回上一页「重新读取」列表后再点一次；如果仍是这句话，先用「网页登录」进教务系统完成这门课。";
+            // 实测唯一的触发方式：同一组 id 除了请求体之外还出现在查询串里（或 id 本身是旧的）。
+            // 官方页面只发请求体，所以这句话不再是「先猜一发」的理由，而是「列表要重读」的信号。
+            return "学校判了「参数异常」：它没接受这次带的课程 / 教学班 / 教师 id。"
+                + "请回列表点「重新读取」再打开一次。";
         }
         if (html.contains("升级维护") || html.contains("系统维护")) {
             return "教务的评教模块正在维护，过一会儿再试。";
@@ -755,6 +742,25 @@ final class EduClient {
     }
 
     /**
+     * What an HTTP status from the sheet endpoint actually means on this deployment.
+     *
+     * <p>Both of these were measured, not guessed: asking without {@code gnmkdm} answers <b>911</b>
+     * with a 392-byte page-model JSON, and a request the module layer rejects answers <b>500</b> with
+     * its 系统维护 screen. Neither is worth retrying, and neither is the reader's fault, so they get
+     * told apart from a plain network failure.</p>
+     */
+    private static String sheetFailure(int status) {
+        if (status == 911) {
+            return "教务没有认出这次请求的模块号（HTTP 911），评价表单没有打开。"
+                + "请回列表「重新读取」后再点一次。";
+        }
+        if (status == 500) {
+            return "教务的评教模块回了 HTTP 500，通常是模块在维护，过一会儿再试。";
+        }
+        return "教务回了 HTTP " + status + "，评价表单没有打开。";
+    }
+
+    /**
      * 暂存 or 提交 one 教学班, with exactly the fields {@link EduEvaluationForm#body} built.
      *
      * <p>{@code submit} only chooses the route; what is scored is whatever the reader picked, and
@@ -763,6 +769,22 @@ final class EduClient {
      */
     static String evaluationWrite(String body, boolean submit) throws IOException {
         return fetchEncoded(submit ? EVAL_SEND : EVAL_SAVE, body);
+    }
+
+    /**
+     * 学校现在把这一行记成什么状态：{@code UNEVALUATED} / {@code SAVED} / {@code SUBMITTED}。
+     *
+     * <p>只在写完之后调用，而且只用来核对——学校对 暂存/提交 的回话是一句话，一句话不等于记录。
+     * 实测：暂存成功后列表里这一行的 {@code tjzt} 从 {@code -1} 变成 {@code 0}（已评完、84 分）。
+     * 因此「已提交」必须以这一行的状态为准，而不是以回包里有没有「成功」两个字为准。</p>
+     *
+     * <p>读不到就返回 {@link EduEvaluation#UNKNOWN}，由调用方如实说「还不能确认」，不猜。</p>
+     */
+    static int evaluationState(String classId, String teacherId) throws IOException {
+        for (EduEvaluation.Item item : evaluations().items) {
+            if (item.classId.equals(classId) && item.teacherId.equals(teacherId)) return item.state;
+        }
+        return EduEvaluation.UNKNOWN;
     }
 
     /**

@@ -15,9 +15,9 @@
 | 最新 tag / Release | `v2.5.9`（[Release](https://github.com/shynekoo/CampusKit/releases/tag/v2.5.9)，附 ASCII 资产 `kexin-xiaozhushou-2.5.9.apk` 与 `update.json`）；`preview` 预发布现为 **2.6.0-beta.9 / 226**（APK + `beta.json`）；Gitee 侧同版本（`gitee.com/sun-heyue/CampusKit`） |
 | GitHub 登录 | `gh auth login` 已登录 `shynekoo`（ADMIN，repo scope）；按 AGENTS.md，push/tag/Release 仍需用户逐次确认 |
 | 工作区 | `feat/diag-2.5.8` 上未提交；主线 `main` 未改 |
-| 核心断言 | 实测 **1520 项全过**；UI 契约守卫 **339 锚点**；诊断隐私守卫 **679 项**；WebView 守卫 **5 处** |
+| 核心断言 | 实测 **1539 项全过**；UI 契约守卫 **354 锚点**；诊断隐私守卫 **691 项**；WebView 守卫 **5 处** |
 | 发布状态 | **2.5.8 已发布**：清单、直链、下载站、App 内更新日志已同步；早期 2.5.8.x 开发包未单独发布 |
-| 未发布开发版 | **2.6.0-beta.9 / versionCode 226**（Gitee 渠道指向真实公开仓库并已实测匿名可下；评价页「先看结构再谈拒绝」沿用），**已上传 GitHub `preview` 与 Gitee `preview`**；WorkBuddy 站点仍是 beta.5 / 222 |
+| 未发布开发版 | **2.6.0-beta.10 / versionCode 227**（评教接口按真实抓包重做：读表单只发官方那一发、解析改兄弟边界、请求体补三层 id 与 pjzt、写完回读 tjzt；暂存已用真实账号验证，提交未验证），**工作区改动，待构建**；上一包 beta.9 / 226 在 GitHub 与 Gitee 的 `preview` 上；WorkBuddy 站点仍是 beta.5 / 222 |
 | 预览渠道 | `delivery/update/beta.json` 为 2.6.0-beta.9 / 226；**WorkBuddy 站点仍是 beta.5 / 222**（发布被 `SITES_ACCOUNT_MISMATCH` 拒绝，appId 属另一账号）；GitHub 与 Gitee 的 `preview` 均已是 beta.9 / 226 |
 
 ## 二、已提交但未发布（2.5.8.1）
@@ -340,9 +340,58 @@ UI-3 本轮修 5 处：滚动恢复带 generation 且改为布局后（pre-draw�
   重定向夹具改用 `UpdateSources.GITEE_RELEASE` 常量，不再手抄地址。
 - **未验证**：App 内真机走 Gitee 下载安装（B0c）。
 
+## 三之十七、评教接口按真实抓包重做（2.6.0-beta.10）
+
+- **做法变了**：这次没有改文案、也没有再加一种请求组合。用真实账号（传热学 · 孟鑫）登录学校教务，
+  把官方 `xspj_index.js` 的 `$(panel_content).load("/xspjgl/xspj_cxXspjDisplay.html", {七项})` 逐项复现，
+  一次一种形态，记录状态码、字节数与页面种类。
+- **实测矩阵**：
+
+  | 形态 | 学校回应 |
+  | :-- | :-- |
+  | `?gnmkdm=N401605` + 七项只在请求体（官方） | **200 / 46,234 B / 1 面板 11 题** |
+  | 同上 + 查询串再拼一份 id | 200 / 6,923 B，页面写「参数异常」 |
+  | 不带 `gnmkdm` | HTTP **911** / 392 B，正文是一段页面模型 JSON |
+  | 不带 `X-Requested-With` | 200 / 46,234 B（这个头不是必需的） |
+  | 截断 `jgh_id` / 空 `jxb_id` | 200 / 6,923 B，「参数异常」 |
+
+- **两个真正的 bug**，都不是「id 不对」：
+  1. `EduClient.evaluationForm` 的第三种形态把同一组 id 也拼进了查询串——学校把这当成参数异常。
+     beta.6 的「双写」修复、beta.7 的「三形态」修复都在这一点上打转。
+  2. `EduEvaluationForm.parse` 按标签嵌套切面板，而线上片段不闭合 `<div>`（63 开 / 73 闭），
+     面板在第二题处就被判结束：**11 道题读成 2 道**，界面于是说「学校没有下发评价项」。
+- **请求体对不上**：`body()` 只发答案字段，缺 `childXspjList[k].pjzbxm_id / pfdjdmb_id / zsmbmcb_id`、
+  缺表级 `xspjList[j].pjzbxm_id`、缺 `modelList[i].pjzt`。补齐后与官方 `buildRequestMap()` 对比 60 个字段，
+  除按钮决定的 `tjzt` 外键值全同。
+- **写操作实测（草稿）**：把客户端自己拼的 body POST 到 `xspj_bcXspj.html`，学校回 `"暂存成功！"`（7 字节
+  JSON 字符串）；回读片段时 10 个单选被选中、主观题文字保留；列表该行 `tjzt` 由 `-1` 变 `0`、
+  `bfzpf=84.00`，评价情况 `{"wpgs":19,"bcgs":1,"tjgs":0}`。
+- **成败判定与核对**：`outcome()` 先去 JSON 引号；否定词先判（「提交不成功」含「成功」）；只认学校自己的
+  短语；「操作成功」按不清楚处理。写完回读 `tjzt`，`1` 才算已提交，`0` 明说「收了但没记成已评」，
+  读不到记 `write.unverified`。超时/断网不重发。
+- **守卫**：`test_core` 1520 → **1539**（三层 id、`pjzt`、不闭合片段 5 题、`outcome` 八种回话）；
+  `test_ui_contract` 339 → **354**（只发一次、禁止回退矩阵、平铺切片、三层 id、状态核对）；
+  `test_diag_privacy` 679 → **691**。
+- **未验证**：真实提交（`tjzt=1`）与提交后状态同步——按约定要用户本人确认后才做，本轮没有代提交。
+
+## 三之十八、beta.10 的分发：一份清单服务不了三个渠道
+
+- **症状**：APK 已经放在 `delivery/update/`、`beta.json` 也写好了，装上 beta.9 的手机点「检查更新」仍说已是最新。
+- **原因**：客户端只比较清单里的 `versionCode`，而三条线上清单都没更新——WorkBuddy 站点还停在 `beta.5` / 222
+  （`SITES_ACCOUNT_MISMATCH`，`delivery/update` 绑定的应用 `wbapp_g8yY3kLcI8KmEUFM6vdn0h` 属于另一个账号），
+  GitHub `preview` 与 Gitee `preview` 仍是 `beta.9` / 226（只建了包，没上传资产）。
+  另一层：预览清单只在用户打开「接收预览版更新」后才读，开关关着时连发布正确的 beta 也看不到。
+- **清单按渠道各写一份**，只有 `url` 不同（三份同 `bytes` / `sha256` / `notes`）：
+  `beta.json`（WorkBuddy，带 `sharecode`）、`beta-github.json`、`beta-gitee.json`。上传前把对应变体复制成
+  名为 `beta.json` 的文件，因为 GitHub / Gitee 侧的固定资产名就是 `beta.json`。
+- **Gitee 附件必须带 `release_id` 删除**：`DELETE /releases/{release_id}/attach_files/{id}` 返回 `204`；
+  漏掉 `release_id` 的路径返回 `404`，会让人误以为「附件删不掉、只能改名」，那又会把清单地址打歪。
+- **已发**：GitHub `preview`（`beta.json` 1,352 B，`campuskit-2.6.0-beta.10.apk` 5,470,074 B）与 Gitee `preview`
+  （同两件，直链实测 `200` / 5,470,074 B / SHA-256 `c7e5cca4…1e69c83c`）。**WorkBuddy 站点仍未发布**，等切回原发布账号补 `beta.json`。
+
 ## 四、验证状态（如实）
 
-**已执行**：`test_core` **1520**、`test_build_config` 7、`test_diag_privacy` **679**、`test_diag_files`、`test_webview_policy` 5、`test_ui_contract` **339**，全部通过；2.6.0-beta.9 APK 已构建（5,465,978 B，SHA-256 `11cbeab8…0baf5b73`）；Gitee 两个固定 tag 的清单与 APK 已匿名复验；`javac --release 8` 全量编译通过；2.5.8 APK 已构建（5 420 922 B，SHA-256 `ac40b21d…10d806`，v2/v3 验签通过，dex 水控路由 0）；2.5.8.6 / 2.5.8.7 / 2.5.8.8 普通版 APK 已构建并通过 v2/v3 验签（2.5.8.8 的 dex 反查含 `cxJxzxjhxfyqFKcxx` / `planCourses` / `opensCourses`，2.5.8.7 三项均为 0）；真实账号端到端拉取学业数据成功（GPA 2.9875、37 节点 5 层、16 课组 94 门课）；计划外课组按学校 `jdkcsx` 分流端点后复验（人文科学 5 门、自然科学 6 门，与学校页"共 N 门"一致）。
+**已执行**：`test_core` **1539**、`test_build_config` 7、`test_diag_privacy` **691**、`test_diag_files`、`test_webview_policy` 5、`test_ui_contract` **354**，全部通过；2.6.0-beta.10 APK 已构建（5,470,074 B，`versionCode` 227，SHA-256 `c7e5cca4…1e69c83c`）并已发到 GitHub / Gitee 的 `preview`（Gitee 直链复验 200）；2.6.0-beta.9 APK（5,465,978 B，SHA-256 `11cbeab8…0baf5b73`）；Gitee 两个固定 tag 的清单与 APK 已匿名复验；`javac --release 8` 全量编译通过；2.5.8 APK 已构建（5 420 922 B，SHA-256 `ac40b21d…10d806`，v2/v3 验签通过，dex 水控路由 0）；2.5.8.6 / 2.5.8.7 / 2.5.8.8 普通版 APK 已构建并通过 v2/v3 验签（2.5.8.8 的 dex 反查含 `cxJxzxjhxfyqFKcxx` / `planCourses` / `opensCourses`，2.5.8.7 三项均为 0）；真实账号端到端拉取学业数据成功（GPA 2.9875、37 节点 5 层、16 课组 94 门课）；计划外课组按学校 `jdkcsx` 分流端点后复验（人文科学 5 门、自然科学 6 门，与学校页"共 N 门"一致）。
 
 **未执行**：诊断页真机流程（G6–G17：开关、复现、导出、轮转、崩溃重启、长日志、深色/大字号）；真机验收清单其余全部（含 UI 2.0 的快速连点、滚动恢复与旋转/分屏、返回手势、关动画、320dp）；2.5.8.6 真机覆盖安装与学业页回归；真实支付用水、MobSF、签名轮换、旧版升级兼容。详见 [`known-issues.md`](known-issues.md)。
 
