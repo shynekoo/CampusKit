@@ -70,6 +70,6 @@
 ## 四、发布清单（执行时勾选）
 
 1. [x] 构建 APK + 核心断言 + `update.json`
-2. [ ] GitHub 同步：push / tag `v2.5.9` / Release 上传 `kexin-xiaozhushou-2.5.9.apk` / README
-3. [ ] 下载站同步：APK 复制到 `delivery/update/`，重新发布站点
-4. [ ] 线上页面、update.json 与 APK 直链均返回 200
+2. [x] GitHub 同步：push `8a2c1bc` / tag `v2.5.9` / Release 上传 `kexin-xiaozhushou-2.5.9.apk`（Latest）/ README
+3. [x] 下载站同步：APK 复制到 `delivery/update/`，重新发布站点（链接不变）
+4. [x] 线上页面、update.json 与 APK 直链均返回 200，直链字节数 5,437,306 与清单一致
