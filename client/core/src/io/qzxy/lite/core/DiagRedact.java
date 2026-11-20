@@ -29,7 +29,7 @@ public final class DiagRedact {
     /** 枚举型字段：允许字母、数字和少量分隔符，不允许空格与引号。 */
     private static final Set<String> TOKENS = set(
         "stage", "reason", "step", "method", "kind", "result", "slot", "error", "webview",
-        "page", "version");
+        "page", "version", "channel", "beta");
     /** 机型名：厂商会带空格和括号，但只可能是 ASCII，长度也有限。 */
     private static final Set<String> DEVICES = set("device");
     /** 数字型字段：耗时、次数、HTTP 状态、业务码。 */

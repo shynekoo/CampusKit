@@ -10,13 +10,13 @@
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ client/android  (79 个受管 Java 文件)                    │
+│ client/android  (81 个受管 Java 文件)                    │
 │   Activity / Page / View / 主题 / 平台 SDK 适配           │
 │   TimetableActivity, EduClient, LifeDeviceApi, UpdateCheck │
 └───────────────┬─────────────────────────────────────────┘
                 │ 纯 Java 调用，无 Android 依赖
 ┌───────────────▼─────────────────────────────────────────┐
-│ client/core  (48 个受管 Java 文件)                       │
+│ client/core  (51 个受管 Java 文件)                       │
 │   会话 / 协议解析 / 状态机 / 导航 / 课程模型 / 决策规则     │
 │   MainNavigator, Course, RefreshDecision, TrustedUrlPolicy│
 │   UseSession, PendingUse, UpdateManifest, 4_000_000 上限  │
@@ -41,7 +41,7 @@
 用户 → 原生 View → core 规则/协议 → HTTPS 官方接口（教务 / 慧生活 / 趣智校园）
                               └→ 支付 SDK（支付宝收银台 / 免密）
 凭据 → AccountVault / LifeSessionVault / EduVault → Android Keystore + AES-256-GCM → 应用私有目录
-更新 → delivery/update/update.json → UpdateManifest 校验 → 下载 → 字节数+SHA-256+包身份校验 → 用户点安装
+更新 → update.json（正式）/ beta.json（预览，开关打开时才读）→ UpdateManifest 校验 → 两渠道按 versionCode 取大 → 下载 → 字节数+SHA-256+包身份校验 → 用户点安装
 诊断 → Diag.event（白名单字段）→ 队列 → files/diag/*.log（256 KB × 4，7 天）→ 诊断页 / 导出 / 故障报告
 ```
 
@@ -54,6 +54,7 @@
 - **支付不碰凭据**：充值走支付宝官方收银台；用水控制仅 field-test source set 存在。
 - **不盲重试**：扣费/设备控制请求超时进「待核实」，先查服务端订单状态。
 - **覆盖安装**：包名 `io.qzxy.lite.preview` 与签名身份保持稳定，versionCode 单调递增。
+- **版本命名**：正式版 `X.Y.Z`，预览版 `X.Y.Z-beta.N`（N 从 1 起），四段 `X.Y.Z.W` 只对旧清单与已安装包只读兼容；新旧只比 `versionCode`，正式版必须能覆盖此前的 Beta。
 - **测试先行**：core 规则改动先补 `CoreTests`；UI 结构改动先补 `scripts/test_ui_contract.py`；WebView 改动先补 `scripts/test_webview_policy.py`。
 
 ## 文档归属表（Git Diff 提示映射依据）

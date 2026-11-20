@@ -51,12 +51,12 @@ python scripts/check_doc_sync.py --base origin/main   # 检查一个提交范围
 ## 4. 测试与 CI
 
 ```bash
-python scripts/test_core.py            # core JVM 断言（当前 1329 项）
+python scripts/test_core.py            # core JVM 断言（当前 1418 项）
 python scripts/test_build_config.py    # 诊断构建开关 7 项
-python scripts/test_diag_privacy.py    # 诊断隐私守卫 634 项
+python scripts/test_diag_privacy.py    # 诊断隐私守卫 651 项
 python scripts/test_diag_files.py      # 日志轮转/上限/清空/过期清理实跑
 python scripts/test_webview_policy.py  # WebView 导航守卫 5 项
-python scripts/test_ui_contract.py     # UI 行为静态守卫 240 锚点
+python scripts/test_ui_contract.py     # UI 行为静态守卫 291 锚点
 ```
 
 CI 在 `.github/workflows/docs-ci.yml`：推送 / PR 时自动跑以上六个入口（构建脚本内置的五个 + UI 守卫），并检查关键文档存在。**CI 不构建、不签名、不发布、不推送任何内容。**

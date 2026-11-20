@@ -20,7 +20,7 @@
 | `src/.../Theme.java` | 记忆开关 `slide`（默认 true） |
 | `src/.../AppearanceActivity.java` | 「外观与主题 → 交互 → 返回手势动画」开关，改完当场生效 |
 | `TimetableActivity` | `backMayStay()` 按 tab 状态作答 |
-| `TimetableWebActivity` / `SchoolSiteActivity` / `EduPortalActivity` / `EduQueryActivity` | `backMayStay()` 按网页历史作答，`onPageFinished` 里刷新 |
+| `TimetableWebActivity` / `SchoolSiteActivity` / `EduPortalActivity` / `EduQueryActivity` / `EvaluationFormActivity` | `backMayStay()` 按网页历史作答，`onPageFinished` 里刷新 |
 
 ---
 

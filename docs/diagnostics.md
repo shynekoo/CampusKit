@@ -170,7 +170,7 @@ JWT、超长文本、堆栈不含异常消息）。
 **内部版**
 
 ```bash
-python scripts/build_preview.py --diagnostics --version-name 2.5.8.internal
+python scripts/build_preview.py --diagnostics --version-name 2.5.13-beta.1 --version-code 215
 ```
 
 安装后流程相同；区别只是多出 `UI` 的细节事件。

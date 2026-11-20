@@ -1390,13 +1390,16 @@ public final class TimetableActivity extends Page implements App.Themed {
         }
         private void academicCard(LinearLayout parent) {
             LinearLayout card=a.whiteCard();a.cardHeader(card,"教务",null,null);a.gap(card,8);
+            // 第一行是四件「查询」：成绩、空教室、学业情况、学生评价；第二行才是入口与官网。
+            // 四格一行与「校园生活」卡同宽，手机上不必挤成两行小字。
             LinearLayout row=new LinearLayout(a);
             row.addView(shortcutTile("score","成绩","查询",()->openEdu("grades")),new LinearLayout.LayoutParams(0,-2,1));
             row.addView(shortcutTile("room","空教室","查询",()->openEdu("rooms")),new LinearLayout.LayoutParams(0,-2,1));
-            row.addView(shortcutTile("cap","教务系统","自动登录",()->a.startActivity(new Intent(a,EduPortalActivity.class))),new LinearLayout.LayoutParams(0,-2,1));
+            row.addView(shortcutTile("check","学业情况","学分·绩点",()->openAcademicStatus()),new LinearLayout.LayoutParams(0,-2,1));
+            row.addView(shortcutTile("eval","学生评价","评教·状态",()->openEvaluation()),new LinearLayout.LayoutParams(0,-2,1));
             card.addView(row);
             LinearLayout sites=new LinearLayout(a);
-            sites.addView(shortcutTile("check","学业情况","学分·绩点",()->openAcademicStatus()),new LinearLayout.LayoutParams(0,-2,1));
+            sites.addView(shortcutTile("cap","教务系统","自动登录",()->a.startActivity(new Intent(a,EduPortalActivity.class))),new LinearLayout.LayoutParams(0,-2,1));
             sites.addView(shortcutTile("school","河工程官网","hebeu.edu.cn",()->openSchoolSite("河北工程大学官网","https://www.hebeu.edu.cn/")),new LinearLayout.LayoutParams(0,-2,1));
             sites.addView(shortcutTile("globe","科信官网","kexin.hebeu.edu.cn",()->openSchoolSite("科信学院官网","https://kexin.hebeu.edu.cn/")),new LinearLayout.LayoutParams(0,-2,1));
             card.addView(sites);parent.addView(card,new LinearLayout.LayoutParams(-1,-2));
@@ -1408,6 +1411,10 @@ public final class TimetableActivity extends Page implements App.Themed {
         private void openAcademicStatus(){
             try{a.startActivity(new Intent(a,AcademicStatusActivity.class));}
             catch(RuntimeException unavailable){a.notice("无法打开学业情况页面。");}
+        }
+        private void openEvaluation(){
+            try{a.startActivity(new Intent(a,EvaluationActivity.class));}
+            catch(RuntimeException unavailable){a.notice("无法打开学生评价页面。");}
         }
         private void openSchoolSite(String title,String url){
             try{a.startActivity(new Intent(a,SchoolSiteActivity.class)

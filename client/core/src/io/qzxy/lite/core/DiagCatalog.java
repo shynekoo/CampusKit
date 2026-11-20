@@ -76,6 +76,7 @@ public final class DiagCatalog {
             case "check.start": return "开始检查更新";
             case "check.failed": return "检查更新失败";
             case "check.available": return "发现新版本";
+            case "check.stale": return "更新检查已作废";
             case "download.failed": return "更新包下载失败";
             case "verify.failed": return "更新包校验失败";
             case "install.start": return "开始安装更新";

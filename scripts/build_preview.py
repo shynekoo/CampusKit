@@ -28,8 +28,14 @@ CONTROL_ROUTES = (
     "/api/v1/dev/start",
     "/api/v1/dev/end",
 )
-FIELD_VERSION_NAME = "2.5.6.11"
 FIELD_LABEL = "科信小助手"
+
+# 发布版本命名：正式版 X.Y.Z，预览版 X.Y.Z-beta.N（N 从 1 开始，不带前导零）。
+# 四段数字（2.5.6.11 / 2.5.8.1）只留在历史清单与已安装的旧包里，新构建不再产出——
+# 但读取旧清单的一侧（core/ReleaseVersion）必须继续接受它们，两处规则要一起改。
+STABLE_VERSION = re.compile(r"[0-9]{1,2}(\.[0-9]{1,2}){2}")
+BETA_VERSION = re.compile(r"[0-9]{1,2}(\.[0-9]{1,2}){2}-beta\.[1-9][0-9]{0,2}")
+LEGACY_VERSION = re.compile(r"[0-9]{1,2}(\.[0-9]{1,2}){3}")
 
 # Classes that only exist in the field-test source root. The check uses their dex type descriptors,
 # which appear only when the class is actually defined or referenced — not a bare name, because
@@ -87,6 +93,53 @@ def write_build_flags(field_water, device_tests, diagnostics):
     return source
 
 
+def check_version_name(name, beta_build):
+    """版本名的唯一校验点。返回规范化的版本名，不合规则直接失败。
+
+    为什么严格：`versionName` 是用户与支持者唯一能对上的编号，也是更新日志的键。过去同时存在
+    2.5.6.11 与 2.5.8.1 两种四段写法，谁更大只能靠猜；`versionCode` 才是比较依据，名字只需要
+    能分清「正式」与「预览」。
+    """
+    value = (name or "").strip()
+    if LEGACY_VERSION.fullmatch(value):
+        raise RuntimeError(
+            "四段版本号（%s）只用于历史清单；新构建请用 X.Y.Z（正式）或 X.Y.Z-beta.N（预览）" % value)
+    if BETA_VERSION.fullmatch(value):
+        if not beta_build:
+            raise RuntimeError("预览版名 %s 必须显式加 --beta，否则产物会被当成正式版" % value)
+        return value
+    if STABLE_VERSION.fullmatch(value):
+        if beta_build:
+            raise RuntimeError("--beta 的版本名必须是 X.Y.Z-beta.N，当前是 %s" % value)
+        return value
+    raise RuntimeError("版本名必须是 X.Y.Z 或 X.Y.Z-beta.N，当前是 %r" % value)
+
+
+def check_version_code(code, allowed_lower):
+    """新包的 versionCode 必须高于已发布清单里的任何一个。
+
+    覆盖安装只认这个整数：比线上小就 INSTALL_FAILED_VERSION_DOWNGRADE。让「正式版能覆盖上一个
+    Beta」成为构建期就失败的规则，而不是发版时才发现装不上。
+    """
+    published = {}
+    for manifest in ("update.json", "beta.json"):
+        path = ROOT / "delivery/update" / manifest
+        if not path.exists():
+            continue
+        try:
+            published[manifest] = int(json.loads(path.read_text(encoding="utf-8"))["versionCode"])
+        except (ValueError, KeyError, TypeError):
+            raise RuntimeError("发布清单 %s 读不出 versionCode" % manifest)
+    if published and code <= max(published.values()):
+        detail = "、".join("%s=%d" % (name, value) for name, value in sorted(published.items()))
+        if not allowed_lower:
+            raise RuntimeError("versionCode %d 不高于已发布清单（%s）；正式版必须能覆盖此前的 Beta"
+                               % (code, detail))
+        print("WARNING: versionCode %d 低于已发布清单（%s），仅用于内部构建" % (code, detail),
+              flush=True)
+    return published
+
+
 def diagnostics_enabled(argv):
     """诊断代码只在显式 --diagnostics 时编入。
 
@@ -109,6 +162,10 @@ def option(name):
 def main():
     device_tests = "--device-tests" in sys.argv
     field_water = "--field-water" in sys.argv
+    beta_build = "--beta" in sys.argv
+    explicit_name = option("--version-name")
+    explicit_code = option("--version-code")
+    allow_lower_code = "--allow-lower-version-code" in sys.argv
     # 诊断默认不编入：正式包（含用水版）都不带这条分支，测试构建显式 --diagnostics 才开。
     diagnostics = diagnostics_enabled(sys.argv)
     if "--skip-tests" not in sys.argv:
@@ -156,9 +213,16 @@ def main():
     manifest = app / "AndroidManifest.xml"
     android_ns = "{http://schemas.android.com/apk/res/android}"
     manifest_root = ET.parse(manifest).getroot()
-    version = manifest_root.get(android_ns + "versionName")
-    if not re.fullmatch(r"[0-9A-Za-z.-]+", version or ""):
-        raise RuntimeError("Unsafe version name")
+    # 版本真源仍是 AndroidManifest.xml；--version-name / --version-code 只在这一步覆盖，
+    # 正式版与用水版走同一条校验，不再有「字段里塞一个旧版本名」的旁路。
+    version = check_version_name(explicit_name or manifest_root.get(android_ns + "versionName"), beta_build)
+    version_code = int(explicit_code) if explicit_code else int(manifest_root.get(android_ns + "versionCode"))
+    if field_water and not explicit_code:
+        # 用水版与同版普通包并存时靠 +1 区分，避免互相覆盖安装。名字不再跟着变。
+        version_code += 1
+    if version_code < 1:
+        raise RuntimeError("Unsafe version code")
+    check_version_code(version_code, allow_lower_code)
     input_files = sorted(app.rglob("*.java")) + sorted((app / "res").rglob("*")) + sorted((ROOT / "client/core/src").rglob("*.java")) + [manifest, zxing, alipay_aar, Path(__file__).resolve()] + list(pdf_dir.iterdir())
     if field_water:
         input_files += sorted(FIELD.rglob("*.java"))
@@ -182,28 +246,21 @@ def main():
             ns + "targetPackage": "io.qzxy.lite.accounttests"})
         manifest = BUILD / "test-manifest.xml"
         tree.write(manifest, encoding="utf-8", xml_declaration=True)
-    if field_water:
-        # A separate package name would hide the overlap with the read-only build; instead the version
-        # and the launcher label are unmistakable, and the water screen is a separate activity.
+    if field_water or explicit_name is not None or explicit_code is not None:
+        # 覆盖版本号、用水开关或标签，都要重写一份清单再打包：输入目录里的原件不动。
         tree = ET.parse(manifest)
         root = tree.getroot()
-        version_name = option("--version-name") or FIELD_VERSION_NAME
-        if not re.fullmatch(r"[0-9A-Za-z.-]+", version_name):
-            raise RuntimeError("Unsafe version name")
-        explicit_code = option("--version-code")
-        version_code = int(explicit_code) if explicit_code else int(manifest_root.get(android_ns + "versionCode")) + 1
-        # 覆盖安装只看 versionCode：比线上包小就 INSTALL_FAILED_VERSION_DOWNGRADE，所以允许显式给定。
-        if version_code < 1:
-            raise RuntimeError("Unsafe version code")
         root.set(android_ns + "versionCode", str(version_code))
-        root.set(android_ns + "versionName", version_name)
-        version = version_name
-        application = root.find("application")
-        application.set(android_ns + "label", FIELD_LABEL)
-        ET.SubElement(application, "activity", {android_ns + "name": "io.qzxy.lite.preview.WaterActivity",
-            android_ns + "exported": "false", android_ns + "configChanges": "orientation|screenSize"})
-        ET.SubElement(application, "activity", {android_ns + "name": "io.qzxy.lite.preview.LifeWaterActivity", android_ns + "exported": "false"})
-        manifest = BUILD / "field-manifest.xml"
+        root.set(android_ns + "versionName", version)
+        if field_water:
+            # A separate package name would hide the overlap with the read-only build; instead the
+            # version and the launcher label are unmistakable, and the water screen is a separate activity.
+            application = root.find("application")
+            application.set(android_ns + "label", FIELD_LABEL)
+            ET.SubElement(application, "activity", {android_ns + "name": "io.qzxy.lite.preview.WaterActivity",
+                android_ns + "exported": "false", android_ns + "configChanges": "orientation|screenSize"})
+            ET.SubElement(application, "activity", {android_ns + "name": "io.qzxy.lite.preview.LifeWaterActivity", android_ns + "exported": "false"})
+        manifest = BUILD / ("field-manifest.xml" if field_water else "versioned-manifest.xml")
         tree.write(manifest, encoding="utf-8", xml_declaration=True)
         manifest_root = root
     write_build_flags(field_water, device_tests, diagnostics)
@@ -266,6 +323,7 @@ def main():
         digest = hashlib.file_digest(source, "sha256").hexdigest()
     report = {"artifact": result.name, "sha256": digest, "bytes": result.stat().st_size,
               "package": manifest_root.get("package"), "version": version,
+              "channel": "beta" if beta_build else "release",
               "version_code": int(manifest_root.get(android_ns + "versionCode")), "min_sdk": 24,
               "target_sdk": 36, "requested_permissions": [p.get(android_ns + "name") for p in manifest_root.findall("uses-permission")],
               "mode": "campus_release" if field_water else "scan_device_profile_and_order_query_readonly",

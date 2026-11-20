@@ -1175,6 +1175,100 @@ public final class CoreTests {
             + "\"notes\":[\"x\"],\"url\":\"https://example.edu/a.apk\",\"bytes\":12,\"sha256\":\""
             + repeat('a', 64) + "\"}"));
 
+        // Release naming: X.Y.Z for a release, X.Y.Z-beta.N for a preview, and the retired
+        // four-part names still parse because they are installed. Nothing here orders versions.
+        equal(true, ReleaseVersion.isWellFormed("2.5.13"));
+        equal(true, ReleaseVersion.isWellFormed("2.5"));
+        equal(true, ReleaseVersion.isWellFormed("2.5.8.1"));
+        equal(true, ReleaseVersion.isWellFormed("2.5.13-beta.1"));
+        equal(true, ReleaseVersion.isWellFormed("2.5.13-beta.12"));
+        equal(false, ReleaseVersion.isWellFormed("2.5.13-beta.0"));
+        equal(false, ReleaseVersion.isWellFormed("2.5.13-beta"));
+        equal(false, ReleaseVersion.isWellFormed("2.5.13-beta.01"));
+        equal(false, ReleaseVersion.isWellFormed("2.5.13-beta.1000"));
+        equal(false, ReleaseVersion.isWellFormed("2.5.13-BETA.1"));
+        equal(false, ReleaseVersion.isWellFormed("2.5.13.1-beta.1"));
+        equal(false, ReleaseVersion.isWellFormed("2.5.13-rc.1"));
+        equal(false, ReleaseVersion.isWellFormed("2.5.13.1.2"));
+        equal(false, ReleaseVersion.isWellFormed("v2.5.13"));
+        equal(false, ReleaseVersion.isWellFormed(""));
+        equal(false, ReleaseVersion.isWellFormed(null));
+        equal(true, ReleaseVersion.isBeta("2.5.13-beta.2"));
+        equal(false, ReleaseVersion.isBeta("2.5.13"));
+        equal(false, ReleaseVersion.isBeta("2.5.8.1"));
+        equal(true, ReleaseVersion.isRelease("2.5.13"));
+        equal(false, ReleaseVersion.isRelease("2.5.13-beta.1"));
+        equal(true, ReleaseVersion.isLegacy("2.5.8.1"));
+        equal(false, ReleaseVersion.isLegacy("2.5.8"));
+
+        // A preview name is still a valid manifest version; the channel follows from the name.
+        UpdateManifest previewManifest = UpdateManifest.parse("{\"version\":\"2.5.13-beta.1\",\"versionCode\":215,"
+            + "\"notes\":[\"预览\"],\"url\":\"https://example.edu/a.apk\",\"bytes\":12,\"sha256\":\""
+            + repeat('a', 64) + "\"}");
+        equal("2.5.13-beta.1", previewManifest.version);
+        equal(true, previewManifest.beta);
+        equal(false, release.beta);
+        equal(false, UpdateManifest.parse("{\"version\":\"2.5.8.1\",\"versionCode\":209,"
+            + "\"notes\":[\"x\"],\"url\":\"https://example.edu/a.apk\",\"bytes\":12,\"sha256\":\""
+            + repeat('a', 64) + "\"}").beta);
+        // A five-part name and a qualifier on the wrong shape stay invalid.
+        rejects(() -> UpdateManifest.parse("{\"version\":\"2.5.13-beta.1.1\",\"versionCode\":158,"
+            + "\"notes\":[\"x\"],\"url\":\"https://example.edu/a.apk\",\"bytes\":12,\"sha256\":\""
+            + repeat('a', 64) + "\"}"));
+        rejects(() -> UpdateManifest.parse("{\"version\":\"2.5.13-beta.0\",\"versionCode\":158,"
+            + "\"notes\":[\"x\"],\"url\":\"https://example.edu/a.apk\",\"bytes\":12,\"sha256\":\""
+            + repeat('a', 64) + "\"}"));
+        System.out.println("PASS: release names are X.Y.Z or X.Y.Z-beta.N, with the four-part form still readable");
+
+        // Channel choice. The switch decides whether the preview list is read at all; the version
+        // code decides the winner; a candidate that is not newer is never offered.
+        UpdateManifest stable216 = UpdateManifest.parse("{\"version\":\"2.6.0\",\"versionCode\":216,"
+            + "\"notes\":[\"x\"],\"url\":\"https://example.edu/a.apk\",\"bytes\":12,\"sha256\":\""
+            + repeat('a', 64) + "\"}");
+        UpdateManifest stable214 = UpdateManifest.parse("{\"version\":\"2.5.13\",\"versionCode\":214,"
+            + "\"notes\":[\"x\"],\"url\":\"https://example.edu/a.apk\",\"bytes\":12,\"sha256\":\""
+            + repeat('a', 64) + "\"}");
+        UpdateManifest beta217 = UpdateManifest.parse("{\"version\":\"2.6.0-beta.2\",\"versionCode\":217,"
+            + "\"notes\":[\"x\"],\"url\":\"https://example.edu/a.apk\",\"bytes\":12,\"sha256\":\""
+            + repeat('a', 64) + "\"}");
+        UpdateManifest beta215 = previewManifest;
+        // 1. A release install sees the release update with the switch off.
+        equal(stable214, UpdateChannel.pick(210, false, stable214, null));
+        // 2. With the switch on, a newer preview is found.
+        equal(beta215, UpdateChannel.pick(210, true, null, beta215));
+        equal(beta215, UpdateChannel.pick(210, true, stable214, beta215));
+        // 3. With the switch off the preview list is not consulted, even when it holds a newer build.
+        equal(stable214, UpdateChannel.pick(210, false, stable214, beta217));
+        equal(true, UpdateChannel.pick(210, false, null, beta217) == null);
+        // 4. Both lists present: the larger version code wins, in either direction.
+        equal(beta217, UpdateChannel.pick(214, true, stable214, beta217));
+        equal(beta217, UpdateChannel.pick(214, true, stable216, beta217));
+        equal(beta217, UpdateChannel.pick(216, true, stable216, beta217));
+        // Equal codes are the same build; the release file names it, so it wins the tie.
+        equal(stable216, UpdateChannel.pick(214, true, stable216,
+            UpdateManifest.parse("{\"version\":\"2.6.0-beta.9\",\"versionCode\":216,"
+                + "\"notes\":[\"x\"],\"url\":\"https://example.edu/a.apk\",\"bytes\":12,\"sha256\":\""
+                + repeat('a', 64) + "\"}")));
+        // 5. Preview list missing, empty of value, or carrying a release name: the release still answers.
+        equal(stable214, UpdateChannel.pick(210, true, stable214, null));
+        equal(true, UpdateChannel.pick(210, true, null, null) == null);
+        equal(stable216, UpdateChannel.pick(214, true, stable216,
+            UpdateManifest.parse("{\"version\":\"2.6.0\",\"versionCode\":217,"
+                + "\"notes\":[\"x\"],\"url\":\"https://example.edu/a.apk\",\"bytes\":12,\"sha256\":\""
+                + repeat('a', 64) + "\"}")));
+        // 6. Running a preview, switch off: the older release must not be offered as an "update".
+        equal(true, UpdateChannel.pick(217, false, stable216, null) == null);
+        equal(true, UpdateChannel.pick(215, false, stable214, beta217) == null);
+        // 7. The same applies with the switch on, as long as the candidate is not newer.
+        equal(true, UpdateChannel.pick(217, true, stable216, beta217) == null);
+        // 9. Equal or lower version codes are never offered, whatever the names look like.
+        equal(true, UpdateChannel.pick(214, false, stable214, null) == null);
+        equal(true, UpdateChannel.pick(215, false, stable214, null) == null);
+        equal(beta215, UpdateChannel.pick(214, true, null, beta215));
+        equal(true, UpdateChannel.pick(215, true, null, beta215) == null);
+        equal(true, UpdateChannel.pick(216, true, stable214, beta215) == null);
+        System.out.println("PASS: the update channel picks the newer build and never walks a preview back to a release");
+
         // A manifest that omits the digest or the size is refused, not filled with zeroes.
         rejects(() -> UpdateManifest.parse("{\"version\":\"2.3\",\"versionCode\":158,"
             + "\"notes\":[\"x\"],\"url\":\"https://example.edu/a.apk\"}"));
@@ -1610,6 +1704,70 @@ public final class CoreTests {
         rejects(() -> EduAcademic.parseCourses("{\"KCMC\":\"x\"}"));
         rejects(() -> EduAcademic.parseCourses(repeat('x', EduAcademic.MAX_COURSES_JSON + 1)));
         System.out.println("PASS: a credit group's courses parse into typed rows");
+
+        // 学生评价 (2.5.10): the list query answers one flat object per 教学班. State comes from the
+        // school's own tjzt code; a row without a 教学班 id cannot be opened, so it is dropped.
+        String evaluations = "{\"items\":["
+            + "{\"jxb_id\":\"A1\",\"kch_id\":\"K1\",\"jgh_id\":\"T1\",\"xsdm\":\"01\","
+            + "\"tjzt\":\"-1\",\"tjztmc\":\"未评\",\"pjmbmcb_id\":null,\"sfcjlrjs\":\"1\","
+            + "\"kcmc\":\"传热学\",\"jzgmc\":\"杨新\",\"jxbmc\":\"传热学-0003\",\"xsmc\":\"理论\","
+            + "\"jgmc\":\"水利水电学院\",\"bfzpf\":null},"
+            + "{\"jxb_id\":\"A2\",\"kch_id\":\"K2\",\"jgh_id\":\"T2\",\"xsdm\":\"02\","
+            + "\"tjzt\":\"0\",\"tjztmc\":\"暂存\",\"pjmbmcb_id\":\"M2\",\"sfcjlrjs\":\"0\","
+            + "\"kcmc\":\"电子技术基础\",\"jzgmc\":\"刘英\",\"jxbmc\":\"电子技术基础-0002A\","
+            + "\"xsmc\":\"实验\",\"jgmc\":\"\",\"bfzpf\":\"\"},"
+            + "{\"jxb_id\":\"A3\",\"kch_id\":\"K3\",\"jgh_id\":\"T3\",\"xsdm\":\"01\","
+            + "\"tjzt\":\"1\",\"kcmc\":\"工程伦理\",\"jzgmc\":\"闫红艳\",\"jxbmc\":\"工程伦理-0012\","
+            + "\"xsmc\":\"理论\",\"jgmc\":\"水利水电学院\",\"bfzpf\":\"95\"},"
+            + "{\"kch_id\":\"K4\",\"kcmc\":\"没有教学班号的行\"}"
+            + "],\"totalPage\":1}";
+        EduEvaluation.Report evaluationReport = EduEvaluation.parse(evaluations);
+        equal(3, evaluationReport.size());              // the id-less row is dropped
+        equal(EduEvaluation.UNEVALUATED, evaluationReport.items.get(0).state);
+        equal(EduEvaluation.SAVED, evaluationReport.items.get(1).state);
+        equal(EduEvaluation.SUBMITTED, evaluationReport.items.get(2).state);
+        equal(true, evaluationReport.items.get(0).pending());
+        equal(true, evaluationReport.items.get(1).saved());
+        equal(true, evaluationReport.items.get(2).done());
+        equal("传热学", evaluationReport.items.get(0).course);
+        equal("杨新", evaluationReport.items.get(0).teacher);
+        equal("A1", evaluationReport.items.get(0).classId);   // the form is keyed by this id verbatim
+        equal("01", evaluationReport.items.get(0).studentType);
+        equal("", evaluationReport.items.get(0).modelId);     // JSON null is empty, never "null"
+        equal("M2", evaluationReport.items.get(1).modelId);
+        equal("传热学-0003 · 理论", evaluationReport.items.get(0).detail());
+        equal("未评", evaluationReport.items.get(0).label());
+        equal("已提交", evaluationReport.items.get(2).label());  // no tjztmc: the code's own word
+        equal("95", evaluationReport.items.get(2).score);
+        equal(1, evaluationReport.withState(EduEvaluation.UNEVALUATED).size());
+        equal(1, evaluationReport.withState(EduEvaluation.SAVED).size());
+        equal(1, evaluationReport.withState(EduEvaluation.SUBMITTED).size());
+        equal(0, EduEvaluation.parse("{\"items\":[]}").size());
+        equal(0, EduEvaluation.parse("{\"totalPage\":1}").size());  // no list is an empty term
+        // An escaped quote inside a course name must not swallow the rest of the row.
+        String quoted = EduEvaluation.parse(
+            "{\"items\":[{\"jxb_id\":\"B\",\"kcmc\":\"课\\\"程\",\"tjzt\":\"-1\"}]}").items.get(0).course;
+        equal("课\"程", quoted);
+        // An unfamiliar state code is shown as the school wrote it instead of being guessed at.
+        equal(EduEvaluation.UNKNOWN, EduEvaluation.stateOf("9"));
+        equal("9", new EduEvaluation.Item(fields("jxb_id", "C", "tjzt", "9")).label());
+        rejects(() -> EduEvaluation.parse(null));
+        rejects(() -> EduEvaluation.parse(""));
+        rejects(() -> EduEvaluation.parse("[]"));
+        rejects(() -> EduEvaluation.parse(repeat('x', EduEvaluation.MAX_JSON + 1)));
+
+        // The term's own totals, and the hint the school attaches when something is still missing.
+        EduEvaluation.Counts evaluationCounts =
+            EduEvaluation.counts("{\"wpgs\":20,\"bcgs\":1,\"tjgs\":2,\"pjtsxx\":\"还有评课未完成\"}");
+        equal(20, evaluationCounts.pending);
+        equal(1, evaluationCounts.saved);
+        equal(2, evaluationCounts.submitted);
+        equal("还有评课未完成", evaluationCounts.note);
+        equal(false, evaluationCounts.empty());
+        EduEvaluation.Counts noCounts = EduEvaluation.counts("{}");
+        equal(true, noCounts.empty());
+        equal("", noCounts.note);
+        System.out.println("PASS: student evaluation rows carry their own state and the form keys");
 
         // ---- diagnostics: a record is structured, and sensitive values have no way in --------
         // The whitelist is the security boundary: an unknown key is dropped, not scrubbed. A

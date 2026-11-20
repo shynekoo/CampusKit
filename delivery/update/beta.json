@@ -1,0 +1,12 @@
+{
+  "version": "2.6.0-beta.1",
+  "versionCode": 217,
+  "notes": [
+    "学生评价：点开一门课会打开学校的评价页，并自动定位到这门课那一行，表单由学校页面自己装载，评分与提交都在页面上完成",
+    "修掉前几版「参数异常 / 系统升级维护中 / 面板空白」：Referer 改为页面自身地址（带模块号），并给学校的表单请求补上 gnmkdm",
+    "打开后状态栏会报「共 N 个评价项」，0 项与空白面板分别有不同提示，便于判断是学校模板没开放还是没定位到"
+  ],
+  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.6.0-beta.1.apk?sharecode=BZD63HRP4B",
+  "bytes": 5453690,
+  "sha256": "27fe5fc99e0a13f8757b8cbd70f22622bc6cdca5f3055361096c388e6ef09976"
+}

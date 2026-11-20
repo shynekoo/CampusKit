@@ -91,6 +91,18 @@
 
 `ScheduleWidget` / `ScheduleWidgetMedium` / `ScheduleWidgetWide` 三种尺寸，`AppWidgetProvider` 实现，课表变动后刷新。
 
+## 双渠道更新开关（`MoreActivity`）
+
+- 位置：「更多」页卡片里，紧接「更新日志」一条的下一行，不新开页面、不新开卡片、不动页面其余结构。图标为 `AppUi` 的 `beaker`（锥形瓶）。
+- 文案：标题「接收预览版更新」，副标题「提前体验新功能，可能存在不稳定情况」。
+- 控件：系统 `Switch`，轨道与拇指都上实色（同「外观与主题」页），深色模式下开/关都分得清；整行可点（行高 ≥ 56dp），行与开关各自带 `contentDescription`，切换后更新读屏文案并给一条短 Toast 反馈。
+- 默认值：**一律默认关闭，任何安装包都一样**（含 `X.Y.Z-beta.N` 的首次安装）。预览开关只能由读者自己打开，不按安装包类型猜默认值。
+- 开启前必过一次确认框：标题「开启预览版更新？」，正文「预览版供开发者测试使用，可能不稳定，不建议开启。」，按钮「仍然开启」/「保持关闭」。
+  **只有点「仍然开启」才落盘**；点「保持关闭」、点弹窗外、按返回键都把开关拨回关的位置，且不写偏好、不弹 Toast。关闭方向不再询问（那是安全方向）。
+- 存储：`update-v1` 偏好里的 `beta` 键（与「稍后再说」的 `skipped` 同在一个偏好文件，清除全部本机数据时一并清掉）。
+- 切换会作废正在进行的那次检查（`UpdateCheck` 的 generation 计数），因此不会出现「关了开关却弹出预览版」的结果；下一次手动「检查更新」立刻按新设置执行。
+- 主题/无障碍全部复用 `AppUi` 与 `Theme`，无新增色值，也没有独立页面。
+
 ## 更新日志页（`ChangelogActivity`）
 
 - 入口：校园 → 账号 → 更多 → 更新日志（`MoreActivity` 卡片里，位于「数据与隐私」之后）。**没有**底部 Tab，主屏结构不变。
@@ -102,4 +114,4 @@
 
 ## 自动化守卫的边界
 
-`scripts/test_ui_contract.py` 当前有 **213 个静态锚点**：底部导航三项、WeekBoard onMeasure、滚动保存恢复、CardLayer 手势与快照、S4 策略、A3 就地更新分支、三个 Screen 存在、学业情况入口与卡片单一挂载点、教务卡 tile 顺序，以及 UI-1 的 token 常量、UI-2 的 shell/底栏不重建与转场防旧回调守卫、底栏外观修正的房屋图标/固定尺寸图标图标槽/胶囊只包图标的 64×32dp 守卫、UI-3 的转场参数（alpha 0.7→1 / ±8dp / 220ms 进 180ms 出）、快速连点竞态守卫（快照 cancel、各动画自带 end 清理、4 处 generation 守卫），以及 UI-3 收尾的滚动恢复守卫（恢复带 generation、同屏重建才搬运滚动、`OnPreDrawListener` 布局后恢复、stale 恢复不得落到别的 tab、离场页移出无障碍树）与跨周跳转守卫（回本周走 jumpWeek、先落周次再整页滑入、保留滚动位置；两处共用 WEEK_SLIDE_DURATION；Pager 滑出位移只取一屏），「数据与隐私 / 使用公告」守卫（文案只在 `LegalText`、待填项必须存在、教务密码与 AES 表述、不得声称充值、manifest 权限逐项披露、公告唯一入口在 `PrivacyActivity` 页末（`MoreActivity` 不得再挂一条）、页面与弹窗同源、`NoticeDialog.VERSION = 3`、两页不得加载网页或发请求），以及更新日志守卫（版本号唯一、版本代码严格递减、日期合法、最新条目必须等于 `delivery/update/update.json`、不得出现尚未发布的版本、每版都要有发布记录可查、页面只取 `released()`、展开动画取 `MotionSpec`、连点 cancel 与 generation 守卫、入口与 exported=false 注册、离线可读），以及学业情况只让叶子课组可点、计划内与计划外两个取课端点都在只读白名单内且请求必须按节点 `jdkcsx` 选端点。**它是静态守卫，不验证视觉/手势/真机效果**；UI 2.0 的真机清单（快速切换、320dp、主题、滚动恢复、返回手势、关动画、今日 60s）本轮未实测，D/E 组真机清单未完成前不得发布。
+`scripts/test_ui_contract.py` 当前有 **291 个静态锚点**：底部导航三项、WeekBoard onMeasure、滚动保存恢复、CardLayer 手势与快照、S4 策略、A3 就地更新分支、三个 Screen 存在、学业情况入口与卡片单一挂载点、教务卡 tile 顺序，以及 UI-1 的 token 常量、UI-2 的 shell/底栏不重建与转场防旧回调守卫、底栏外观修正的房屋图标/固定尺寸图标图标槽/胶囊只包图标的 64×32dp 守卫、UI-3 的转场参数（alpha 0.7→1 / ±8dp / 220ms 进 180ms 出）、快速连点竞态守卫（快照 cancel、各动画自带 end 清理、4 处 generation 守卫），以及 UI-3 收尾的滚动恢复守卫（恢复带 generation、同屏重建才搬运滚动、`OnPreDrawListener` 布局后恢复、stale 恢复不得落到别的 tab、离场页移出无障碍树）与跨周跳转守卫（回本周走 jumpWeek、先落周次再整页滑入、保留滚动位置；两处共用 WEEK_SLIDE_DURATION；Pager 滑出位移只取一屏），「数据与隐私 / 使用公告」守卫（文案只在 `LegalText`、待填项必须存在、教务密码与 AES 表述、不得声称充值、manifest 权限逐项披露、公告唯一入口在 `PrivacyActivity` 页末（`MoreActivity` 不得再挂一条）、页面与弹窗同源、`NoticeDialog.VERSION = 3`、两页不得加载网页或发请求），、双渠道更新守卫（`beta.json` 独立清单、`UpdateChannel.pick` 选版、开关落盘与 generation 作废、预览渠道六道校验原样保留、manifest 版名格式与 versionCode 高于线上、`beta.json` 字段与版名格式）以及更新日志守卫（版本号唯一、版本代码严格递减、日期合法、最新条目必须等于 `delivery/update/update.json`、不得出现尚未发布的版本、每版都要有发布记录可查、页面只取 `released()`、展开动画取 `MotionSpec`、连点 cancel 与 generation 守卫、入口与 exported=false 注册、离线可读），学业情况只让叶子课组可点、计划内与计划外两个取课端点都在只读白名单内且请求必须按节点 `jdkcsx` 选端点，以及学生评价（列表走 `EduClient.evaluations()`、只读白名单按端点名放行、表单由学校页面提交、返回后重读、**两个页面都不得出现 `xspj_tjXspj` / `xspj_bcXspj`**、表单必须在学校列表页内按 DOM 找到教学班那一行并点击打开（禁止 postUrl、禁止自己拼表单请求）、Referer 必须是页面自身地址（带模块号）、必须给学校那张表单的请求补 `gnmkdm`、必须观测 `#panel_content` 与 `.panel-pjdx` 数量才知道表单真的装进来了）与教务卡第一行四件查询的 tile 顺序。**它是静态守卫，不验证视觉/手势/真机效果**；UI 2.0 的真机清单（快速切换、320dp、主题、滚动恢复、返回手势、关动画、今日 60s）本轮未实测，D/E 组真机清单未完成前不得发布。

@@ -28,6 +28,7 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
 
+import io.qzxy.lite.core.UpdateChannel;
 import io.qzxy.lite.core.UpdateManifest;
 import io.qzxy.lite.core.UpdateUrls;
 
@@ -40,24 +41,40 @@ import io.qzxy.lite.core.UpdateUrls;
  * 账号 still offers it. And it fails silently — no network, a moved manifest or a malformed one all
  * end the same way, with nothing on screen, because a popup about a failed check is not news.</p>
  *
+ * <p>Two lists feed it. {@code update.json} is the release channel; {@code beta.json} is the
+ * preview channel and is read only when the reader turned 接收预览版更新 on. Which of the two wins is
+ * decided by {@link UpdateChannel} from the version <em>code</em> alone, so a reader running a
+ * preview is never walked back down to an older release. Either list may be missing: the other one
+ * still answers, and neither lowers any of the checks below.</p>
+ *
  * <p>Nothing the manifest says is taken on faith. {@link UpdateManifest} validates every field and
- * now requires both a byte count and a SHA-256; this class additionally requires HTTPS on every
- * hop, follows redirects manually under the rules in {@link UpdateUrls}, and verifies the package
+ * requires both a byte count and a SHA-256; this class additionally requires HTTPS on every hop,
+ * follows redirects manually under the rules in {@link UpdateUrls}, and verifies the package
  * against the manifest's size and digest before checking its package name, version and signing
  * certificate against the installed app. A failed check deletes the download instead of installing
- * it. A mirrored manifest alone is not enough to forge an update: the certificate must still match.</p>
+ * it. A mirrored manifest alone is not enough to forge an update: the certificate must still match.
+ * The preview channel is verified exactly as strictly as the release channel.</p>
  */
 final class UpdateCheck {
     /**
-     * The published manifest. The {@code sharecode} is what the host uses to authorise an anonymous
-     * read of this one app; it is not a secret — it is part of the public link — and it is fixed for
+     * The published manifests. The {@code sharecode} is what the host uses to authorise an anonymous
+     * read of this one site; it is not a secret — it is part of the public link — and it is fixed for
      * the life of the app, so re-publishing a new manifest under the same link needs no code change.
+     *
+     * <p>{@code beta.json} sits beside {@code update.json} by convention and is deployed with the
+     * preview build it announces. Until it is deployed the read answers 404, which is handled as a
+     * missing list: the release check is unaffected and nothing is offered from a channel that has
+     * published nothing.</p>
      */
     private static final String MANIFEST =
         "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/update.json?sharecode=BZD63HRP4B";
+    private static final String BETA_MANIFEST =
+        "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/beta.json?sharecode=BZD63HRP4B";
     private static final String PREFS = "update-v1";
     /** A version the reader declined once. Kept as a code, so a newer release asks again. */
     private static final String KEY_SKIPPED = "skipped";
+    /** The reader's channel choice. Absent on a fresh install, where the build itself decides. */
+    private static final String KEY_BETA = "beta";
     private static final int CONNECT_TIMEOUT_MS = 8000, READ_TIMEOUT_MS = 15000;
     private static final int MAX_MANIFEST_BYTES = 65536, BUFFER = 16384;
 
@@ -65,8 +82,31 @@ final class UpdateCheck {
     private static boolean started;
     /** Downloaded and waiting for the install permission the reader was sent to grant. */
     private static File pending;
+    /**
+     * Bumped whenever the channel changes. A check that started before the reader flipped the
+     * switch must not put its answer on screen afterwards: it was computed for the other channel.
+     */
+    private static int generation;
 
     private UpdateCheck() { }
+
+    /**
+     * The reader's saved choice. Off until the reader turns it on, in every build — including a
+     * preview build. A preview channel that switches itself on because of what was installed would
+     * be asking people who never opted in to run unreleased packages; the switch is opt-in only.
+     */
+    static boolean betaEnabled(Context context) {
+        return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_BETA, false);
+    }
+
+    /** Saves the choice and retires any check already in flight. */
+    static void setBetaEnabled(Context context, boolean enabled) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putBoolean(KEY_BETA, enabled).apply();
+        synchronized (UpdateCheck.class) { generation++; }
+    }
+
+    private static synchronized int generation() { return generation; }
 
     static void onStart(final Activity activity) {
         if (started) return;
@@ -109,40 +149,72 @@ final class UpdateCheck {
 
     private static void check(final Activity activity, final boolean manual) {
         final int installed = versionCode(activity);
+        // Read once, on the calling thread: the check itself runs on whichever channel was chosen
+        // when it started, and the generation guard below stops a later switch from being undone.
+        final boolean beta = betaEnabled(activity);
+        final int ticket = generation();
         Thread worker = new Thread(new Runnable() {
             @Override public void run() {
                 String trace = Diag.trace();
                 long mark = Diag.mark();
-                Diag.event(Diag.INFO, "UPDATE", "check.start", "trace", trace);
-                UpdateManifest manifest;
-                try {
-                    manifest = UpdateManifest.parse(read(MANIFEST));
-                } catch (Exception unavailable) {
+                Diag.event(Diag.INFO, "UPDATE", "check.start", "trace", trace, "beta", beta ? "1" : "0");
+                UpdateManifest release = readManifest(MANIFEST, trace);
+                // The preview list costs one request and is only spent when it can be used.
+                UpdateManifest preview = beta ? readManifest(BETA_MANIFEST, trace) : null;
+                if (release == null && preview == null) {
                     // 检查更新失败一直是不打扰的静默失败；日志里留原因，界面仍然不弹窗。
-                    Diag.failure("UPDATE", "check.failed", Diag.reason(unavailable), unavailable, trace);
                     if (manual) say(activity, "暂时查不到新版本", "读不到版本信息，请确认网络后重试。");
                     return;
                 }
-                if (!manifest.newerThan(installed)) {
+                UpdateManifest manifest = UpdateChannel.pick(installed, beta, release, preview);
+                if (manifest == null) {
                     Diag.event(Diag.INFO, "UPDATE", "check.start", "trace", trace,
                         "stage", "latest", "duration", Diag.since(mark));
-                    if (manual) say(activity, "已是最新版本", "当前 " + AppUi.version(activity) + "，没有可安装的更新。");
+                    if (manual) {
+                        // Say which list was quiet when one of them could not be read at all: "已是最新"
+                        // while the preview list is unreachable would be a claim, not a fact.
+                        String hint = beta && preview == null ? "预览版清单暂时读不到。" : "";
+                        say(activity, "已是最新版本", "当前 " + AppUi.version(activity) + "，没有可安装的更新。" + hint);
+                    }
                     return;
                 }
                 Diag.event(Diag.INFO, "UPDATE", "check.available", "trace", trace,
                     "version", manifest.version, "code", manifest.versionCode,
-                    "duration", Diag.since(mark));
+                    "channel", manifest.beta ? "beta" : "release", "duration", Diag.since(mark));
                 // 稍后 is remembered for that exact release; asking again on every start would be
                 // the nagging this check is supposed to avoid.
                 if (!manual && manifest.versionCode == skipped(activity)) return;
-                final UpdateManifest release = manifest;
+                if (ticket != generation()) {
+                    // 渠道在这期间被切换过：这次结果属于旧设置，直接丢弃，界面不能出现旧渠道的推荐。
+                    Diag.event(Diag.INFO, "UPDATE", "check.stale", "trace", trace,
+                        "version", manifest.version, "stage", "discarded");
+                    return;
+                }
+                final UpdateManifest choice = manifest;
                 activity.runOnUiThread(new Runnable() {
-                    @Override public void run() { afterNotice(activity, release, 0); }
+                    @Override public void run() {
+                        if (ticket != generation()) return;
+                        afterNotice(activity, choice, 0);
+                    }
                 });
             }
         }, "update-check");
         worker.setDaemon(true);
         worker.start();
+    }
+
+    /**
+     * One manifest, or null. A missing list is a normal state — the preview file is deployed only
+     * when a preview build exists — so every failure, from 404 to a malformed body, is logged and
+     * turned into "this channel has nothing", never into a dialog.
+     */
+    private static UpdateManifest readManifest(String address, String trace) {
+        try {
+            return UpdateManifest.parse(read(address));
+        } catch (Exception unavailable) {
+            Diag.failure("UPDATE", "check.failed", Diag.reason(unavailable), unavailable, trace);
+            return null;
+        }
     }
 
     /**
@@ -177,7 +249,8 @@ final class UpdateCheck {
         body.setOrientation(LinearLayout.VERTICAL);
         body.setPadding(AppUi.dp(activity, 20), AppUi.dp(activity, 2), AppUi.dp(activity, 20), 0);
 
-        body.addView(text(activity, "当前 " + AppUi.version(activity) + " → " + manifest.version, 12, AppUi.MUTED));
+        body.addView(text(activity, "当前 " + AppUi.version(activity) + " → " + manifest.version
+            + (manifest.beta ? "（预览版）" : ""), 12, AppUi.MUTED));
         for (String note : manifest.notes) {
             LinearLayout row = new LinearLayout(activity);
             row.setGravity(Gravity.TOP);
@@ -199,7 +272,7 @@ final class UpdateCheck {
         scroll.addView(body);
 
         AlertDialog dialog = Theme.dialog(activity)
-            .setTitle("新版本 " + manifest.version)
+            .setTitle((manifest.beta ? "预览版 " : "新版本 ") + manifest.version)
             .setView(scroll)
             .setPositiveButton("更新", null)
             .setNegativeButton("稍后", null)

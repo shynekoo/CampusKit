@@ -2,6 +2,7 @@ package io.qzxy.lite.preview;
 
 import android.webkit.CookieManager;
 import io.qzxy.lite.core.EduAcademic;
+import io.qzxy.lite.core.EduEvaluation;
 import io.qzxy.lite.core.EduLoginProtocol;
 import io.qzxy.lite.core.EduSite;
 import io.qzxy.lite.core.SmsLoginProtocol;
@@ -78,6 +79,17 @@ final class EduClient {
         "xh_id", "cjlrxn", "cjlrxq", "bkcjlrxn", "bkcjlrxq",
         "xscjcxkz", "cjcxkzzt", "cjztkz", "cjzt",
     };
+    /**
+     * 学生评价（评教）: the list page and the jqGrid query behind it.
+     *
+     * <p>{@code gnmkdm} is the module id the school's own menu passes to the page; without it the
+     * page answers 500 with its "系统维护" screen, so it is part of the route here rather than a
+     * header. The query shares the page's path and only swaps {@code doType}.</p>
+     */
+    static final String EVAL_PAGE = "/xspjgl/xspj_cxXspjIndex.html?gnmkdm=N401605&doType=details";
+    private static final String EVAL_QUERY = "/xspjgl/xspj_cxXspjIndex.html?gnmkdm=N401605&doType=query";
+    /** 评价情况: the term's own 暂存 / 已提交 / 未评 totals. */
+    private static final String EVAL_COUNTS = "/xspjgl/xspj_cxXspjqk.html";
     /** The student timetable page, used as Referer for its own query endpoints. */
     private static final String TIMETABLE_PAGE = "/kbcx/xskbcx_cxXskbcxIndex.html?gnmkdm=N2151&layout=default";
     /** 正方 names this query differently across deployments; try each with the same term fields. */
@@ -563,6 +575,35 @@ final class EduClient {
     }
 
     /**
+     * 学生评价: every 教学班 the current term asks this student to evaluate, with its state.
+     *
+     * <p>The page itself is a jqGrid shell; the rows arrive from its {@code doType=query} endpoint as
+     * one flat object per 教学班. This is a read-only query — no {@code doType} command beyond the
+     * one the school's own grid sends, and nothing here scores or submits anything. Sorting by
+     * course/teacher is what the school's script asks for, so an unchanged term lists the same way
+     * here as on the page.</p>
+     */
+    static EduEvaluation.Report evaluations() throws IOException {
+        Map<String, String> form = new LinkedHashMap<>();
+        form.put("queryModel.showCount", "100");
+        form.put("queryModel.currentPage", "1");
+        form.put("queryModel.sortName", "kcmc,jzgmc");
+        form.put("queryModel.sortOrder", "asc");
+        form.put("_search", "false");
+        form.put("nd", Long.toString(System.currentTimeMillis()));
+        JSONObject reply = ask(EVAL_QUERY, form, "学生评价");
+        return EduEvaluation.parse(reply.toString());
+    }
+
+    /**
+     * The term's own totals for 暂存 / 已提交 / 未评, plus the hint the school attaches when another
+     * step (评课、问卷调查) is still open. Read separately because the grid reply carries no counts.
+     */
+    static EduEvaluation.Counts evaluationCounts() throws IOException {
+        return EduEvaluation.counts(ask(EVAL_COUNTS, new LinkedHashMap<String, String>(), "评价统计").toString());
+    }
+
+    /**
      * The value of the hidden field {@code key}.
      *
      * <p>Matched by whole tag rather than by attribute order: the page writes
@@ -831,6 +872,7 @@ final class EduClient {
         String method = form == null ? "GET" : "POST";
         String referer = ORIGIN + (path.startsWith("/cdjy/") ? ROOMS_PAGE
             : path.startsWith("/kbcx/") ? TIMETABLE_PAGE
+            : path.startsWith("/xspjgl/") ? EVAL_PAGE
             : path.startsWith("/xsxy/") ? ACADEMIC_PAGE : pageOf(path));
         try {
             return checked(request(ORIGIN + path, method, form, jar(), referer));
@@ -1097,6 +1139,10 @@ final class EduClient {
         // 正方's other grade module. Named one path, not the whole folder, so this stays as narrow as
         // the feature needs: two read-only modules, nothing else.
         if (path.startsWith("/kwgl/kscjcx_kscjcx.html")) return;
+        // 学生评价: the grid query and the term's totals. Both are reads; the form that submits an
+        // evaluation is opened in a WebView, so no write endpoint is reachable from here.
+        if (path.startsWith("/xspjgl/xspj_cxXspjIndex.html")
+            || path.startsWith("/xspjgl/xspj_cxXspjqk.html")) return;
         // A grade module the school moved out of /cjcx/: allowed only once its own menu named it.
         String named = gradesPage.isEmpty() ? discovery : gradesPage;
         if (!named.isEmpty() && path.startsWith(named)) return;

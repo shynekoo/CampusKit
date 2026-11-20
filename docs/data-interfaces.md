@@ -6,12 +6,12 @@
 
 | 来源 | 入口类 | 用途 | 写操作边界 |
 | :-- | :-- | :-- | :-- |
-| 学校教务系统 | `EduClient`（android）+ `Edu*` core 解析类 | 登录、课表导入、成绩/平时分/空教室、学业情况（GPA/学分树） | 只读查询；课表导入为本地存储 |
+| 学校教务系统 | `EduClient`（android）+ `Edu*` core 解析类 | 登录、课表导入、成绩/平时分/空教室、学业情况（GPA/学分树）、学生评价状态 | 只读查询；课表导入为本地存储；评价的填写与提交在学校自己的页面上完成 |
 | 慧生活798 | `LifeAuthApi`、`LifeDeviceApi`、`WaterApi` | 登录授权、设备资料/状态（只读）、订单状态查询 | 控制请求仅在 field-test source set |
 | 趣智校园 | `SmsAccountApi`、`UseCodeApi` | 余额、使用码（8 位） | 使用码设置/生成；余额只读 |
 | 支付宝 SDK | `AlipayLogin`、`QzxyAlipayActivity` | 授权登录、充值收银台、用水免密 | 支付凭据不经应用服务器 |
 | 淘宝/菜鸟 | `PickupCodeLinks`（core） | 唤起取件身份码页面 | 仅跳转，不访问取件数据 |
-| 应用内更新 | `UpdateCheck`、`UpdateManifest`、`UpdateUrls` | 读取 `delivery/update/update.json` 并下载 APK | 校验通过后交系统安装器，用户点安装 |
+| 应用内更新 | `UpdateCheck`、`UpdateManifest`、`UpdateUrls`、`UpdateChannel` | 读取 `delivery/update/update.json`（正式）与 `delivery/update/beta.json`（预览，仅在开关打开时读）并下载 APK | 两条渠道走同一套校验后交系统安装器，用户点安装 |
 
 ## 通用传输约束（`HttpForm` 等）
 
@@ -24,6 +24,8 @@
 - `TimetablePdfParser` / `TimetableWebCourseParser`：教务网页表格与七列文字 PDF 表格；扫描版 PDF 会明确提示失败。
 - `EduAcademic.parse()`：学业情况页一次 GET 服务端渲染整棵树，无分页 JSON；解析前先剥离 HTML 注释（真实页面统计行被注释切分），从 `title1` 提取已获/要求学分与通过标记，按完整 id 去重并保留首个有效节点；按脚本 `appendTo($("#ul父ID"))` 还原父子层级（实测 37 节点 5 层）；有 `MAX_HTML=4_000_000` / `MAX_NODES=120` 上限；输出 GPA、统计与学分树。每个课组标签还带 `jdkcsx`：它的取值决定课程走哪个端点（见下一条），`Node.planCourses` 保存该判定；未带标记的页面默认走计划内端点。哪些行可点由树的父子关系决定——学校只给叶子节点挂展开链接，父行只折叠。
 - 课程明细有两个只读端点，按课组标签上的 `jdkcsx` 选择（学校脚本即如此）：`POST /xsxy/xsxyqk_cxJxzxjhxfyqKcxx.html`（`jdkcsx == '1'`，计划内课程）与 `POST /xsxy/xsxyqk_cxJxzxjhxfyqFKcxx.html`（其余取值，计划外课程，如通识选修/公共艺术）。`EduAcademic.Node.planCourses` 携带该判定；计划外请求只带 `fromXh_id`/`xfyqjd_id`/`xh_id`，计划内请求额外回显页面隐藏学年学期字段。按 `xfyqjd_id` 一次取一个课组的课程列表，参数取自页面隐藏字段（`EduClient.valueOf()` 双向匹配 `name`/`id` 与 `value`，不依赖属性顺序）；`EduAcademic.parseCourses()` 解析为课程名/学分/成绩/绩点/修读状态/学期/课程性质；状态码 1 在读、3 未修、4/21 已通过、2 未过。UI 侧懒加载并缓存。
+- `EduEvaluation.parse()`：学生评价（评教）列表走学校 jqGrid 的 `doType=query` 只读接口，返回每个教学班一条扁平对象；解析出教学班/课程/教师/学时类型（理论·实验·实践）与学校自己的状态码（`tjzt`：`-1` 未评、`0` 暂存、`1` 已提交），状态词优先用服务端 `tjztmc`，缺失时按码归一；没有教学班 id 的行无法打开表单，直接丢弃；`MAX_JSON=2_000_000` / `MAX_ROWS=400` 上限。`EduEvaluation.counts()` 读评价情况接口的 `wpgs/bcgs/tjgs` 与 `pjtsxx` 提示（列表本身不带统计，两者分开取；统计失败不影响列表）。
+- 学生评价的表单是学校**服务端渲染**的片段，由学校**列表页自己**加载。表单片段 `xspj_cxXspjDisplay.html` 内不含暂存/提交按钮（`#btn_xspj_bc` / `#btn_xspj_tj` 在列表页 HTML 里），因此应用**不能**独立请求这个片段：它打开 `xspj_cxXspjIndex.html?gnmkdm=N401605&doType=details`（Referer 即该地址，模块过滤器从它取 `gnmkdm`），按 `#tempGrid tr.jqgrow` 的文本（含隐藏列的教学班 id）找到那一行并点击，由学校的 `onSelectRow` 发起 `$(#panel_content).load(…)`。学校这一请求**不带** `gnmkdm`，缺它时该端点返回 500，因此在页面内只对该 url 补上模块号。参数**同时**放在查询串和请求体里（`EduClient.evaluationFormUrl()`）：WebView 的 POST 不是浏览器表单提交，只放请求体时学校读到空参数表并回「课程号ID,教学班ID,教职工ID参数异常」（2.5.10 真机实测，2.5.11 修复）；应用不调用 `xspj_tjXspj.html` / `xspj_bcXspj.html`（提交是一次性的，必填项与评语规则由学校模板决定）。`EduClient.checkPath()` 只放行列表与统计两个只读端点，UI 契约测试另有一条守卫禁止这两个提交端点出现在应用代码里。
 - `Course` / `CourseJsonMapper`：课程无损映射到 JSON，不改既有存储键。
 - `UseCode`：8 位码按 5+3 分段供键盘显示。
 

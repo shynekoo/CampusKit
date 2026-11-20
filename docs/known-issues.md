@@ -34,7 +34,7 @@
 
 ## 已知技术限制
 
-- `FIELD_VERSION_NAME = "2.5.6.11"` 在 `scripts/build_preview.py`：仅 `--field-water` 且未显式给 `--version-name` 时覆盖 versionName。若误把用水版传到更新通道，版本号会显著倒退。正式版用不带该参数的普通构建。**本次未改**；详见 [`build-and-release.md`](build-and-release.md)。
+- `FIELD_VERSION_NAME` 已随版本号规范化**移除**：`--field-water` 不再套一个写死的旧版本名，默认沿用 manifest 的 `versionName`，只有 `--version-name` / `--version-code` 能覆盖，且都要过 `check_version_name()` 的格式校验（`X.Y.Z` 或 `X.Y.Z-beta.N`）。详见 [`build-and-release.md`](build-and-release.md)。
 - 教务导入只适配河北工程大学（网页表格 + 七列文字 PDF）；扫描版 PDF 明确失败，其他学校需改解析规则。
 - 无 Gradle：IDE 一键运行不可用；加依赖需手工合并 AAR 并校验 SHA-256。
 - 沙箱内 adb 起不来：按钮/页面恢复只能做到构建级确认（dex 中存在路由与 Activity），不是真机确认。

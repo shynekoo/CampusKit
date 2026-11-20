@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
+import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Build;
@@ -13,6 +14,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -99,14 +101,106 @@ public final class MoreActivity extends Page {
         row.setOnClickListener(v -> action.run());
         parent.addView(row, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT));
-        if (divider) {
-            View rule = new View(this);
-            rule.setBackgroundColor(AppUi.LINE);
-            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-                Math.max(1, dp(1)));
-            params.setMargins(dp(52), 0, 0, 0);
-            parent.addView(rule, params);
-        }
+        if (divider) rule(parent);
+    }
+
+    /**
+     * 接收预览版更新：一条可以随手关掉的渠道开关，就挨在更新日志下面。
+     *
+     * <p>放在这里而不是另开一页：读者是顺着「这版改了什么 → 想不想早点看到下一版」走到它的。
+     * 开关自己落盘（{@link UpdateCheck#setBetaEnabled}），重启后保持；同时会作废正在飞的那次
+     * 检查，免得旧渠道的结果盖掉新选择。整行可点，因为系统开关的触点只有那颗拇指那么宽。</p>
+     *
+     * <p>默认关，任何安装包都一样——包括预览版的第一次安装。打开前要先过一次确认框，
+     * 说清预览版是给开发者测试用的、可能不稳定；取消或返回键都回到关的位置，<b>并且不落盘</b>。</p>
+     */
+    private void previewChannel(LinearLayout parent, boolean divider) {
+        final boolean on = UpdateCheck.betaEnabled(this);
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(14), 0, dp(14));
+        row.setMinimumHeight(dp(56));
+
+        android.widget.ImageView mark = new android.widget.ImageView(this);
+        mark.setImageDrawable(AppUi.icon(this, "beaker", AppUi.ACCENT, 22));
+        mark.setBackground(AppUi.shape(this, AppUi.SOFT, 11));
+        mark.setPadding(dp(8), dp(8), dp(8), dp(8));
+        mark.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        row.addView(mark, new LinearLayout.LayoutParams(dp(38), dp(38)));
+
+        LinearLayout labels = new LinearLayout(this);
+        labels.setOrientation(LinearLayout.VERTICAL);
+        labels.setPadding(dp(14), 0, dp(8), 0);
+        TextView name = text("接收预览版更新", 16, AppUi.INK);
+        name.setTypeface(null, Typeface.BOLD);
+        labels.addView(name);
+        TextView caption = text("提前体验新功能，可能存在不稳定情况", 12, AppUi.MUTED);
+        caption.setPadding(0, dp(2), 0, 0);
+        labels.addView(caption);
+        row.addView(labels, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+
+        // 打开要先过一次确认框：预览版是给开发者和愿意担风险的人用的，默认就该关着。
+        final boolean[] settling = {false};
+        Switch toggle = tick(on, (moved, checked) -> {
+            if (settling[0]) return;
+            if (!checked) {
+                UpdateCheck.setBetaEnabled(this, false);
+                row.setContentDescription("接收预览版更新，已关闭");
+                Toast.makeText(this, "已关闭，只检查正式版", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            Theme.dialog(this)
+                .setTitle("开启预览版更新？")
+                .setMessage("预览版供开发者测试使用，可能不稳定，不建议开启。")
+                .setPositiveButton("仍然开启", (dialog, which) -> {
+                    UpdateCheck.setBetaEnabled(this, true);
+                    row.setContentDescription("接收预览版更新，已开启");
+                    Toast.makeText(this, "已开启，会一并检查预览版", Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton("保持关闭", (dialog, which) -> revert(moved, settling))
+                .setOnCancelListener(dialog -> revert(moved, settling))
+                .show();
+        });
+        toggle.setContentDescription("接收预览版更新");
+        row.addView(toggle);
+
+        row.setFocusable(true);
+        row.setContentDescription("接收预览版更新，" + (on ? "已开启" : "已关闭"));
+        AppUi.press(row, AppUi.SURFACE, 12);
+        row.setOnClickListener(v -> toggle.setChecked(!toggle.isChecked()));
+        parent.addView(row, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT));
+        if (divider) rule(parent);
+    }
+
+    /** 取消确认后把开关拨回去，但不要再走一遍「已关闭」的提示与落盘。 */
+    private void revert(Switch toggle, boolean[] settling) {
+        settling[0] = true;
+        toggle.setChecked(false);
+        settling[0] = false;
+    }
+
+    /** 开关本体：轨道与拇指都上实色，深色下也分得清开与关（同「外观与主题」页）。 */
+    private Switch tick(boolean value, java.util.function.BiConsumer<Switch, Boolean> change) {
+        Switch toggle = new Switch(this);
+        toggle.setChecked(value);
+        toggle.setShowText(false);
+        int[][] states = {{android.R.attr.state_checked}, {}};
+        toggle.setThumbTintList(new ColorStateList(states,
+            new int[]{AppUi.ACCENT, Theme.mix(AppUi.MUTED, AppUi.SURFACE, .45f)}));
+        toggle.setTrackTintList(new ColorStateList(states,
+            new int[]{Theme.mix(AppUi.ACCENT, AppUi.SURFACE, .25f), 0xffc3cad6}));
+        toggle.setOnCheckedChangeListener((button, checked) -> change.accept((Switch) button, checked));
+        return toggle;
+    }
+
+    private void rule(LinearLayout parent) {
+        View line = new View(this);
+        line.setBackgroundColor(AppUi.LINE);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+            Math.max(1, dp(1)));
+        params.setMargins(dp(52), 0, 0, 0);
+        parent.addView(line, params);
     }
 
     private void openRepository() {
@@ -178,6 +272,8 @@ public final class MoreActivity extends Page {
         // 更新日志挨着「检查更新」的入口放：想知道这版改了什么的人，先找的通常是这里。
         entry(card, "refresh", "更新日志", "查看版本更新与历史记录", true,
             () -> startActivity(new Intent(this, ChangelogActivity.class)));
+        // 渠道开关紧跟在更新日志后面：先看这版改了什么，再决定要不要提前拿到下一版。
+        previewChannel(card, true);
         // 诊断页从 2.5.8 起对所有构建开放：正文只含白名单字段，运行期默认关，由使用者
         // 遇到问题时自己打开。内部构建（--diagnostics）只是多了更细的事件，不是另一个开关。
         if (BuildFlags.DIAG_BASIC || BuildFlags.DIAGNOSTICS) {

@@ -75,6 +75,11 @@ final class AppUi {
     case "down":line(c,7,10,12,15);line(c,12,15,17,10);break;
     // 主题色卡片右下角那两个记号：选中是勾，没选中是加号（点进去自己调）。
     case "check":line(c,5,12.6f,10,17.4f);line(c,10,17.4f,19,7.4f);break;
+    // 学生评价：一颗五角星。评分这件事没有比它更省笔画的记号，也不会和成绩的名单、
+    // 学业情况的勾混成同一个入口。
+    case "eval":Path star=new Path();for(int i=0;i<10;i++){double angle=-Math.PI/2+i*Math.PI/5;float r=(i%2==0)?8.8f:3.9f;
+     float x=(float)(12+Math.cos(angle)*r),y=(float)(12+Math.sin(angle)*r);if(i==0)star.moveTo(x,y);else star.lineTo(x,y);}
+     star.close();c.drawPath(star,p);break;
     case "plus":line(c,12,5,12,19);line(c,5,12,19,12);break;
     // 意见反馈：one envelope for the address, two heads for the group chat.
     case "mail":rect(c,3,5.4f,21,18.6f);line(c,3.6f,6.6f,12,13);line(c,12,13,20.4f,6.6f);break;
@@ -91,6 +96,11 @@ final class AppUi {
      line(c,21.2f,8.6f,21.2f,14.4f);break;
     // 更多：三个实心点。同样是以前缺一个画法。
     case "more":p.setStyle(Paint.Style.FILL);c.drawCircle(12,5.8f,1.3f,p);c.drawCircle(12,12,1.3f,p);c.drawCircle(12,18.2f,1.3f,p);break;
+    // 接收预览版更新：一只锥形瓶。实验性构建的通用记号，也不会和「更新日志」的刷新箭头看成一个东西。
+    case "beaker":Path beaker=new Path();beaker.moveTo(9.2f,3.6f);beaker.lineTo(14.8f,3.6f);
+     beaker.moveTo(10.6f,3.6f);beaker.lineTo(10.6f,9.6f);beaker.lineTo(5.6f,18.2f);
+     beaker.quadTo(4.6f,20.4f,7,20.4f);beaker.lineTo(17,20.4f);beaker.quadTo(19.4f,20.4f,18.4f,18.2f);
+     beaker.lineTo(13.4f,9.6f);beaker.lineTo(13.4f,3.6f);c.drawPath(beaker,p);line(c,7.4f,14.6f,16.6f,14.6f);break;
     // 外观与主题：一个填掉一半的圆。这是「明与暗」四个字最省画笔的写法，也不必借用太阳或月亮
     // ——那两个都被天气预报用烂了，在这里还容易被读成天气。
     case "theme":c.drawCircle(12,12,8.4f,p);p.setStyle(Paint.Style.FILL);

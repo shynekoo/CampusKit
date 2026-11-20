@@ -185,14 +185,16 @@ def main():
     if status.count("screen.note(") != 1:
         failures.append("AcademicStatusActivity: note must be set once, not stacked on every show")
 
-    # 教务 card order: row 1 = 成绩/空教室/教务系统, row 2 = 学业情况/河工程/科信.
+    # 教务 card order: row 1 = 成绩/空教室/学业情况/学生评价 (the four queries), row 2 =
+    # 教务系统/河工程官网/科信官网 (entries and official sites). 学生评价 was added in 2.5.10 and
+    # belongs with the other three reads, not in the entries row.
     ac = activity[activity.find("private void academicCard("):activity.find("private void openEdu(")]
     checks += 1
-    expected = ['"score","成绩"', '"room","空教室"', '"cap","教务系统"',
-                '"check","学业情况"', '"school","河工程官网"', '"globe","科信官网"']
+    expected = ['"score","成绩"', '"room","空教室"', '"check","学业情况"', '"eval","学生评价"',
+                '"cap","教务系统"', '"school","河工程官网"', '"globe","科信官网"']
     positions = [ac.find(t) for t in expected]
     if -1 in positions or positions != sorted(positions):
-        failures.append("TimetableActivity: 教务 card tile order does not match row1=成绩/空教室/教务系统 row2=学业情况/河工程/科信")
+        failures.append("TimetableActivity: 教务 card tile order does not match row1=成绩/空教室/学业情况/学生评价 row2=教务系统/河工程/科信")
 
     # 学业情况页 (2.5.8.5): the page carries 一级/二级 categories and the screen must show that
     # hierarchy — one card per second-level category, deeper nodes as indented rows keyed off depth.
@@ -242,6 +244,69 @@ def main():
             "a fetched group must be cached so re-opening costs nothing")
     require(status, '"未通过", report.failed', "AcademicStatusActivity",
             "the headline must show the counts the school reports, not a subset")
+
+    # 学生评价 (2.5.10): a read-only list on the shared session, one form per 教学班 opened as the
+    # school's own page. The guard that matters most is the last one: submission is one-way at the
+    # school, so no screen here may post to 暂存/提交 on the student's behalf.
+    evaluation = PREVIEW / "EvaluationActivity.java"
+    evaluation_src = evaluation.read_text(encoding="utf-8") if evaluation.exists() else ""
+    form_activity = PREVIEW / "EvaluationFormActivity.java"
+    form_src = form_activity.read_text(encoding="utf-8") if form_activity.exists() else ""
+    core_evaluation = (ROOT / "client/core/src/io/qzxy/lite/core/EduEvaluation.java")
+    core_evaluation_src = core_evaluation.read_text(encoding="utf-8") if core_evaluation.exists() else ""
+    require(evaluation_src, "EduClient.evaluations()", "EvaluationActivity",
+            "the list must come from the shared signed-in client, not a scraped page")
+    require(core_evaluation_src, "public static Report parse(String json)", "EduEvaluation",
+            "the list reply must be parsed in the testable core")
+    require(core_evaluation_src, "public static final class Item", "EduEvaluation",
+            "evaluation rows need a typed model carrying the form ids")
+    require(client, 'path.startsWith("/xspjgl/xspj_cxXspjIndex.html")', "EduClient",
+            "the evaluation list query must be on the read-only allow-list by name")
+    require(client, 'path.startsWith("/xspjgl/xspj_cxXspjqk.html")', "EduClient",
+            "the term totals query must be on the read-only allow-list too")
+    require(client, "static final String EVAL_PAGE", "EduClient",
+            "the list page route must be named by the feature")
+    require(form_src, "web.loadUrl(EduClient.ORIGIN + EduClient.EVAL_PAGE, headers)",
+            "EvaluationFormActivity",
+            "the form must be opened inside the school's own list page: the fragment's 提交 button "
+            "lives in that page, so a fragment fetched on its own can never be submitted")
+    require(form_src, 'headers.put("Referer", EduClient.ORIGIN + EduClient.EVAL_PAGE)',
+            "EvaluationFormActivity",
+            "the Referer must be the page's own url: that is the one carrying gnmkdm, and the module "
+            "filter reads it — pointing it at the menu frame leaves the fragment request unanswered")
+    require(form_src, "xspj_cxXspjDisplay.html", "EvaluationFormActivity",
+            "the fragment the page asks for must be identified: the school's own call omits gnmkdm")
+    require(form_src, "'gnmkdm=N401605'", "EvaluationFormActivity",
+            "the module id must be appended to that request, or the panel stays at its placeholder")
+    require(form_src, "rows.each(function(){", "EvaluationFormActivity",
+            "the 教学班 must be found in the school's own table: matching what is in the DOM survives "
+            "a grid whose row data hides the ids")
+    require(form_src, "j(hit).trigger('click');", "EvaluationFormActivity",
+            "the row must be opened the way a finger would, so the page's own handler loads the form")
+    checks += 1
+    if "web.postUrl(" in form_src:
+        failures.append("学生评价: postUrl is not a page load — the school's form needs its own page")
+    checks += 1
+    if "evaluationFormUrl" in form_src or "handoffPage" in form_src:
+        failures.append("学生评价: the form must not be rebuilt as a hand-made request")
+    require(form_src, 'getElementById(\'panel_content\')', "EvaluationFormActivity",
+            "the panel the school loads the form into must be watched, or a dropped selection "
+            "reads as an open form")
+    require(form_src, "EduClient.browserCookie()", "EvaluationFormActivity",
+            "the form must reuse the shared session cookie instead of signing in twice")
+    require(evaluation_src, "section(\"未评\", report.withState(EduEvaluation.UNEVALUATED)",
+            "EvaluationActivity", "the list must lead with what still needs evaluating")
+    require(evaluation_src, "openedForm", "EvaluationActivity",
+            "returning from the form must reload the list, or a submitted row stays 未评")
+    require(activity, "EvaluationActivity.class", "TimetableActivity",
+            "the 教务 card must launch the evaluation screen")
+    checks += 1
+    if "xspj_tjXspj" in evaluation_src or "xspj_bcXspj" in evaluation_src \
+            or "xspj_tjXspj" in client or "xspj_bcXspj" in client:
+        failures.append("学生评价: a submit/save endpoint reached the app; scoring must stay on the school's page")
+    checks += 1
+    if "xspj_tjXspj" in form_src or "xspj_bcXspj" in form_src:
+        failures.append("学生评价: the form screen must not post 提交/暂存 itself")
 
     # --- CampusKit UI 2.0 / UI-1: centralized design + motion tokens ------------------------
     ui_tokens = (PREVIEW / "UiTokens.java")
@@ -561,6 +626,83 @@ def main():
     if "WebView" in code_lines(changelog) or "openConnection" in code_lines(changelog) \
             or "openConnection" in code_lines(data):
         failures.append("更新日志必须离线可读，不得加载网页或发起请求")
+
+    # --- 双渠道更新：正式清单 + 预览清单，开关只在「更多」页出现一处 ------------------------
+    update_src = (PREVIEW / "UpdateCheck.java").read_text(encoding="utf-8")
+    core_dir = ROOT / "client/core/src/io/qzxy/lite/core"
+    manifest_src = (core_dir / "UpdateManifest.java").read_text(encoding="utf-8")
+    channel_src = (core_dir / "UpdateChannel.java").read_text(encoding="utf-8")
+    version_src = (core_dir / "ReleaseVersion.java").read_text(encoding="utf-8")
+
+    require(update_src, "beta.json", "UpdateCheck", "预览清单是独立的第二个文件")
+    require(update_src, "UpdateChannel.pick(", "UpdateCheck", "两个清单之间由 core 规则选，不在页面里比大小")
+    require(update_src, "KEY_BETA", "UpdateCheck", "开关状态要落盘")
+    require(update_src, "getBoolean(KEY_BETA, false)", "UpdateCheck", "默认关闭：没保存过就是关")
+    checks += 1
+    # 默认值不得随「当前装的是不是预览包」变化：预览开关只能由读者自己打开。
+    if "isBeta(AppUi.version" in code_lines(update_src):
+        failures.append("UpdateCheck: 开关默认值不得按安装包类型猜，预览渠道必须默认关")
+    require(update_src, "manifest.versionCode == skipped(activity)", "UpdateCheck",
+            "「稍后再说」仍按版本代码记住，同一版本不重复打扰")
+    require(update_src, "generation()", "UpdateCheck", "切换渠道要作废在飞的检查")
+    require(update_src, "check.stale", "UpdateCheck", "被作废的结果要留日志")
+    require(channel_src, "preview.beta", "UpdateChannel", "预览清单里若不是预览版名，不能当预览推荐")
+    require(channel_src, "preview.versionCode > best.versionCode", "UpdateChannel",
+            "两个清单同时候选时按版本代码取大")
+    require(version_src, "beta\\\\.", "ReleaseVersion", "预览版命名 X.Y.Z-beta.N")
+    require(manifest_src, "ReleaseVersion.isWellFormed", "UpdateManifest", "版名校验只有一处来源")
+    checks += 1
+    if "version.compareTo" in code_lines(manifest_src) or "compareTo" in code_lines(manifest_src):
+        failures.append("UpdateManifest: 版本新旧不得用字符串比较，只认 versionCode")
+
+    # 预览渠道不得降低任何一道校验：字节数、SHA-256、包名、版本代码、签名证书、逐跳 HTTPS。
+    require(update_src, "progress.done != manifest.bytes", "UpdateCheck", "字节数校验对两个渠道一致")
+    require(update_src, "hex.toString().equals(manifest.sha256)", "UpdateCheck", "SHA-256 校验对两个渠道一致")
+    require(update_src, "安装包版本与说明不符", "UpdateCheck", "下载包的 versionCode 必须等于清单")
+    require(update_src, "安装包签名与本应用不符", "UpdateCheck", "签名证书必须与本应用一致")
+    require(update_src, "setInstanceFollowRedirects(false)", "UpdateCheck", "重定向手动逐跳，防降级")
+    require(update_src, "UpdateUrls.next(", "UpdateCheck", "每一跳都过 HTTPS 与跳数策略")
+
+    require(more_src, "接收预览版更新", "MoreActivity", "开关在「更多」页")
+    require(more_src, "提前体验新功能，可能存在不稳定情况", "MoreActivity", "副标题按约定文案")
+    require(more_src, "UpdateCheck.setBetaEnabled(this, true)", "MoreActivity", "保存开关")
+    require(more_src, "预览版供开发者测试使用，可能不稳定，不建议开启。", "MoreActivity",
+            "打开前必须先说明预览版是给开发者测试的、可能不稳定")
+    require(more_src, "setNegativeButton(\"保持关闭\"", "MoreActivity", "取消要能明确回到关闭")
+    require(more_src, "setOnCancelListener(dialog -> revert(", "MoreActivity",
+            "点弹窗外或返回键取消，开关也要拨回关闭")
+    require(more_src, "previewChannel(card, true)", "MoreActivity", "开关挨着更新日志，不另开块")
+    checks += 1
+    # 确认框只在「打开」这一侧：关掉是安全方向，不必再问一次。
+    if more_src.count("UpdateCheck.setBetaEnabled(this, true)") != 1:
+        failures.append("MoreActivity: 开启只能有一条路径（确认框的确认按钮），不得绕过提示")
+    if more_src.count('text("接收预览版更新"') != 1:
+        failures.append("MoreActivity: 开关的可视标题只能有一条，读者会以为是两个设置")
+
+    # 版本号：清单里的名字必须符合规范，代码必须高于线上正式清单（否则覆盖安装就会失败）。
+    import re as _re
+    name_match = _re.search(r'android:versionName="([^"]+)"', manifest)
+    checks += 1
+    manifest_name = name_match.group(1) if name_match else ""
+    if not _re.fullmatch(r"[0-9]{1,2}(\.[0-9]{1,2}){2}(-beta\.[1-9][0-9]{0,2})?", manifest_name):
+        failures.append("AndroidManifest: versionName（%s）必须是 X.Y.Z 或 X.Y.Z-beta.N" % manifest_name)
+    code_match = _re.search(r'android:versionCode="(\d+)"', manifest)
+    checks += 1
+    if not code_match or int(code_match.group(1)) <= int(online["versionCode"]):
+        failures.append("AndroidManifest: versionCode 必须高于线上正式版（%s），否则覆盖安装会被系统拒绝"
+                        % online["versionCode"])
+    checks += 1
+    beta_path = ROOT / "delivery/update/beta.json"
+    if beta_path.exists():
+        beta_manifest = json.loads(beta_path.read_text(encoding="utf-8"))
+        if not _re.fullmatch(r"[0-9]{1,2}(\.[0-9]{1,2}){2}-beta\.[1-9][0-9]{0,2}",
+                             str(beta_manifest.get("version", ""))):
+            failures.append("beta.json: version 必须是 X.Y.Z-beta.N")
+        if int(beta_manifest.get("versionCode", 0)) <= int(online["versionCode"]):
+            failures.append("beta.json: 预览版 versionCode 必须高于线上正式版")
+        required = {"version", "versionCode", "notes", "url", "bytes", "sha256"}
+        if not required.issubset(beta_manifest):
+            failures.append("beta.json: 缺少字段 %s" % ", ".join(sorted(required - set(beta_manifest))))
 
     # --- diagnostics page (2.5.8): filters, pagination, export, confirm-before-clear ------
     # The page exists for one job: turn "课表加载失败" into "网络超时，停在请求阶段". A refactor

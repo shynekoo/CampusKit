@@ -14,12 +14,206 @@
 - 已构建、尚未发版：`2.5.8.8`（versionCode `206`，2026-11-19），在合并后的主线上重建。
 - **线上正式版（2026-11-19 发布）**：`2.5.8`（versionCode `208`），把 2.5.8.1–2.5.8.9 合并成一个正式版本号；
   产物 `delivery/科信小助手-2.5.8.apk`，发布公告见 [`delivery/release-2.5.8.md`](delivery/release-2.5.8.md)。
-- 核心断言：`python scripts/test_core.py` → **1333 项全过**；UI 守卫 **240 锚点**；诊断隐私守卫 **634 项**（2026-11-20）。
+- 核心断言：`python scripts/test_core.py` → **1418 项全过**；UI 守卫 **289 锚点**；诊断隐私守卫 **651 项**（2026-11-20）。
 - 2.5.8 的 tag / Release / 下载站随本次发布同步；早期 2.5.8.x 开发迭代仍**未**各自建 tag。
 
 更早版本的发布说明见 [`delivery/release-*.md`](delivery/)。
 
 ---
+
+## [未发布 · 2.6.0-beta.1] — 学生评价：让学校的片段请求带上 gnmkdm（versionCode 217）
+
+> 2.5.13 之后真机出现新现象：状态栏停在「正在定位这门课…」，面板里只有列表页自己的占位（`状态备注` / `评价内容` / `0% Complete`），
+> 一个评价项都没有 —— 也就是**片段根本没被装进来**，而不是片段里没题目。
+
+### 根因
+
+- 列表页脚本打开表单是 `$(#panel_content).load("/xspjgl/xspj_cxXspjDisplay.html", {…})`，**不带 `gnmkdm`**；
+  而该端点没有模块号时服务端返回 500（手测：带 `gnmkdm=N401605` 同一批 id 返回含 13 个评价项的表单，不带则 500）。
+  桌面能从菜单里正常评，是因为请求的 Referer 是带 `gnmkdm` 的列表页 URL，模块过滤器从那里取到模块号。
+- 2.5.13 把 Referer 强行改成了菜单框架 `/xtgl/index_initMenu.html`（不含 `gnmkdm`），恰好把这条线索掐断了。
+
+### 改法
+
+- **Referer 改为页面自身 url**（`EduClient.EVAL_PAGE`，含 `gnmkdm=N401605`），与浏览器里真实请求一致。
+- **在页面内给那一个请求补 `gnmkdm`**：包装 `jQuery.fn.load`，只对 `xspj_cxXspjDisplay.html` 且尚未带 `gnmkdm` 的 url 追加模块号，
+  其余请求原样放行。这是让「页面的请求」变成「端点认的请求」的最小改动。
+- **按 DOM 找行、按手指的方式打开**：`#tempGrid tr.jqgrow` 的文本里含隐藏列的教学班 id，命中后 `trigger('click')`，
+  再 `jqGrid('setSelection', id, true)` 强制触发一次 `onSelectRow`（页面进来时会自己选中第一行，重复点同一行否则不会重载）。
+- **失败时说清是哪一种**：状态栏改为报「共 N 个评价项；评完点「提交」」，或在 0 项/空面板时分别给出不同说明，不再只停在「正在定位…」。
+
+### 现状
+
+- `test_ui_contract` **291 锚点**（新增：Referer 必须是页面自身 url、必须识别 `xspj_cxXspjDisplay.html`、必须补 `gnmkdm`、必须按 DOM 找行并按点击打开）。
+- 产物：`delivery/科信小助手-2.6.0-beta.1.apk`，5 453 690 B，SHA-256 `27fe5fc9…ef09976`，versionCode 217 / versionName 2.6.0-beta.1，
+  预览渠道（`--beta`），用水版，v2/v3 验签通过；dex 反查含 `gnmkdm=N401605` 3 处、`jqgrow` 1 处，`source_sha256` 与工作区一致。
+- `delivery/update/beta.json` 同步到 2.6.0-beta.1 / 217（**线上仍未部署**，App 会安全回退到正式渠道）。
+- `test_core` 1418 / `test_build_config` 7 / `test_diag_privacy` 651 / `test_diag_files` 6650 /
+  `test_webview_policy` 6 / `test_ui_contract` 291，六个入口全部通过。
+- 仍在真机上未确认：本轮修复依赖「Referer 带模块号」这一判断，需装机复测。
+
+## [未发布 · 2.5.13-beta.2] — 版本号规范与预览版更新渠道（versionCode 216）
+
+> 第一个按新规则命名的预览包，也是「接收预览版更新」开关的首发（beta.1 / 215 未对外分发，已由 beta.2 取代）。**未发布、下载站未部署。**
+
+### 版本号
+
+- 正式版统一 `X.Y.Z`，预览版 `X.Y.Z-beta.N`（N 从 1 起、不带前导零）；四段 `X.Y.Z.W` 只保留**读取**兼容。
+- 新增 `core/ReleaseVersion`：名字规则的唯一实现（`isWellFormed` / `isBeta` / `isRelease` / `isLegacy`）。
+  `UpdateManifest` 不再自带正则，改调它，并新增 `beta` 字段（由版本名得出，用于界面文案与渠道挑选）。
+- `scripts/build_preview.py` 新增 `check_version_name()`：四段名、`beta.0`、`1.2.3-BETA.1`、`1.2.3.1-beta.1` 一律构建失败；
+  `--beta` 与 `X.Y.Z-beta.N` 必须同时出现或同时缺席。
+- 删除写死的 `FIELD_VERSION_NAME`：`--field-water` 默认沿用 manifest 的 versionName，只认 `--version-name` / `--version-code`。
+- 新增 `check_version_code()`：新包 versionCode 必须高于 `update.json` 与 `beta.json` 的最大值，否则构建失败
+  （`--allow-lower-version-code` 仅供内部构建，会打印 WARNING）。
+- manifest → `2.5.13-beta.2` / 216（线上正式版 2.5.9 = 210；正式版 2.5.13 必须 ≥ 217，才能覆盖此前的 Beta）。
+
+### 双渠道
+
+- 新增 `core/UpdateChannel.pick()`：只认 `versionCode`；候选必须**严格大于**已安装版本；预览清单仅在开关打开时参与；
+  预览清单里若不是预览版名则忽略；两边同号时正式清单优先。
+- `UpdateCheck` 读两条清单：任一读不到只等于「该渠道没有内容」，手动检查时如实说明预览清单读不到，自动检查照旧静默。
+- 开关存 `update-v1` 的 `beta` 键：**一律默认关闭**（预览包首装也一样，不按安装包类型猜默认值）；切换时 `generation`
+  自增，进行中的检查结果作废（日志 `check.stale`），不会出现旧渠道的结果覆盖新设置。
+- 打开前必过一次确认框：「预览版供开发者测试使用，可能不稳定，不建议开启。」。只有「仍然开启」才落盘；
+  「保持关闭」/ 点弹窗外 / 返回键都拨回关且不写偏好。关闭方向不询问。
+- 下载、逐跳 HTTPS、字节数、SHA-256、包名、versionCode、签名证书、系统安装器全部复用原链路，**没有按渠道分支**。
+
+### 界面
+
+- 「更多」页在「更新日志」下方加一行开关：标题「接收预览版更新」，副标题「提前体验新功能，可能存在不稳定情况」，
+  图标为新增的 `beaker`；整行可点、深色模式与无障碍文案齐备，页面其余结构未动。
+- 打开时的确认框用 `Theme.dialog`（深色模式跟随），标题「开启预览版更新？」，按钮「仍然开启」/「保持关闭」。
+
+### 清单与产物
+
+- 新增 `delivery/update/beta.json`：`2.5.13-beta.2` / 216 / 5453690 bytes / sha256 `4fdbb951…78d08687`，
+  与 `delivery/科信小助手-2.5.13-beta.2.apk`、`delivery/update/campuskit-2.5.13-beta.2.apk` 一致。
+- **未部署**：线上 `beta.json` 仍 404，开关打开后读到的是「该渠道没有内容」，正式版更新不受影响。
+- `update.json` 与下载站正式版信息**未改动**。
+
+### 测试
+
+- core 断言 1369 → 1418；UI 契约 259 → 289；诊断隐私 644 → 651（新增 `beta` / `channel` 字段白名单与 `check.stale` 文案）。
+- 六个测试入口全过；`--beta --field-water --version-code 216` 实跑出包，aapt2 核对 `versionCode=216` / `versionName=2.5.13-beta.2`，
+  v2 验签通过且证书与 2.5.9 相同；dex 内可查到确认框三段文案。
+- **未做**：真机上的开关默认关、确认框取消路径、持久化、降级保护、覆盖安装 Beta → 正式版（见 `docs/real-device-acceptance.md` B5–B8）。
+
+## [未发布 · 2.5.13] — 学生评价：改为在学校列表页里选行打开（versionCode 214）
+
+> 2.5.12 之后真机上红字变成「系统升级维护中」。这一版不再自己拼请求，换成「打开学校的页，让学校自己开表单」。
+
+### 根因（从学校静态脚本读出来的，不再是猜测）
+
+- **表单是片段，不是页面**：`xspj_cxXspjDisplay.html` 返回的是插进面板里的片段；它自己的脚本
+  `xspj_display.js` 绑定的 `#btn_xspj_bc` / `#btn_xspj_tj`（暂存 / 提交）**在列表页的 HTML 里**，片段里根本没有这两个按钮。
+  所以之前无论请求拼得多对，独立打开的「表单」都是一堆单选按钮、没有可用的提交入口。
+- 学校打开它的方式是 `xspj_index.js` 里的 `onSelectRow`：`$(#panel_content).load("/xspjgl/xspj_cxXspjDisplay.html", {…}, cb, "html")`
+  —— 在**已经处于学校域名下的页面里**用 jQuery POST 取片段，顺带由同一段代码填教师名、解禁按钮。
+- 2.5.12 的第一形态丢掉了 `gnmkdm`，学校直接 500「系统升级维护中」；而当时的检测只认「参数异常 / 参数错误」，
+  所以四种形态根本没往下走。这两件事凑在一起，才让前几轮一直在错的方向上打转。
+
+### 改法
+
+- `EvaluationFormActivity` 改为加载**学校列表页** `xspj_cxXspjIndex.html?gnmkdm=N401605&doType=details`，
+  并带上指向菜单框架的 `Referer`（学校的内容页正常就是这样被打开的）。
+- 等 jqGrid 有数据后，用 `getRowData(ids[i]).jxb_id` 找到这门课那一行，调 `setSelection(ids[i])`
+  —— 这正是学校自己的入口，`onSelectRow` 会把片段装进 `#panel_content`、填教师名、绑定提交按钮。
+- **面板校验**：页面刚进来时会自己选中第一行，此时再选别的行会被 `inLoading` 挡掉。所以 1.5 秒后量一次
+  `#panel_content`（文本长度 + 控件数），没内容就重新选，最多 4 次；仍空则明说「请在上面列表里自己点这一行」。
+- 行状态 `fqpjzt=1`（已放弃评价）时直接说明，不再让页面摆一个红字。
+- 删掉了 `evaluationForm(item)` / `evaluationFormUrl()` / `EVAL_FORM` / `EVAL_FORM_BARE`、一次性提交页与四种形态退让
+  —— 它们都属于「自己拼这个请求」那条错路，留着只会误导下一个人。
+
+### 现状
+
+- `test_ui_contract` **259 锚点**：新增「必须打开列表页」「必须带菜单框架 Referer」「必须用 setSelection 定位」
+  「必须观测 panel_content」「禁止 postUrl」「禁止自己拼表单请求」。
+- 产物：`delivery/科信小助手-2.5.13.apk`，5 453 690 B，SHA-256 `68d18703…4264f858`，versionCode 214 / versionName 2.5.13，
+  用水版，水控类命中 1/1，v2/v3 验签通过；dex 内已含 `panel_content` / `setSelection`，旧的一次性提交页字符串已不存在。
+- `test_core` 1369 / `test_build_config` 7 / `test_diag_privacy` 644 / `test_diag_files` 6650 /
+  `test_webview_policy` 6 / `test_ui_contract` 259，六个入口全部通过；`javac --release 8` 全量编译通过。
+- 仍未在真机上确认表单渲染与提交：本轮没有可复测的教务账号（用户要求用后即删）。
+
+## [未发布 · 2.5.12] — 学生评价：改为浏览器表单提交（versionCode 213）
+
+> 2.5.11 把 id 同时放进查询串后，真机仍然是同一行红字。这一版换了请求方式本身，并把「到底发出去了什么」显示出来。
+
+### 修复
+
+- **请求不再是 `WebView.postUrl()`**：读到学校的 `xspj_index.js`，它打开表单用的是
+  `$(panel).load("/xspjgl/xspj_cxXspjDisplay.html", {jxb_id, kch_id, xsdm, jgh_id, tjzt, pjmbmcb_id, sfcjlrjs})`
+  —— jQuery 的 urlencoded POST，**不带 `gnmkdm`**。`postUrl` 不是表单提交，学校读到的是空参数表。
+  现在先用一个一次性页面把参数当隐藏域，由浏览器自己 `submit()`，编码与 MIME 由平台保证。
+- **四种请求形态依次退让**：①学校原样（无 `gnmkdm`，id 只在 body）→ ②带 `gnmkdm` 且 query + body 都有 id →
+  ③同上的 GET → ④无 `gnmkdm` 的 GET，id 在 query。每次只在上一形态被判「参数异常」后才换下一种。
+- **拒绝时说清发出了什么**：最后一次仍失败时，状态栏显示每个 id 的字符数与最终落到的路径
+  （例如 `jxb_id 26 字 · kch_id 8 字 · jgh_id 0 字，落在 /xspjgl/xspj_cxXspjDisplay.html`）。
+  「参数丢了」和「参数本身是空的」从外面看不出区别，这一行能分开。
+
+### 现状
+
+- 学校接口在未登录时一律 302 到登录页，所以「能拿到那行红字」说明会话是通的，问题只在参数。
+- 产物：`delivery/科信小助手-2.5.12.apk`，5 453 690 B，SHA-256 `df3390ac…365e0d42d6`，versionCode 213 / versionName 2.5.12，
+  v2/v3 验签通过，dex 水控类命中 1/1（`--field-water` 用水版），`source_sha256` 与工作区一致。
+- `test_core` 1369 / `test_build_config` 7 / `test_diag_privacy` 644 / `test_diag_files` 6650 /
+  `test_webview_policy` 6 / `test_ui_contract` 260，六个入口全部通过。
+- 仍**未**在真机上确认表单能渲染与提交：本轮没有可复测的教务账号（上一轮按用户要求删除）。
+
+## [未发布 · 2.5.11] — 学生评价：修复评价表单打不开（versionCode 212）
+
+> 2.5.10 真机上点开某一项，学校页面只回一行红字「课程号ID,教学班ID,教职工ID参数异常!」。本版修掉这个问题；
+> 2.5.10（211）未公开发布，直接被本版取代。
+
+### 修复
+
+- **评价表单参数丢失**：`EvaluationFormActivity` 原先只用 `WebView.postUrl()` 把 `jxb_id` / `kch_id` / `jgh_id`
+  等放进请求体。WebView 的 POST 不是浏览器表单提交，学校侧 `getParameter` 拿到的是空参数表，于是回参数异常页。
+  现在同一串参数经 `EduClient.evaluationFormUrl()` **同时拼进查询串**，请求体照旧保留——两条通道任一条被丢都能读全。
+  同样的参数用普通 HTTP 客户端 POST 是能拿到表单的（2026-11-20 实测），所以问题在传输，不在字段。
+- **错误页不再被当成可用表单**：页面加载后检查学校自己的「参数异常 / 参数错误」文案；命中则自动改用 GET 重开一次，
+  仍失败就明说可能是教务系统改版，并指路「教务系统」网页登录，不再在红字上方显示「评完点提交」。
+
+### 测试
+
+- `test_ui_contract` 增至 **255 锚点**（新增「参数必须同时进查询串」「学校参数错误页必须被识别」两条守卫）；
+  其余入口计数不变，全部通过。
+- 产物：`delivery/科信小助手-2.5.11.apk`，5 449 594 B，SHA-256 `ade5d33f…fa5706ba`，versionCode 212 / versionName 2.5.11，
+  v2/v3 验签通过，dex 水控类命中 1/1（`--field-water` 用水版）。
+- 未验证：真机上表单是否正常渲染、能否提交（需要真实评教窗口）；本版没有可用于复测的教务账号。
+
+---
+
+## [未发布 · 2.5.10] — 学生评价（versionCode 211）
+
+> 教务卡片新增「学生评价」：一份原生列表，说明本学期还有哪些教学班没评；点开某一项进入学校自己的评价表单。
+
+### 新增
+
+- **教务 · 学生评价**：`core/EduEvaluation`（列表与统计 JSON 解析：教学班、课程、教师、学时类型、
+  评价状态 `-1 未评 / 0 暂存 / 1 已提交`）+ `android/EvaluationActivity`（原生列表，按状态分组，
+  顶部未评数量、教务账号 / 网页登录 / 退出登录、右上角重新读取）+ `android/EvaluationFormActivity`
+  （把某一教学班的表单交给学校页面，复用已登录会话的 cookie）。
+- `EduClient` 增加 `evaluations()`、`evaluationCounts()`、`evaluationForm()`；只读路径白名单按名字放行
+  `xspj_cxXspjIndex.html` 与 `xspj_cxXspjqk.html`，`/xspjgl/` 的 Referer 指向评价首页。
+- 教务卡改为第一行四件查询（成绩 / 空教室 / 学业情况 / 学生评价），第二行三件入口与官网。
+- 新增 `eval` 星形图标；manifest 注册两个新页面（`exported=false`）。
+
+### 说明（有意为之）
+
+- **评分不在应用里填**：学校的提交是一次性的，必填项、评语规则和模板都由学校下发；应用只读取状态，
+  表单用它自己的页面提交。UI 契约测试对此有专门守卫：两个页面都不得出现 `xspj_tjXspj` / `xspj_bcXspj`。
+- 从表单返回时自动重新读取，已提交的项目立刻显示为「已提交」。
+
+### 测试
+
+- `test_core` 1369（新增 40 项评价解析断言）/ `test_build_config` 7 / `test_diag_privacy` 644 /
+  `test_diag_files` 6650 / `test_webview_policy` 6 / `test_ui_contract` 253，六个入口全部通过。
+- 产物：`delivery/科信小助手-2.5.10.apk`，5 449 594 B，SHA-256 `2af8cefa…14330cfe`，versionCode 211 / versionName 2.5.10，
+  v2/v3 验签通过，dex 水控类命中 1/1（`--field-water` 用水版）。
+- 真实账号实测（2026-11-20）：列表 20 条（全部未评）、统计 `{"wpgs":20,"bcgs":0,"tjgs":0}`、表单片段 200 且含 13 个评价项。
+- 未验证：真机上的表单页渲染与提交（需真实评教窗口）、深色主题下的列表观感。
+
 
 ## [2.5.9] - 2026-11-20（versionCode 210，已发布）
 
