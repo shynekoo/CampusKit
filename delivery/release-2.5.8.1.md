@@ -5,7 +5,7 @@
 
 **主题：修复趣智校园扫码无法跳转使用的 bug。**
 
-> 状态：**待发布**。`update.json` 与 App 内更新日志已同步；GitHub Release、下载站与线上核对待执行。
+> 状态：**已发布（2026-11-20）**。`update.json`、App 内更新日志、GitHub Release、下载站与线上核对均已完成。
 
 ---
 
@@ -58,6 +58,6 @@
 ## 四、发布清单（执行时勾选）
 
 1. [x] 构建 APK + 核心断言 + `update.json`
-2. [ ] GitHub 同步：push / tag `v2.5.8.1` / Release 上传 APK / README
-3. [ ] 下载站同步：APK 复制到 `delivery/update/`，重新发布站点
-4. [ ] 线上页面与 APK 直链返回 200
+2. [x] GitHub 同步：push `6a1808e` / tag `v2.5.8.1` / Release 上传 `kexin-xiaozhushou-2.5.8.1.apk` / README
+3. [x] 下载站同步：APK 复制到 `delivery/update/`，重新发布站点（链接不变）
+4. [x] 线上页面、update.json 与 APK 直链均返回 200，直链字节数 5,437,306 与清单一致
