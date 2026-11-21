@@ -57,7 +57,7 @@
 - 支付/用水**只信服务端结果**，不采信客户端 SDK 回调作为交易成功依据。
 - 命令发出前持久化待核实记录（`PendingUse`），进程被杀 / Activity 销毁后恢复进核实流程。
 - 重复点击 / 并发 start 由状态机 + 单次请求 + UI 门控拦截（core 断言覆盖）。
-- **正式包包含用水控制，因此也包含 `client/fieldtest` 整个 source set**：正式版按 `--field-water` 构建，`WaterActivity` / `LifeWaterActivity` 在包内（这是扫码跳转支付宝所必需）。只读构建（不带 `--field-water`）不含该 source set，构建后 DEX 扫描 7 条控制路由 occurrence 全为 0。两种形态的差异是产物级检查，不是源码声明。fieldtest 中的实验性入口见 [`known-issues.md`](known-issues.md)。
+- **正式包包含用水控制，因此也包含 `client/fieldtest` 整个 source set**：正式版按 `--field-water` 构建，`WaterActivity` / `LifeWaterActivity` 在包内（这是扫码跳转支付宝所必需）。只读构建（不带 `--field-water`）不含该 source set，构建后 DEX 扫描 7 条控制路由 occurrence 全为 0。两种形态的差异是产物级检查，不是源码声明。fieldtest 中的实验性入口不在发布构建里（见 [`known-issues.md`](known-issues.md)）。
 - 支付宝 exported 回调 Activity 属 SDK 类，有请求号校验；App 不以其回调判定成功。
 
 ## 已知残留风险（2026-11-21 公开仓库审计）

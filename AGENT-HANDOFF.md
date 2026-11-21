@@ -38,7 +38,7 @@
 
 1. **真机验收是发布硬门槛**：`docs/real-device-acceptance.md` 未全部勾选前不得发布。
 2. **预览通道默认关闭**：用户须自选渠道并打开「接收预览版更新」。
-3. **`LifeProtocolProbe` 在正式包内，待整改**（优先级最高）：它是实验性协议探测，入口在用水页「诊断…」，会发一次带控制效果的开启请求。已记录在 [`docs/known-issues.md`](docs/known-issues.md)，整改需改代码 + 出新包，单独评估后进行。
+3. **实验性协议探测已移出发布包（2.6.1-beta.1 起）**：探测类与入口只在 `client/fieldtest/experimental`，默认不编译；发布包由构建期断言保证不含该类与 `dev/mode/start`，静态守卫见 `scripts/test_probe_boundary.py`。2.6.0 及更早的 APK 仍带该入口，下载页已提示勿用；源码按 tag 保留。
 4. **构建开关**：**正式版与预览版都必须带 `--field-water`**（不带会静默产出缺用水控制的只读包，2.5.7 就是这样丢过扫码跳转）；`--diagnostics` 只用于内部排障，产出与正式版同名，误传会污染更新通道。
 5. **签名**：`tools/keys/` 下的密钥与口令不进仓库；换签名会让已装用户无法覆盖安装。
 6. **不要用 `git checkout .` / `reset --hard` 清工作区**，先确认有没有 WIP。

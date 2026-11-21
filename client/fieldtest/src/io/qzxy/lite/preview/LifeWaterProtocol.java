@@ -67,7 +67,7 @@ final class LifeWaterProtocol {
   String didPattern="[A-Za-z0-9_-]{1,128}";
   if(!path.matches("/api/v1/dev/start\\?did="+didPattern+"&upgrade=true&ptype=(21|91|92|93)&rcp=false")&&!path.matches("/api/v1/dev/end\\?did="+didPattern+"&rcp=false"))throw new IllegalArgumentException();
   String token=LifeAuthApi.credentials(session).getString("token");
-  JSONObject reply=LifeProtocolProbe.request(path,token,Collections.emptyMap());
+  JSONObject reply=LifeDeviceHttp.get(path,token);
   if(LifeVersion.upgradeRequired(reply)){
    int code=-1;try{code=LifeAuthApi.resultCode(reply);}catch(Exception ignored){}
    throw new LifeDeviceFailure.Rejected(code,"服务器回「"+LifeAuthApi.message(reply)+"」：版本头仍不被接受，请把 ⓘ 诊断信息发我",reply);

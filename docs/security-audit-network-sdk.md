@@ -33,7 +33,7 @@
 命中的安全用法：
 
 - `onReceivedSslError`：5 个 WebView（EduLogin / EduPortal / EduQuery / SchoolSite / TimetableWeb）全部 `handler.cancel()`，证书错误一律中止。
-- `setInstanceFollowRedirects(false)`：`HttpForm`、`EduClient`、`LifeAuthApi`、`LifeDeviceApi`、`UpdateCheck`、`LifeProtocolProbe` 全部关闭自动重定向；`UpdateCheck` 另经 S1 的 `UpdateUrls` 逐跳校验 HTTPS。
+- `setInstanceFollowRedirects(false)`：`HttpForm`、`EduClient`、`LifeAuthApi`、`LifeDeviceApi`、`UpdateCheck`、`LifeDeviceHttp` 全部关闭自动重定向；`UpdateCheck` 另经 S1 的 `UpdateUrls` 逐跳校验 HTTPS。
 - `setJavaScriptEnabled(true)`：5 个 WebView 启用，但**均未** `addJavascriptInterface`，JS 无原生桥可达。
 
 ### 2. 本次修复：EduLoginActivity 导航准入（确认问题）

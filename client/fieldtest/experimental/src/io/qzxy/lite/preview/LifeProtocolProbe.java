@@ -1,20 +1,18 @@
 // SPDX-License-Identifier: MPL-2.0
 package io.qzxy.lite.preview;
 import org.json.*;
-import java.io.*;
-import java.net.*;
 import java.util.*;
 /**
- * 协议探测：一次把「服务端到底要什么」问清楚。
+ * 实验性协议探测：一次把「服务端到底要什么」问清楚。
  *
- * <p>背景：官方 3.1.10 的包是加固的，真实代码取不出来；服务端对 {@code /api/v1/dev/start}
- * 只给一句「请升级最新版APP」，而且把 {@code VersionCode} 抬到 50000 也一样。
- * 同一份诊断里详情请求（同样的头、同样的 token）却是 {@code code:0}——
- * 说明差异不在凭据，而在这条控制请求的「长相」：走的路径、带的参数、或者请求头。
+ * <p><b>不属于发布功能。</b>本文件只在 {@code client/fieldtest/experimental} 下，默认不参与编译；
+ * 只有构建时显式传 {@code --experimental-probe} 才会打进包，且构建脚本会对产物做双向断言
+ * （正式包必须没有本类与 {@code dev/mode/start}，实验包必须有）。它只用于本地隔离环境，
+ * 不要对真实设备执行：其中包含带控制效果的开启请求。
  *
- * <p>于是这里把几种最可能的长相排成一列依次试，只做一件事：把服务端的**原话**原样记下来。
- * 判据很简单——只要它不再说「升级」，就说明这道墙过了（那时即使回「参数错误」也是有价值的信息：
- * 墙过了、参数不对）。命中即停，避免对设备重复下发；而且被墙挡回的请求根本没进业务逻辑，重试不会多开一次水。
+ * <p>判据保留原样：几种最可能的请求形态依次试，只记录服务端的原话；只要不再说「升级」
+ * 就说明这道墙过了。命中即停，避免对设备重复下发。传输已移到 {@link LifeDeviceHttp}，
+ * 正常用水不再依赖本类。
  */
 final class LifeProtocolProbe {
  private LifeProtocolProbe(){}
@@ -44,7 +42,7 @@ final class LifeProtocolProbe {
   for(int i=0;i<tries.size()&&!passed;i++){
    Attempt a=tries.get(i);String line;
    try{
-    JSONObject reply=request(a.path,token,a.headers);
+    JSONObject reply=LifeDeviceHttp.get(a.path,token,a.headers);
     int code=LifeAuthApi.resultCode(reply);String msg=LifeAuthApi.message(reply);
     passed=!LifeVersion.upgradeRequired(reply);
     line=(i+1)+". "+a.name+" → "+code+(msg.isEmpty()?"":"："+msg)+(passed?"   ★ 过了这道墙":"");
@@ -58,22 +56,5 @@ final class LifeProtocolProbe {
   if(passed)out.append("第 ").append(hit).append(" 条不再被「请升级」挡住，改用它。");
   else out.append("全部被同一句话挡住：说明它看的不是路径/这些头，而是请求签名一类的协商（需要官方新版本的密钥）。");
   return out.toString();
- }
- static JSONObject request(String path,String token,Map<String,String> headers)throws Exception{
-  HttpURLConnection c=(HttpURLConnection)new URL(LifeAuthApi.HOST+path).openConnection();
-  c.setInstanceFollowRedirects(false);c.setConnectTimeout(15000);c.setReadTimeout(15000);c.setUseCaches(false);
-  c.setRequestProperty("Authorization",token);
-  c.setRequestProperty("ApplicationType",LifeVersion.APPLICATION_TYPE);
-  // 版本头放版本名字符串（「3.1.9」），不是数字——数字版请求正是被「请升级」挡住的原因。
-  c.setRequestProperty("VersionCode",LifeVersion.DEVICE_VERSION);
-  c.setRequestProperty("User-Agent",LifeVersion.DEVICE_UA);
-  c.setRequestProperty("Accept-Language",LifeVersion.ACCEPT_LANGUAGE);
-  c.setRequestProperty("Content-Type","application/json");
-  for(Map.Entry<String,String> e:headers.entrySet())c.setRequestProperty(e.getKey(),e.getValue());
-  try{
-   int http=c.getResponseCode();
-   if(http!=200)return new JSONObject().put("code",-1).put("msg","HTTP "+http);
-   return new JSONObject(new String(TimetableBackup.read(c.getInputStream(),1024*1024),"UTF-8"));
-  }finally{c.disconnect();}
  }
 }

@@ -8,8 +8,9 @@
 | :-- | :-- |
 | 当前正式版 | **2.6.0**（versionCode `236`，2026-11-21） |
 | 上一版正式版 | 2.5.9（`210`，2026-11-20） |
-| 最新预览版 | 2.6.0-beta.18（`235`，2026-11-21，安全整改后重出） |
+| 最新预览版 | 2.6.1-beta.1（`237`，2026-11-21，移除实验性协议探测） |
 | 当前产物 | `delivery/科信小助手-2.6.0.apk` · 5,486,527 B · `sha256 8658a047…f589b7` |
+| 最新预览产物 | `delivery/科信小助手-2.6.1-beta.1.apk` · 5,482,431 B · `sha256 f83e4d74…7289e` |
 | 更新清单 | 正式 `update.json` / `update-github.json` / `update-gitee.json`；预览 `beta.json` / `beta-github.json` / `beta-gitee.json` |
 | 版本规则 | 正式 `X.Y.Z`、预览 `X.Y.Z-beta.N`；`versionCode` 全局递增且不复用（当前最高 `236`） |
 
@@ -18,6 +19,41 @@
 - `2.5.8.1`（`209`）因四段版名使旧客户端解析失败、收不到更新，已由 2.5.9 取代；另有同名开发包（`199`，`6406500`），未发版。
 - `2.5.8.2`–`2.5.8.9`、`2.5.10`–`2.5.13-beta.2`、`2.6.0-beta.*` 均为开发或预览迭代，各自未建 tag；功能最终并入 2.5.8 与 2.6.0。
 - 更早版本的发布说明见 [`delivery/release-*.md`](delivery/)。
+
+---
+
+## [已发布预览] 2.6.1-beta.1 — 实验性协议探测移出发布包（versionCode 237）
+
+**产物**：`delivery/科信小助手-2.6.1-beta.1.apk`，5,482,431 B，
+`sha256 f83e4d747ca2df19250ceea6e9b0f61f2b3b77969f03aae9d5be9f500507289e`；v2 + v3 签名，证书与 2.6.0 一致，可覆盖安装。
+
+### 修复
+
+- **正式包不再包含实验性协议探测**：`2.3.6` 起，用水页设备详情 →「诊断…」里的「协议探测（会尝试开启一次）」一直在正式包里，会真的向设备发一次带控制效果的开启请求（`cnt=1`），可能产生实际用水与扣费。
+  - 设备请求的传输拆成 `LifeDeviceHttp`（不跟随重定向、15s 超时、应答上限 1 MiB），正常开启 / 结束用水只依赖它。
+  - 探测类与探测菜单移入 `client/fieldtest/experimental`，默认不参与编译；只有 `--experimental-probe` 的本地隔离构建才编入。
+  - 正式与预览包的菜单只剩「复制诊断信息」「读取设备状态（只读）」两项。
+
+### 构建与守卫
+
+- `build_preview.py` 对产物做**双向断言**：发布包必须不含 `LifeProtocolProbe` 与 `dev/mode/start`，`--experimental-probe` 时必须含——开关传了没编进去、忘传却漏进去，都会直接失败。
+- 新增 `scripts/test_probe_boundary.py`（22 项）：探测类只许在隔离目录、正常用水不引用它、正式菜单无探测文案、构建脚本保留双向断言。已并入 CI 与出包预检。
+- 未改 tag、Release 与历史：`v2.6.0` 的源码归档仍完整可取，MPL-2.0 义务不受影响。
+
+### 验证
+
+- `test_core` 1554、`test_ui_contract` 388、`test_build_config` 7、`test_probe_boundary` 22、`test_diag_privacy` 717、`test_diag_files` 6650、`test_webview_policy` 5、`test_analytics` 77（+18）、`test_secrets`（源码 + 产物扫描）全过。
+- 产物核对：`classes.dex` 中 `LifeProtocolProbe` 0 处、`dev/mode/start` 0 处；`LifeDeviceHttp`、`WaterActivity`、`LifeWaterActivity` 与开启 / 结束两条控制路径均在。
+- 实验源集另行做过 `javac` 编译校验（不打包、不发布），确认隔离实现仍可编译。
+- **未做**：真机扫码与真实出水/结束由发布者自测；不向真实设备发送任何探测请求。
+
+### 发布状态（2026-11-21 21:2x）
+
+| 渠道 | 状态 |
+| :-- | :-- |
+| GitHub `preview` | 已上线：`campuskit-2.6.1-beta.1.apk` + `beta.json`，清单与 APK 均 200，字节数与哈希一致 |
+| 国内（WorkBuddy 下载站） | 已上线：`beta.json` 200（809 B），APK 200 / 5,482,431 B |
+| Gitee `preview` | **本次未上传**（本机无令牌）；线上清单仍为 beta.18，仓库内 `beta-gitee.json` 已按 237 写好，拿到令牌后可直接传 |
 
 ---
 

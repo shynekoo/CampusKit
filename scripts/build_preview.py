@@ -16,6 +16,11 @@ ROOT = Path(__file__).resolve().parents[1]
 SDK = ROOT / "tools/android-sdk"
 BUILD = ROOT / "client/build/preview"
 FIELD = ROOT / "client/fieldtest/src"
+# 实验性协议探测的隔离 source root：默认不编译，只有显式 --experimental-probe 才加入。
+# 它发出的请求带控制效果（会真的开启一次用水），不属于发布功能。
+FIELD_EXPERIMENTAL = ROOT / "client/fieldtest/experimental/src"
+# 两个同 FQCN 的「诊断菜单」二选一：正式版只有两项，实验版多一条探测入口。
+FORMAL_PROBE_ENTRY = FIELD / "io/qzxy/lite/preview/LifeProbeEntry.java"
 
 # Every device-control endpoint. A read-only build must contain none of these strings; a field-test
 # build must contain all of them. The build fails otherwise, so "this APK cannot send a control
@@ -29,6 +34,9 @@ CONTROL_ROUTES = (
     "/api/v1/dev/start",
     "/api/v1/dev/end",
 )
+# 实验性探测的产物指纹：正式/预览包必须一个都没有，实验包必须都有（双向断言）。
+# 用类型描述符而不是裸类名，避免 "LifeProtocolProbe" 出现在别的字符串里造成误判。
+PROBE_ONLY = ("Lio/qzxy/lite/preview/LifeProtocolProbe;", "/api/v1/dev/mode/start")
 FIELD_LABEL = "科信小助手"
 
 # 发布版本命名：正式版 X.Y.Z，预览版 X.Y.Z-beta.N（N 从 1 开始，不带前导零）。
@@ -56,7 +64,7 @@ def dex_literals(paths):
     return {item.decode("ascii") for item in found}
 
 
-def check_route_boundary(dex_dir, field_water):
+def check_route_boundary(dex_dir, field_water, experimental_probe=False):
     literals = dex_literals(sorted(dex_dir.glob("*.dex")))
     hits = {route: sum(route in item for item in literals) for route in CONTROL_ROUTES}
     hits.update({name: sum(name in item for item in literals) for name in FIELD_ONLY_CLASSES})
@@ -68,6 +76,18 @@ def check_route_boundary(dex_dir, field_water):
         present = [key for key, count in hits.items() if count > 0]
         if present:
             raise RuntimeError("Read-only build leaked control routes or field-test classes: " + ", ".join(present))
+    # 实验性协议探测：正式与预览包必须没有，实验包必须有——两个方向都断言，避免
+    # 「开关传了却没编进去」和「忘了传却漏进去」两种沉默失败。
+    probe_hits = {key: sum(key in item for item in literals) for key in PROBE_ONLY}
+    if experimental_probe:
+        absent = [key for key, count in probe_hits.items() if count == 0]
+        if absent:
+            raise RuntimeError("--experimental-probe was given but the build lacks: " + ", ".join(absent))
+    else:
+        leaked = [key for key, count in probe_hits.items() if count > 0]
+        if leaked:
+            raise RuntimeError("Release build contains the experimental protocol probe: " + ", ".join(leaked))
+    hits.update(probe_hits)
     return hits
 
 
@@ -185,6 +205,10 @@ def main():
     device_tests = "--device-tests" in sys.argv
     field_water = "--field-water" in sys.argv
     beta_build = "--beta" in sys.argv
+    # 实验性协议探测只在隔离环境构建：必须与用水控制一起出现，单独传没有意义。
+    experimental_probe = "--experimental-probe" in sys.argv
+    if experimental_probe and not field_water:
+        raise RuntimeError("--experimental-probe 只能与 --field-water 一起使用")
     explicit_name = option("--version-name")
     explicit_code = option("--version-code")
     allow_lower_code = "--allow-lower-version-code" in sys.argv
@@ -199,6 +223,7 @@ def main():
     if "--skip-tests" not in sys.argv:
         run([sys.executable, ROOT / "scripts/test_core.py"])
         run([sys.executable, ROOT / "scripts/test_build_config.py"])
+        run([sys.executable, ROOT / "scripts/test_probe_boundary.py"])
         run([sys.executable, ROOT / "scripts/test_diag_privacy.py"])
         run([sys.executable, ROOT / "scripts/test_diag_files.py"])
         run([sys.executable, ROOT / "scripts/test_webview_policy.py"])
@@ -302,7 +327,12 @@ def main():
     if device_tests:
         sources += sorted((ROOT / "client/androidTest/src").rglob("*.java"))
     if field_water:
-        sources += sorted(FIELD.rglob("*.java"))
+        field_sources = sorted(FIELD.rglob("*.java"))
+        if experimental_probe:
+            # 同 FQCN 的两个实现不能同时编译：实验构建排除正式占位，改编 experimental 源集。
+            field_sources = [path for path in field_sources if path != FORMAL_PROBE_ENTRY]
+            field_sources += sorted(FIELD_EXPERIMENTAL.rglob("*.java"))
+        sources += field_sources
         if device_tests:
             sources += sorted((ROOT / "client/fieldtestTest/src").rglob("*.java"))
     run([jdk / "bin/javac.exe", "-J-Duser.language=en", "--release", "8", "-Xlint:-options", "-encoding", "UTF-8", "-classpath", os.pathsep.join(str(p) for p in [android, zxing, alipay_jar] + pdf_jars),
@@ -313,7 +343,7 @@ def main():
             jar.write(path, path.relative_to(BUILD / "classes").as_posix())
     run([jdk / "bin/java.exe", "-cp", tools / "lib/d8.jar", "com.android.tools.r8.D8", "--lib", android,
          "--min-api", "24", "--output", BUILD / "dex", classes, zxing, alipay_jar] + pdf_jars)
-    route_hits = check_route_boundary(BUILD / "dex", field_water)
+    route_hits = check_route_boundary(BUILD / "dex", field_water, experimental_probe)
     unsigned = BUILD / "unsigned.apk"
     shutil.copyfile(BUILD / "resources.apk", unsigned)
     with zipfile.ZipFile(unsigned, "a", zipfile.ZIP_DEFLATED) as apk:
@@ -368,7 +398,8 @@ def main():
               "mode": "campus_release" if field_water else "scan_device_profile_and_order_query_readonly",
               "account_login_implemented": True, "device_profile_implemented": True, "order_query_implemented": True,
               "recovery_store_implemented": True, "water_control_implemented": field_water,
-              "field_water_build": field_water, "control_route_occurrences_in_dex": route_hits,
+              "field_water_build": field_water, "experimental_probe_build": experimental_probe,
+              "control_route_occurrences_in_dex": route_hits,
               # 基础诊断在所有构建里都有；detail 才是 --diagnostics 的有无。两个都写进产物报告，
               # 免得把 "diagnostics_implemented: false" 误读成「正式包没有诊断页」。
               "diagnostics_basic": True,

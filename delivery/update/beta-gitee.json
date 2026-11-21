@@ -1,13 +1,13 @@
 {
-  "version": "2.6.0-beta.18",
-  "versionCode": 235,
+  "version": "2.6.1-beta.1",
+  "versionCode": 237,
   "notes": [
-    "安全整改：移除已下线的充值签名代码，源码与安装包不再包含该签名常量",
-    "慧生活登录与支付宝授权、扫码用水、教务课表成绩、应用内更新全部保持原样",
-    "新增发布前敏感信息扫描：源码或安装包命中禁用常量就不出包",
-    "本次为安全整改后的重新出包，覆盖 beta.17 安装即可"
+    "用水页的「协议探测」入口已移除：正式版与预览版都不再包含该实验代码，构建时自动检查，混入就不出包",
+    "正常扫码、设备详情、开启用水、结束用水与只读诊断保持原样；设备请求改用独立的传输层",
+    "旧版本（2.6.0 及更早）的该入口会真的向设备发一次开启请求，可能产生实际用水与扣费，请勿点击",
+    "本次为预览版：安装后请先确认扫码、开启与结束用水正常"
   ],
-  "bytes": 5486527,
-  "sha256": "e6e674bb5ccfea1c4c974c7eff92511b67c3b66685340cdda90378468707bf3e",
-  "url": "https://gitee.com/sun-heyue/CampusKit/releases/download/preview/campuskit-2.6.0-beta.18.apk"
+  "bytes": 5482431,
+  "sha256": "f83e4d747ca2df19250ceea6e9b0f61f2b3b77969f03aae9d5be9f500507289e",
+  "url": "https://gitee.com/sun-heyue/CampusKit/releases/download/preview/campuskit-2.6.1-beta.1.apk"
 }

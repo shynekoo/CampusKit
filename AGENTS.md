@@ -59,6 +59,7 @@ python scripts/check_doc_sync.py --base origin/main   # 检查一个提交范围
 ```bash
 python scripts/test_core.py            # core JVM 断言（当前 1554 项）
 python scripts/test_build_config.py    # 诊断构建开关 7 项
+python scripts/test_probe_boundary.py  # 实验性协议探测边界 22 项（源码 / 入口 / 构建断言）
 python scripts/test_diag_privacy.py    # 诊断隐私守卫 717 项
 python scripts/test_diag_files.py      # 日志轮转/上限/清空/过期清理实跑（需 Android SDK；CI 缺 SDK 时 SKIP）
 python scripts/test_webview_policy.py  # WebView 导航守卫 5 项
@@ -67,7 +68,7 @@ python scripts/test_analytics.py       # 统计隐私守卫 77 项 + server/anal
 python scripts/test_secrets.py         # 公开仓库红线：禁用盐值 / 我方凭据 / 被跟踪但忽略的文件
 ```
 
-CI 在 `.github/workflows/docs-ci.yml`：推送 / PR 时自动跑以上八个入口（构建脚本内置的六个 + UI 守卫 + 敏感信息守卫），并检查关键文档存在。**CI 不构建、不签名、不发布、不推送任何内容。**
+CI 在 `.github/workflows/docs-ci.yml`：推送 / PR 时自动跑以上九个入口（构建脚本内置的七个 + UI 守卫 + 敏感信息守卫），并检查关键文档存在。**CI 不构建、不签名、不发布、不推送任何内容。**
 
 `scripts/test_secrets.py` 是**发布闸门**而不是回归测试：`build_preview.py` 在打包前无条件调用它（`--skip-tests` 也跳不过），打包后再用 `--apk` 复查产物（dex、assets、资源表、native 库）。不通过就不出包，因此 Beta 自动发布拿不到一个带已知盐值的包。
 

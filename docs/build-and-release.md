@@ -35,6 +35,7 @@ python scripts/build_preview.py --field-water   # 出包（正式与预览都要
 | :-- | :-- |
 | 默认（不加开关） | `WATER_CONTROL=false`、`DIAGNOSTICS=false` —— 只读版，**不是发版形态**（缺用水控制，扫码跳转分支会被编译期移除） |
 | `--field-water` | 编入 `client/fieldtest` 用水控制；构建后校验控制路由与 `WaterActivity`/`WaterControl` 的 dex 类型描述符**全部出现** |
+| `--experimental-probe` | **仅本地隔离实验**：额外编入 `client/fieldtest/experimental`（实验性协议探测，会真的向设备发一次开启请求）。必须与 `--field-water` 同用；产物断言反向：发布包必须不含探测类与 `dev/mode/start`，本开关下必须含 |
 | `--diagnostics` | 额外编入高密度诊断事件（手势、渲染、逐次请求）；基础诊断页与白名单事件在所有构建里都有 |
 | （无参数） | `DIAG_BASIC = true`：诊断页存在，运行期默认关，用户主动开启 |
 | `--no-diagnostics` | 显式关闭（兼容旧参数） |

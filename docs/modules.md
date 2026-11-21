@@ -36,11 +36,15 @@
 | 匿名统计 | `AnalyticsPreferences`、`AnalyticsReporter` | 同意状态（默认关）、本机随机 UUID（只在同意后生成）、每自然日一次上报、进入前台触发、关闭时删除历史记录；不读设备标识、不进日志 |
 | 更新/隐私/其他 | `UpdateCheck`、`AppChangelog`、`ChangelogActivity`、`ApkProvider`、`PrivacyActivity`、`NoticeActivity`、`LegalText`、`LegalView`、`NoticeDialog`、`FeedbackActivity`、`MoreActivity`、`AppearanceActivity`、`SchoolSiteActivity`、`TimetableWebActivity`、`WebBack`、`HttpForm`、`ColorDialog` | 应用内更新（正式 + 预览两条清单，开关在「更多」页、状态存 `update-v1` 偏好）、更新日志（`AppChangelog` 内置数据 + `ChangelogActivity` 展开式卡片页，离线、无网络）、数据与隐私页、使用公告（页面 + 首次启动弹窗，共用 `LegalText` 文案与 `LegalView` 排版）、外观、网页容器、网络与弹窗 |
 
-## client/fieldtest — 用水控制（7 个文件，`--field-water` 时整组编入）
+## client/fieldtest — 用水控制（8 个文件，`--field-water` 时整组编入）
 
-`WaterActivity`、`WaterControl`、`LifeWaterActivity`、`LifeWaterProtocol`、`LifeProtocolProbe`、`LifeVersion`、`LifeDiagnostics`。**正式版按 `--field-water` 构建，因此这 7 个文件全部在正式包内**（扫码跳转支付宝依赖其中的 `WaterActivity` / `LifeWaterActivity`）；不带该开关的只读构建才不含整组。构建脚本对控制路由与两个 dex 类型描述符做出现/缺失双向断言。
+`WaterActivity`、`WaterControl`、`LifeWaterActivity`、`LifeWaterProtocol`、`LifeDeviceHttp`、`LifeProbeEntry`、`LifeVersion`、`LifeDiagnostics`。**正式版按 `--field-water` 构建，因此这 8 个文件全部在正式包内**（扫码跳转支付宝依赖其中的 `WaterActivity` / `LifeWaterActivity`）；不带该开关的只读构建才不含整组。构建脚本对控制路由与两个 dex 类型描述符做出现/缺失双向断言。
 
-`LifeProtocolProbe` 是实验性入口，会向设备发一次带控制效果的开启请求，已列入待整改项，见 [`known-issues.md`](known-issues.md)。
+设备请求的传输只走 `LifeDeviceHttp`（不跟随重定向、15s 超时、应答上限 1 MiB），正常开启 / 结束用水不依赖任何实验代码。
+
+## client/fieldtest/experimental — 实验性协议探测（默认不编译）
+
+`LifeProtocolProbe` 与实验版 `LifeProbeEntry`（同 FQCN 替换正式占位）。会向设备发一次带控制效果的开启请求，**只在 `--experimental-probe` 的本地隔离构建里存在**；发布包由构建期断言保证不含探测类与 `dev/mode/start`。撤回记录见 [`known-issues.md`](known-issues.md)。
 
 ## 测试入口
 

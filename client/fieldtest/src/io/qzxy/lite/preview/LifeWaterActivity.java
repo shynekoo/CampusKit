@@ -69,7 +69,7 @@ public final class LifeWaterActivity extends Activity {
  private static final Set<String> SENSITIVE=new HashSet<>(Arrays.asList("token","uid","user","telephone","telphone","tel","phone","logincode","idcard","idcardno","pwd","password","opencode"));
  private void details(){
   AlertDialog.Builder b=new AlertDialog.Builder(this).setTitle("设备详情").setMessage(deviceDetails).setNegativeButton("关闭",null);
-  if(rawDetail!=null)b.setNeutralButton("诊断…",(d,w)->new AlertDialog.Builder(this).setItems(new String[]{"复制诊断信息","读取设备状态（只读）","协议探测（会尝试开启一次）"},(x,which)->{if(which==0)copyDiagnostics();else if(which==1)readState();else probe();}).show());
+  if(rawDetail!=null)b.setNeutralButton("诊断…",(d,w)->new AlertDialog.Builder(this).setItems(LifeProbeEntry.items(),(x,which)->{if(which==0)copyDiagnostics();else if(which==1)readState();else LifeProbeEntry.run(this,did,pays.isEmpty()?LifeWaterProtocol.DEFAULT_PAYMENT:pays.get(0),rawDetail);}).show());
   b.show();
  }
  /**
@@ -87,24 +87,6 @@ public final class LifeWaterActivity extends Activity {
    post(()->{busy=false;screen.loading(false);refresh.setEnabled(true);status.setText("设备状态见弹窗，点「复制」发我。");
     new AlertDialog.Builder(this).setTitle("设备状态（只读）").setMessage(report).setPositiveButton("复制",(d,w)->{
      ((ClipboardManager)getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("慧生活设备状态",report));
-     Toast.makeText(this,"已复制",Toast.LENGTH_SHORT).show();
-    }).setNegativeButton("关闭",null).show();});
-  });
- }
- /** 一次把「服务端到底要什么」问清楚：试几种请求长相，把每一条的服务端原话都带出来。 */
- private void probe(){
-  if(busy)return;busy=true;disable();status.setText("正在探测接口要求…");
-  worker.execute(()->{
-   String report;
-   try{
-    JSONObject s=session();JSONObject data=rawDetail.getJSONObject("data");
-    int mode=data.getJSONObject("device").getJSONObject("gene").optInt("mode",0);
-    report=LifeProtocolProbe.run(s,did,pays.isEmpty()?91:pays.get(0),mode);
-   }catch(Exception e){report="探测未完成："+LifeDeviceFailure.describe(e);}
-   final String text=report;
-   post(()->{busy=false;screen.loading(false);refresh.setEnabled(true);status.setText("探测结果见弹窗，点「复制」发我。");
-    new AlertDialog.Builder(this).setTitle("协议探测结果").setMessage(text).setPositiveButton("复制",(d,w)->{
-     ((ClipboardManager)getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("慧生活协议探测",text));
      Toast.makeText(this,"已复制",Toast.LENGTH_SHORT).show();
     }).setNegativeButton("关闭",null).show();});
   });
