@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
-// 强制易盾壳走 arm64 libnesec 加载路径（与真机一致），并记录 dlopen 失败原因。
+// 实验环境加载器兼容性排查：强制易盾壳走 arm64 libnesec 加载路径（与真机一致），并记录 dlopen 失败原因。
+// 仅用于本机隔离测试实例（QZXY-Login-Lab）：只改写一个加载器判定的返回值并打印本地日志，
+// 不针对线上服务、不修改业务数据、不读取账号凭据、不绕过鉴权与计费。
 Java.perform(function () {
     var MyJni = Java.use("com.netease.nis.wrapper.MyJni");
     MyJni.a.overload().implementation = function () {

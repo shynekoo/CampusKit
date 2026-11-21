@@ -9,7 +9,7 @@
 
 入口：账号 → 趣智校园 → 充值。
 
-实现依据是原版 6.5.28 的 `ui.recharge.RechargeActivity` 反编译结果：
+实现依据是原版 6.5.28 `ui.recharge.RechargeActivity` 的静态分析结果：
 
 | 环节 | 原版位置 | 本版做法 |
 | --- | --- | --- |

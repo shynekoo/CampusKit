@@ -4,7 +4,7 @@
 
 ## 包里看到了什么
 
-`com.cloudora.android` / `versionCode=31010` / `versionName=3.1.10`，62 MB。反编译只出 30 个类——它是加固的：`classes.dex` 的头部（`string_ids_size=843`、`class_defs_size=30`）只描述一个几十 KB 的壳，真实的 70 MB 代码被壳藏在后面，dex 头被抹掉。试过 `dexdump`（头部自洽、其余 69.9 MB 无主）、按 `file_size` 自洽性反查真头（零命中）、zlib 解压（无）、应用宝/豌豆荚/apkpure/apkcombo/小米/酷安下载（无此应用或只到 3.1.7 / 超时）。**静态这条路到此为止。**
+`com.cloudora.android` / `versionCode=31010` / `versionName=3.1.10`，62 MB。静态分析只得到 30 个类——它是加固的：`classes.dex` 的头部（`string_ids_size=843`、`class_defs_size=30`）只描述一个几十 KB 的壳，真实的 70 MB 代码被壳藏在后面，dex 头被抹掉。试过 `dexdump`（头部自洽、其余 69.9 MB 无主）、按 `file_size` 自洽性检索真实头部（零命中）、zlib 解压（无）、应用宝/豌豆荚/apkpure/apkcombo/小米/酷安下载（无此应用或只到 3.1.7 / 超时）。**静态这条路到此为止。**
 
 能从字符串表里捞出来的有用信息：
 

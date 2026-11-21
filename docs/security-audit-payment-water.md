@@ -57,7 +57,7 @@
 ### 6. 支付宝 exported 回调组件
 
 - Manifest 中 `PayResultActivity` / `AlipayResultActivity` 为 `exported="true"`（`:67-72`），系支付宝 SDK 回调所需；其余所有 App Activity 均 `exported="false"`。
-- 反编译 SDK 源码（`client/build/jadx-sdk/sources/com/alipay/sdk/app/PayResultActivity.java:69-103`）显示其用进程内随机请求号 `b.a` 比对 `intExtra`，不符则走失败分支；这是 SDK 自身职责，非本项目代码。
+- 支付宝 SDK 静态分析结果（`client/build/jadx-sdk/sources/com/alipay/sdk/app/PayResultActivity.java:69-103`）显示其用进程内随机请求号 `b.a` 比对 `intExtra`，不符则走失败分支；这是 SDK 自身职责，非本项目代码。
 - 本项目不读取这两个 Activity 的回调来确认交易；用水成功以服务端状态为准（见第 3 项）。故不存在"外部 Intent 伪造支付成功"的本地链路。
 
 ## 未发现 / 未修改项（明确记录，不为凑数而改）

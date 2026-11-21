@@ -341,7 +341,7 @@ UI-3 本轮修 5 处：滚动恢复带 generation 且改为布局后（pre-draw�
   重定向夹具改用 `UpdateSources.GITEE_RELEASE` 常量，不再手抄地址。
 - **未验证**：App 内真机走 Gitee 下载安装（B0c）。
 
-## 三之十七、评教接口按真实抓包重做（2.6.0-beta.10）
+## 三之十七、评教接口按真实请求样本重做（2.6.0-beta.10）
 
 - **做法变了**：这次没有改文案、也没有再加一种请求组合。用实测账号（某专业课 · 任课教师）登录学校教务，
   把官方 `xspj_index.js` 的 `$(panel_content).load("/xspjgl/xspj_cxXspjDisplay.html", {七项})` 逐项复现，

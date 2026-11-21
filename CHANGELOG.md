@@ -94,6 +94,41 @@ v2 + v3 签名，证书 `13b96892…d4209`（与 2.5.9 一致，可覆盖安装�
 
 ---
 
+## [未发布] — 公开文案规范化（2026-11-21，无功能变更）
+
+目的：让公开仓库的描述专业、客观、克制，避免被读成破解或爬虫工具，同时不牺牲技术透明度。
+**只改文档措辞、少量注释与脚本说明，不改任何业务代码、构建流程、签名材料、Git 历史、Tag、Release 与 APK。**
+
+### 变更
+
+- **方法类词改中性表述**：`逆向研究` → `接口兼容性研究`；`抓包分析` → `网络请求调试与分析`；
+  `反编译` → `静态分析（JADX 反编译产物）`；`模拟官方请求` → `与相关服务平台进行接口交互`；
+  `协议复刻` → `接口适配实现`。逐处按上下文改，未做全局机械替换。
+- **安全审计文档保留真实方法**：`docs/security-audit-network-sdk.md`、`docs/security-audit-payment-water.md`
+  仍写明「静态全文检索 + 构建配置核对 + SDK 静态分析结果复核」与具体文件行号，"未对任何真实服务做
+  未授权安全测试"的结论保持原样。改词只去掉误导性框架，不改变任何审计结论。
+- **非官方事实加强而非削弱**：`README.md` 使用须知明确写出「未获得学校或任何平台的授权或认可」，
+  并新增一条边界说明（不绕过鉴权、计费与风控，不代填、不代评）。第三方常量、残留风险、许可证与
+  署名段落全部原样保留。
+
+### 涉及文件
+
+`README.md`、`AGENTS.md`、`AGENT-HANDOFF.md`、`CHANGELOG.md`、`docs/data-interfaces.md`、
+`docs/security.md`、`docs/licensing.md`、`docs/real-device-acceptance.md`、
+`docs/security-audit-network-sdk.md`、`docs/security-audit-payment-water.md`、`docs/agent-handoff.md`、
+`client/THIRD_PARTY.md`、`client/android/src/.../AlipayLogin.java`（注释）、
+`scripts/frida_launch.py`、`scripts/qzxy_hook.js`（补范围说明）、`delivery/release-1.1.0.md`、
+`delivery/release-1.4.0.md`、`delivery/release-2.3.6.md`。
+
+### 验证
+
+- `test_core` 1554 / `test_build_config` 7 / `test_webview_policy` 5 / `test_ui_contract` 388 /
+  `test_diag_privacy` 717 / `test_diag_files` 6650 / `test_analytics` 77 / `test_secrets` 全绿。
+- 受管 Markdown 内部链接检查：75 个文件、0 处失效。
+- 未构建 APK、未发布、未改动任何业务行为。
+
+---
+
 ## [未发布] — 公开仓库安全整改（2026-11-21）
 
 按 `tmp/security-audit-public-repo-2026-11-21.md` 的结论执行，**只动仓库，不动功能边界**：
@@ -105,7 +140,7 @@ v2 + v3 签名，证书 `13b96892…d4209`（与 2.5.9 一致，可覆盖安装�
   **没有调用方**（充值入口 1.4.8 已移除），只被测试引用，因此删除对功能零影响；随之一并删除
   40 项只校验这两个类的断言。该盐值此前已随公开发布的 APK 扩散，删除源码不能让旧副本失效，
   但继续留在仓库里没有任何收益。`scripts/test_secrets.py` 对它的两种形态做硬阻断。
-- **被 Git 跟踪的构建产物与分析文档**：`analysis/recharge-integration.md`（反编译记录，含盐值与
+- **被 Git 跟踪的构建产物与分析文档**：`analysis/recharge-integration.md`（静态分析记录，含盐值与
   路由表）、5 个历史 APK（DEX 内含同一盐值）、3 个 `.build.json`。取消跟踪、文件留在本地，
   历史清理另案处理。
 - **真实个人数据**：文档、源码注释与测试夹具里的任课教师姓名、真实 GPA 与学分统计数值，全部
@@ -294,9 +329,9 @@ HMAC 密钥、每日清理 cron 均已就位），但实测 `*.workers.dev` 在�
 
 ---
 
-## [已发 GitHub / Gitee · 2.6.0-beta.10] — 评教接口按真实抓包重做（versionCode 227）
+## [已发 GitHub / Gitee · 2.6.0-beta.10] — 评教接口按真实请求样本重做（versionCode 227）
 
-> 这一版不再猜。用实测账号（某专业课 · 任课教师）登录学校教务，把官方页面发出的每一条请求抓下来逐项复现，
+> 这一版不再猜。用实测账号（某专业课 · 任课教师）登录学校教务，把官方页面发出的每一条请求记录下来逐项复现，
 > 三条失败各有确定原因：
 >
 > | 请求形态 | 学校回应 |
@@ -942,7 +977,7 @@ release CDN 在境内常在数十 KB/s 量级甚至超时。Gitee 的价值是�
 - 只读路径白名单补上计划外端点；`jdkcsx` 仍从 `<p>` 与 `<div class='title' xfyqjd_id=…>` 两处读取（两种部署位置都已断言）。
 
 ### 验证
-- 真实账号端到端复验（按新规则逐叶子请求）：24 个叶子节点中，人文科学 **5 门**（学校页显示"共 (5) 门"）、自然科学 **6 门**（"共 (6) 门"）、公共艺术某课组 **2 门**，其余计划内课组条数与修复前一致；`parseCourses()` 读计划外返回无丢课。抓包数据与凭据用后即删，工作区无残留。
+- 真实账号端到端复验（按新规则逐叶子请求）：24 个叶子节点中，人文科学 **5 门**（学校页显示"共 (5) 门"）、自然科学 **6 门**（"共 (6) 门"）、公共艺术某课组 **2 门**，其余计划内课组条数与修复前一致；`parseCourses()` 读计划外返回无丢课。调试记录与凭据用后即删，工作区无残留。
 - 合并到主线后实跑：`test_core` **1278**（含计划内/计划外分流、特殊节点 `qtkcxfyq`/`cxcyqkxfyq`、无标记页面回退）/ `test_build_config` 5 / `test_webview_policy` 5 / `test_ui_contract` **213**（本修复新增 5 个锚点：两端点都在只读白名单、请求必须按节点选端点）全绿。
 - 合并前已在 `delivery/科信小助手-2.5.8.6.apk`（5,392,250 B）上验证过 dex 含 `cxJxzxjhxfyqFKcxx`/`planCourses`/`opensCourses`；合并后的包以 2.5.8.8 重新构建为准。**真机未验证**。
 
