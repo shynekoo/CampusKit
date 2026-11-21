@@ -193,6 +193,9 @@ def main():
     # 发布闸门，不是回归测试：源码里出现已删除的签名盐或我方凭据就直接停下，
     # 并且刻意不受 --skip-tests 影响——跳过测试可以，跳过红线不行。
     run([sys.executable, ROOT / "scripts/test_secrets.py"])
+    # 出包必须真跑日志轮转那一项：缺 SDK 时 test_diag_files 默认只是 SKIP（CI 没有 SDK），
+    # 这里把它升回硬失败，避免「跳过一次」的包被发出去。
+    os.environ["QZXY_REQUIRE_SDK"] = "1"
     if "--skip-tests" not in sys.argv:
         run([sys.executable, ROOT / "scripts/test_core.py"])
         run([sys.executable, ROOT / "scripts/test_build_config.py"])

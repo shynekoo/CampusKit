@@ -14,7 +14,7 @@ python scripts/bootstrap_android.py            # 首次准备 SDK
 python scripts/test_core.py                    # 1418 项 core 断言
 python scripts/test_build_config.py            # 构建开关 7 项
 python scripts/test_diag_privacy.py            # 诊断隐私 651 项
-python scripts/test_diag_files.py              # 日志轮转/上限/清空/过期清理实跑
+python scripts/test_diag_files.py              # 日志轮转/上限/清空/过期清理实跑（需 Android SDK）
 python scripts/test_webview_policy.py          # WebView 守卫 6 项
 python scripts/test_ui_contract.py             # UI 契约守卫
 python scripts/test_secrets.py                 # 公开仓库红线：禁用盐值 / 我方凭据 / 被跟踪但忽略的文件
@@ -22,6 +22,10 @@ python scripts/build_preview.py                # 普通只读版出包（默认�
 ```
 
 `build_preview.py` 默认调用 `test_core` / `test_build_config` / `test_diag_privacy` / `test_diag_files` / `test_webview_policy`；**不调用** `test_ui_contract`，需单独跑（CI 会跑全部）。加 `--skip-tests` 会跳过内置测试，仅用于排障——但 `test_secrets.py` 在打包前**无条件**运行，`--skip-tests` 跳不过；打包后还会用 `--apk` 复查产物的 dex。这是 Beta 自动发布前的最后一道闸门。
+
+`test_diag_files.py` 要用 `android.jar` 编译 `DiagFiles`，所以缺少 Android SDK 时它默认只打一行
+`SKIP` 并返回 0——CI 不构建、不带 SDK，这样才不会让后面的 WebView / UI / 统计 / 文档检查全被连坐跳过。
+出包时 `build_preview.py` 会设 `QZXY_REQUIRE_SDK=1`，把它升回硬失败，保证发布前的包一定实跑过这一项。
 
 ## 构建开关
 

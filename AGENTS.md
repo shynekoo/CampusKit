@@ -55,7 +55,7 @@ python scripts/check_doc_sync.py --base origin/main   # 检查一个提交范围
 python scripts/test_core.py            # core JVM 断言（当前 1554 项）
 python scripts/test_build_config.py    # 诊断构建开关 7 项
 python scripts/test_diag_privacy.py    # 诊断隐私守卫 717 项
-python scripts/test_diag_files.py      # 日志轮转/上限/清空/过期清理实跑
+python scripts/test_diag_files.py      # 日志轮转/上限/清空/过期清理实跑（需 Android SDK；CI 缺 SDK 时 SKIP）
 python scripts/test_webview_policy.py  # WebView 导航守卫 5 项
 python scripts/test_ui_contract.py     # UI 行为静态守卫 388 锚点
 python scripts/test_analytics.py       # 统计隐私守卫 77 项 + server/analytics-worker 的 node --test

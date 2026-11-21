@@ -11,6 +11,7 @@ between "the log is 1 MB" and "the phone quietly filled up".
 `DiagFiles` touches Android only through `open(Context)`; every retention rule works on plain
 `File`. So the class is compiled against `android.jar` and driven here on the JVM, with no device.
 """
+import os
 import re
 import subprocess
 import sys
@@ -187,7 +188,15 @@ def jdk_home():
 def main():
     android = SDK / "platforms/android-36/android.jar"
     if not android.exists():
-        raise RuntimeError("missing %s; this script needs the Android SDK to compile DiagFiles" % android)
+        message = "missing %s; this script compiles DiagFiles against the Android SDK" % android
+        # CI 不构建、不带 SDK；缺少 android.jar 时跳过，而不是让整条流水线红掉——否则这一条之后的
+        # WebView / UI / 统计 / 文档检查全被连坐跳过。出包时 build_preview.py 会设
+        # QZXY_REQUIRE_SDK=1，把「跳过」变回硬失败，保证发布前这一项一定实跑过。
+        if os.environ.get("QZXY_REQUIRE_SDK", "").strip() == "1":
+            raise RuntimeError(message)
+        print("SKIP: " + message, flush=True)
+        print("      Run scripts/bootstrap_android.py to enable this check locally.", flush=True)
+        return
     jdk = jdk_home()
     harness = ROOT / "client/build/diag-files-tests/src/io/qzxy/lite/preview/DiagFilesBehaviour.java"
     harness.parent.mkdir(parents=True, exist_ok=True)

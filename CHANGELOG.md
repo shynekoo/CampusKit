@@ -57,6 +57,12 @@
 - 慧生活支付宝授权串（`AlipayLogin.AUTH_INFO`）：保留。它是慧生活客户端的固定常量，删源码
   不能让它失效，却会让登录与用水对未登录用户停摆。定性见 `docs/security.md` R1。
 
+### 修复
+
+- CI 长期红在 `test_diag_files.py`：它要用 `android.jar` 编译 `DiagFiles`，而 CI 不装 Android SDK，
+  于是这一步必失败，后面的 WebView / UI 契约 / 统计 / 文档检查全被连坐跳过。现在缺 SDK 时它只打一行
+  `SKIP` 并返回 0；出包时 `build_preview.py` 设 `QZXY_REQUIRE_SDK=1` 把它升回硬失败，发布前的包一定实跑过。
+
 ### 测试
 
 - `test_core` **1554**（−40，删掉的正是两个签名器的断言）、`test_ui_contract` **388**、
