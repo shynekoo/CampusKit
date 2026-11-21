@@ -1,341 +1,146 @@
 <div align="center">
-<img src="docs/screenshots/icon.png" width="96" alt="科信小助手" />
+<img src="docs/screenshots/icon.png" width="96" alt="科信小助手">
 
 <h1>科信小助手</h1>
 
-<p><b>河北工程大学科信学院 · 趣智校园 / 慧生活798 的第三方安卓客户端</b></p>
-<p>吃饭、接水、洗澡、看课表、取件码 —— 一个 APK，不用在多个应用之间来回跳。</p>
+<p><b>CampusKit</b></p>
+
+<p>面向河北工程大学科信学院学生的开源 Android 校园助手，把教务查询、课表管理与校园生活服务收进一个应用。</p>
 
 <p>
-<a href="https://github.com/shynekoo/CampusKit/releases/latest"><img src="https://img.shields.io/github/v/release/shynekoo/CampusKit?label=release&style=flat-square&color=3b82f6" alt="Release"></a>
-<a href="LICENSE"><img src="https://img.shields.io/github/license/shynekoo/CampusKit?style=flat-square&color=22c55e" alt="License"></a>
-<a href="#系统要求"><img src="https://img.shields.io/badge/Android-7.0%2B-3ddc84?style=flat-square&logo=android&logoColor=white" alt="Android 7.0+"></a>
-<a href="#下载"><img src="https://img.shields.io/badge/APK-5.1%20MB-8b5cf6?style=flat-square" alt="APK 5.1 MB"></a>
-<a href="#为什么不使用-gradle"><img src="https://img.shields.io/badge/build-no%20gradle-f97316?style=flat-square" alt="No Gradle"></a>
-<a href="https://github.com/shynekoo/CampusKit/stargazers"><img src="https://img.shields.io/github/stars/shynekoo/CampusKit?style=flat-square&color=f59e0b" alt="Stars"></a>
-</p>
-
-<p>
-<a href="#下载">下载</a> ·
-<a href="#界面">界面</a> ·
-<a href="#功能">功能</a> ·
-<a href="#工作原理">工作原理</a> ·
-<a href="#隐私与安全">隐私</a> ·
-<a href="#从源码构建">构建</a> ·
-<a href="#常见问题">常见问题</a> ·
-<a href="#更新日志">更新日志</a>
+<a href="https://github.com/shynekoo/CampusKit/releases/latest"><img src="https://img.shields.io/github/v/release/shynekoo/CampusKit?label=release&style=flat-square" alt="Release"></a>
+<a href="LICENSE"><img src="https://img.shields.io/github/license/shynekoo/CampusKit?style=flat-square" alt="License"></a>
+<img src="https://img.shields.io/badge/Android-7.0%2B-3ddc84?style=flat-square&logo=android&logoColor=white" alt="Android 7.0+">
+<img src="https://img.shields.io/badge/Java-8-3b82f6?style=flat-square&logo=openjdk&logoColor=white" alt="Java">
 </p>
 </div>
 
----
+## 下载
 
-## 这个项目是什么
+稳定版和预览版使用同一个签名，可以互相覆盖安装；两者都支持 Android 7.0（API 24）及以上。
 
-学校的日常被拆在好几个 App 里：查课表要开教务系统，洗澡打水要开慧生活798（或它的支付宝小程序），看余额、扫码要开趣智校园，取快递要开淘宝进菜鸟驿站。每个都要登录、都有开屏、都有推送。
+**稳定版 Stable** —— 适合日常使用，只在功能验证充分后才更新。
 
-科信小助手把这些入口收进一个 5.1 MB 的原生应用：
+- [GitHub Releases 最新正式版](https://github.com/shynekoo/CampusKit/releases/latest)
+- [国内下载站](https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/?sharecode=BZD63HRP4B)（访问 GitHub 较慢时用这个）
 
-- **不建账号系统**：没有注册、没有手机号绑定，登录凭据 AES-256-GCM 加密存在手机私有目录
-- **不接中间服务器**：课表、成绩、水控全部直连学校与平台的官方接口（唯一的自建服务是可选的匿名活跃统计，默认关闭，只收随机安装标识与版本号）
-- **不做增值**：没有广告、没有推送、没有第三方统计 SDK，权限只申请 4 个
+**预览版 Beta** —— 用于提前体验新功能，更新频率更高，可能存在尚未修复的问题。
 
-## 项目一览
+- [预览版 Releases](https://github.com/shynekoo/CampusKit/releases/tag/preview)（固定 tag `preview`，每次都指向当前预览包）
 
-| 项目 | 情况 |
-| :-- | :-- |
-| 最新版本 | **v2.5.9**（2026-11-20） |
-| 安装包 | 5,437,306 字节 · SHA-256 `b022159dd8f259f47b97164e956fcfd8f2fb95e2a6d93b7dd07d4320c82ef605` |
-| 系统要求 | Android 7.0（API 24）及以上，targetSdk 36 |
-| 技术栈 | Java + 原生 View；无 Gradle、无第三方 UI 框架 |
-| 第三方库 | ZXing 3.5.3、PDFBox-Android 2.0.27.0、Bouncy Castle 1.72、支付宝 SDK 15.8.42 |
-| 开源协议 | MPL-2.0（2026-11-21 之前发布的版本，含 2.6.0 预览版，按 MIT 发布，原有授权继续有效） |
-| 代码量 | 约 1.5 万行 Java（110 个受版本管理的文件）+ 约 1000 行 Python 构建脚本 |
-| 测试 | 出包流程内跑 1505 项核心断言，全过才生成 APK |
+安装包大小、SHA-256 与版本号只在 Release 页面维护，不在本页重复。
 
-## 界面
-
-| 今日 | 课表 | 课表 · 管理 |
-| :--: | :--: | :--: |
-| <img src="docs/screenshots/today.png" width="215" alt="今日页"> | <img src="docs/screenshots/timetable.png" width="215" alt="课表周视图"> | <img src="docs/screenshots/timetable-menu.png" width="215" alt="课表管理菜单"> |
-| 校园生活入口、今天的课、教务查询、取件信息；没设开学日期就直接说怎么设 | 按节次排布的周视图，空表也把「怎么导入」写在页面上 | 多课表、教务导入、开学日期、添加课程、自定义背景、桌面组件、备份与恢复 |
+两条更新通道彼此独立：正式版只跟随正式清单；装好预览版后，可在「更多」里选定更新渠道并打开「接收预览版更新」，之后按预览清单自动更新。预览版的版本号通常高于正式版，从预览版退回正式版需要等正式版号追上来，或卸载重装——重装会清掉本地课表与登录状态，动手前先在「课表 → 管理」里导出备份。
 
 ## 功能
 
-| 模块 | 你能做什么 | 实现要点 |
-| :-- | :-- | :-- |
-| **今日** | 一页汇总：慧生活 / 趣智校园 / 易校园 / 菜鸟四个入口，教务查询，今天的课，取件信息 | 首页只做跳转与汇总，本身不发敏感请求 |
-| **课表** | 从教务系统导入（选学年学期即可），多课表管理、逐门编辑周次、自定义背景、导出 / 恢复备份 | 解析教务网页表格与 PDF 表格，导入后完全离线可用 |
-| **桌面组件** | 小、中、宽三种尺寸的课表组件 | `AppWidgetProvider` 实现，课表变动后刷新 |
-| **成绩 / 平时分 / 空教室** | 按学期、周次、节次查询，即查即出 | 直连学校教务接口，密码只在查询时提交 |
-| **学生评价** | 列出本学期每个教学班评没评、还剩几项；点开某项直接进学校的评教表单 | 只读取评价状态；评分与提交都在学校页面上完成，应用不代填、不代提交 |
-| **余额与充值** | 查余额；充值走支付宝官方收银台，返回后重新读余额 | 应用不接触支付凭据，钱只在支付宝里扣 |
-| **洗澡 / 打水** | 扫设备码 → 「开启用水」→ 支付宝免密扣费 → 「结束用水」→ 结算 | 在线水控、淋浴、饮水机均支持；失败给出具体原因（欠费 / 被占用 / 未签约等） |
-| **取件身份码** | 一键跳到淘宝 → 菜鸟驿站身份码 | 只做唤起与跳转，应用本身不访问取件数据 |
-| **应用内更新** | 启动时检查版本清单，下载后校验字节数与 SHA-256 才安装 | 最后一步必须你点「安装」，应用不会静默装东西 |
-| **匿名使用统计** | 默认关闭；可在「更多」里打开或关闭，在「数据与隐私」里删除已上传记录 | 每天最多上报一次随机安装标识与版本号，服务端 HMAC 后入库、保留 90 天；不含账号、课表或设备标识，失败静默不影响任何功能 |
-| **意见反馈 / 更多** | 邮箱与 QQ 群（点一下复制）、仓库地址、内嵌 MPL-2.0 协议全文（「开源许可」） | 许可证弹窗离线可读 |
-| **外观与主题** | 深色模式（自动 / 浅色 / 深色）、主题色、悬浮底栏、返回手势动画；课表配色、课程文字颜色、圆角、格子不透明度、网格线开关（默认关闭） | 颜色从一处静态调色板下发，换主题不需要第二套布局；偏好存在本机 |
+功能以仓库当前实现为准，分为稳定版已支持与仅预览版支持两类。
 
-## 工作原理
+### 教务与学习
 
-整个应用只有一个 APK，业务没有后端。所有业务调用都从手机直接发往官方服务器：
+- **今日**：一页汇总当天课程、校园生活入口、教务查询与取件入口，没设开学日期时直接在页面上引导设置
+- **课表**：从教务系统导入（网页表格或 PDF 表格），支持多课表、逐门调整周次、自定义背景、导出与恢复备份；导入后完全离线可用
+- **成绩与平时分**：按学期查询
+- **空教室**：按周次、节次、教学楼查询
+- **学业情况**：GPA、学分统计与课程明细（2.5.8 起）
+- **学生评价**：列出本学期各教学班的评价状态，评分与提交都在学校页面上完成，应用不代填、不代提交（仅预览版）
 
-```mermaid
-flowchart LR
-    subgraph APP["科信小助手 · 单 APK · 5.1 MB"]
-        direction TB
-        UI["界面层<br/>今日 · 课表 · 账号 · 扫码"]
-        CORE["core 模块（不依赖 Android）<br/>会话 / 二维码协议 / 用水状态机"]
-        VAULT["本地加密存储<br/>Android Keystore + AES-256-GCM"]
-        UI --> CORE
-        UI --> VAULT
-    end
+### 校园生活
 
-    U([用户]) --> UI
-    CORE -->|HTTPS| EDU["学校教务系统"]
-    CORE -->|HTTPS| LIFE["慧生活798 水控"]
-    CORE -->|HTTPS| QZXY["趣智校园 余额"]
-    UI -->|SDK| ALI["支付宝<br/>收银台 · 免密支付"]
-    UI -.->|仅唤起| TB["淘宝 · 菜鸟驿站身份码"]
-    UI -.->|仅在你开启后<br/>每天最多一次| STATS["匿名统计服务<br/>随机安装标识 + 版本号"]
-```
+- **慧生活798**：扫码开启用水，结束时结算；覆盖在线水控、淋浴与饮水机，需要已开通支付宝免密
+- **趣智校园**：余额查询、支付宝授权登录，以及 8 位使用码（在浴室或吹风机的键盘上输入即可开启，不必扫码）
+- **易校园付款码**、**淘宝 · 菜鸟驿站身份码**：一键唤起对应应用，应用本身不访问这些平台的数据
 
-虚线那一条是唯一一处与业务无关的外发：`校园 → 更多 → 匿名使用统计`，默认关闭，关掉即停并可请求
-删除已上传记录。细节见 [`docs/analytics.md`](docs/analytics.md)。
+应用内不提供充值、下单或收银，相关操作仍在各平台自己的应用里完成。
 
-洗澡打水的完整链路长这样——每一步都有明确的失败出口，而不是「请稍候」：
+### 实用工具与个性化
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor U as 用户
-    participant A as 科信小助手
-    participant L as 慧生活798
-    participant P as 支付宝
+- **应用内更新**：下载后校验字节数与 SHA-256，最后一步必须由你确认安装
+- **桌面组件**：小、中、宽三种尺寸的课表组件
+- **外观与主题**：深色模式（自动 / 浅色 / 深色）、主题色、悬浮底栏、返回手势动画，以及课表配色、文字颜色、圆角、格子不透明度与网格线开关
+- **诊断日志**：只记录白名单字段，默认关闭，可导出脱敏后的故障报告
+- **更多与账号页**：数据与隐私（内含使用公告全文）、更新日志、开源许可（离线全文）、意见反馈
 
-    U->>A: 扫设备上的二维码
-    A->>L: 查询设备资料（只读）
-    L-->>A: 设备类型 / 计费方式 / 可用状态
-    A-->>U: 展示设备信息与预扣金额
-    U->>A: 点「开启用水」
-    A->>L: 创建用水订单（结算方式：支付宝免密）
-    L-->>A: 待签约 / 已受理
-    A->>P: 发起免密扣费
-    P-->>A: 扣费结果
-    A->>L: 查询订单状态
-    L-->>A: 用水中
-    U->>A: 点「结束用水」
-    A->>L: 停止用水并结算
-    L-->>A: 实际金额
-    A-->>U: 显示结算结果
-    Note over A,L: 请求发出后断连或没拿到终态 → 记入「待核实」，恢复后先查订单，不盲目重发
-```
+## 项目特色
 
-## 隐私与安全
+- **原生实现**：Java + Android 原生 View，没有 Kotlin、Compose，也没有第三方 UI 框架
+- **业务无后端**：教务、水控、余额请求由手机直连学校与平台官方接口，不经任何自建中转服务器
+- **凭据不出手机**：登录凭据加密保存在应用私有目录，密钥由 Android Keystore 保护
+- **双通道更新**：正式版与预览版各自独立，想尝鲜和想稳定可以各取所需
+- **权限克制**：只申请网络、网络状态、相机与安装未知应用四项，不申请定位、通讯录、短信、存储与蓝牙
+- **持续开源**：MPL-2.0 授权，每个发布版本都能拿到对应源码
 
-| 数据 | 存在哪 | 会离开手机吗 |
-| :-- | :-- | :-- |
-| 水控 / 教务登录凭据 | 应用私有目录，AES-256-GCM 加密，密钥由 Android Keystore 保护 | 不会，只在请求对应官方接口时使用 |
-| 课表与设置 | 应用私有目录，且标记为不参与系统备份 | 只有你手动「导出备份」时才会生成文件 |
-| 诊断信息 | 只记录白名单字段（不记账号、课程内容、请求正文），默认关闭，存在应用私有目录 | 不会自动离开手机；复制或导出由你决定 |
-| 支付 | 交给支付宝 SDK 与官方收银台 | 不经过任何中间服务器 |
+## 开发与构建
 
-权限只申请这 4 个：
-
-| 权限 | 用途 |
+| 项 | 情况 |
 | :-- | :-- |
-| `INTERNET` / `ACCESS_NETWORK_STATE` | 访问教务与慧生活接口；网络状态供支付宝 SDK 判断连通性（业务代码不读） |
-| `CAMERA` | 扫设备上的二维码；不解码时不打开相机 |
-| `REQUEST_INSTALL_PACKAGES` | 应用内更新把 APK 交给系统安装器，每次都要你确认 |
-
-没有申请定位、通讯录、短信、存储、蓝牙——水控不需要蓝牙，扫码也不需要。
-
-## 下载
-
-1. 从 [Releases 最新版](https://github.com/shynekoo/CampusKit/releases/latest) 下载 `kexin-xiaozhushou-2.5.9.apk`（国内也可以用直链：<https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.5.9.apk?sharecode=BZD63HRP4B>）
-2. 允许浏览器「安装未知应用」，装完打开即可，不需要 Root、不需要任何框架
-3. 想核对包有没有被改过：
+| 语言与 UI | Java（生成 Java 8 字节码）+ 原生 Android View |
+| 构建 | Python 脚本调用官方 `aapt2` / `d8` / `zipalign` / `apksigner`，不使用 Gradle |
+| 系统要求 | 最低 Android 7.0（API 24），targetSdk 36 |
+| 环境 | JDK 24、Python 3，目前仅在 Windows 上验证 |
 
 ```bash
-sha256sum kexin-xiaozhushou-2.5.9.apk
-# b022159dd8f259f47b97164e956fcfd8f2fb95e2a6d93b7dd07d4320c82ef605
+python scripts/bootstrap_android.py          # 下载 API 36 平台与 Build-Tools
+python scripts/test_core.py                  # 平台无关规则的 JVM 断言
+python scripts/build_preview.py --field-water # 出包（必须带 --field-water，否则缺少用水功能）
 ```
 
-> ⚠️ **升级请覆盖安装。** 换成别的签名只能卸载重装，而卸载会清掉课表与凭据——先在「课表 → 管理 → 导出备份」存一份，重装后再恢复。
-
-## 系统要求
-
-| 项 | 要求 |
-| :-- | :-- |
-| 系统 | Android 7.0（API 24）及以上，targetSdk 36 |
-| 学校 | 教务导入适配 **河北工程大学** 教务系统（网页表格 + 七列文字表格 PDF）；扫描版 PDF 会明确提示失败 |
-| 水控 | 慧生活798 覆盖的在线水控、淋浴、饮水机；需要已开通支付宝免密 |
-| 体积 / 网络 | 安装包 5.1 MB；除「今天的课」等本地功能外需要联网 |
-
-## 从源码构建
-
-手工工具链，没有 Gradle：
-
-```bash
-python scripts/bootstrap_android.py   # 下载 API 36 平台与 Build-Tools 到 tools/android-sdk
-python scripts/test_core.py           # 只跑核心断言
-python scripts/build_preview.py --field-water
-```
-
-`build_preview.py` 会先跑核心测试，再调用官方 `aapt2`、`d8`、`zipalign`、`apksigner` 出包：
-
-- 产出 `delivery/科信小助手-<版本>.apk`（约 5.1 MB）与同名 `.build.json`（体积、SHA-256、逐文件源码哈希、权限清单）
-- 1505 项核心断言全通过才会生成 APK
-
-环境：JDK 24（生成 Java 8 字节码）、Python 3；当前在 Windows 上验证。
-
-签名密钥 `tools/keys/preview.p12` 与其口令不进仓库：口令放 `tools/keys/keystore.pass`，或用环境变量 `QZXY_KS_PASS` 传入。证书 SHA-256 指纹 `13:B9:68:92:9F:5B:60:E5:CF:6B:5B:67:A5:13:16:78:AB:80:A3:6F:77:1C:07:DD:93:A9:62:4D:7E:BD:42:09`——换密钥会让已装用户无法覆盖安装，务必保留备份。
-
-### 为什么不使用 Gradle
-
-- 构建过程可逐行读完：下载什么、校验什么、打进去哪些文件，全在脚本里写死
-- 依赖按 SHA-256 固定，第三方 AAR 是手工合并的（`classes.jar` → `javac`/`d8`，清单与资源抄进项目）
-- 测试和出包是同一步，跑不过就出不来包
-
-代价是只能按脚本构建，IDE 的「一键运行」不可用；加依赖也需要手工处理 AAR。
-
-## 目录结构
+目录结构：
 
 ```
-client/
-  android/      原生 Android 客户端：56 个 Activity/辅助类，无 Gradle
-  core/         不依赖 Android 的会话、二维码协议、用水状态机
-  androidTest/  核心断言的 JVM 侧测试
-scripts/        构建、核心断言，以及抓包 / 反编译 / 真机核验辅助脚本
-design-system/  界面规范与页面稿
-delivery/       历次 APK、构建报告、发布说明
-analysis/       协议分析、实测记录、实现路线
-docs/           README 用到的截图
+client/android   原生 Android 客户端（Activity / View / 主题 / 平台适配）
+client/core      不依赖 Android 的规则层：会话、协议解析、课表解析、用水状态机、更新校验
+client/fieldtest 用水控制的独立 source set，仅在 --field-water 构建下编入
+scripts/         构建、断言与发布辅助脚本
+docs/            架构、模块、构建、安全、诊断等文档
+delivery/        构建产物与历次发布说明
 ```
 
-## 常见问题
+没有 Gradle 是刻意的：下载什么、校验什么、打进包里的每一份文件都写在脚本里，依赖按 SHA-256 固定，测试与出包是同一步。代价是不能用 IDE 一键运行，新增依赖也需要手工合并 AAR。
 
-<details>
-<summary><b>需要 Root 或 LSPosed 之类的框架吗？</b></summary>
+技术文档：
 
-不需要。普通 APK，装完就能用。扫码、加解密、桌面组件都在应用内完成。
-</details>
+- [架构总览](docs/architecture.md) · [模块清单](docs/modules.md)
+- [构建与发布](docs/build-and-release.md) · [安全约束](docs/security.md) · [运行日志与诊断](docs/diagnostics.md)
+- [开发约定](AGENTS.md) · [开源许可说明](docs/licensing.md) · [变更日志](CHANGELOG.md)
 
-<details>
-<summary><b>我的学校能用吗？</b></summary>
+## 使用须知
 
-水控部分走慧生活798，只要你们学校用它就能试；教务导入目前只为河北工程大学教务系统写的（网页表格 + PDF 表格两种来源），换学校要改解析规则。欢迎提交 PR 或样例文件。
-</details>
+- 本项目是第三方开源校园助手，**不是学校官方软件**，与河北工程大学及其科信学院、趣智校园、慧生活798 均无隶属或合作关系。
+- 成绩、空教室、课表导入等功能需要登录学校教务系统；校园用水需要通过慧生活798 完成支付宝授权。
+- 教务导入目前只适配河北工程大学的教务系统（网页表格与七列文字 PDF），其他学校需要修改解析规则；扫描版 PDF 不支持。
+- 上游平台调整接口或下线服务时，相关功能可能失效，可用性以实际使用为准。
+- 请通过本页的 Release 或下载站获取安装包，从其他渠道下载的包无法确认来源。
+- 使用产生的任何后果由使用者自行承担，请遵守学校与各平台的使用规则。
 
-<details>
-<summary><b>为什么要我输教务密码？会被上传吗？</b></summary>
-
-查成绩、空教室、导课表都要过学校自己的登录。密码只在你的操作过程中提交给学校教务系统，不写入 App 的加密存储，也不经过任何第三方服务器。想更保险，可以只在需要时进「教务首页」手动登录。
-</details>
-
-<details>
-<summary><b>升级会丢课表吗？</b></summary>
-
-同签名覆盖安装不会。换签名、卸载重装会。所以升级前建议「导出备份」，新装后「恢复备份」。
-</details>
-
-<details>
-<summary><b>更新是怎么装上的？会不会偷偷装？</b></summary>
-
-启动时读版本清单，你确认后下载，校验字节数与 SHA-256 通过才交给系统安装器；最后的「安装」必须你自己点。
-</details>
-
-<details>
-<summary><b>水控一直停在「待核实」怎么办？</b></summary>
-
-先别重复点「开启用水」。待核实表示命令发出去了但没拿到终态（断网、进程被杀、服务器超时），应用会在恢复后先查订单状态。需要立刻确认时，去慧生活798 或支付宝账单里看这笔订单，以官方账单为准。
-</details>
-
-## 路线图
-
-以下只是方向，没有时间表：
-
-| 状态 | 事项 |
-| :-- | :-- |
-| ✅ 已完成 | 课表导入与编辑、三种桌面组件、成绩 / 平时分 / 空教室、余额查询、支付宝充值、扫码开启与结束用水、待核实恢复、应用内更新、MPL-2.0 开源 |
-| 🚧 待办 | 扫描版 PDF 课表识别、更多学校教务适配、无障碍与字号适配细化、匿名使用统计（代码已完成，卡在服务地址：`*.workers.dev` 在国内被按域名封锁，需先有自定义域） |
-| 🚫 不做 | 广告、推送、账号代登录、任何形式的账单篡改 |
+隐私说明见应用内「更多 → 数据与隐私」（含使用公告全文），实现细节见 [`docs/security.md`](docs/security.md)。
 
 ## 反馈与贡献
 
-- **Bug / 功能建议**：提 [Issue](https://github.com/shynekoo/CampusKit/issues)，请带上手机型号、Android 版本、复现步骤；有诊断信息更好（导出时会自动脱敏）
-- **应用内反馈**：账号 → 意见反馈，邮箱与 QQ 群点一下复制
-- **代码贡献**：先开 Issue 说清楚要改什么，再提 PR；改动需通过 `python scripts/test_core.py`，涉及界面的请附截图
+- **问题与建议**：[GitHub Issues](https://github.com/shynekoo/CampusKit/issues)
+- **代码改进**：[Pull Requests](https://github.com/shynekoo/CampusKit/pulls)，动手前建议先开 Issue 说明要改什么
+- **开发规范**：[AGENTS.md](AGENTS.md) 记录了构建方式、测试入口与文档同步要求；[构建与发布](docs/build-and-release.md) 说明出包流程
 
-## 更新日志
-
-**v2.5.9**（2026-11-20）
-
-- 修复趣智校园扫码无法跳转使用的bug，如果给您带来的不好的体验，非常抱歉。
-- 修复部分版本检查不到更新：带四段版本号（如 2.5.8.1）的更新清单会被当成无效而跳过
-
-**v2.5.8**（2026-11-19）
-
-- 底栏和切页动画重做，页面切换更加丝滑
-- 新增学业情况查询功能
-- 新增趣智校园使用码
-- 新增应用内更新日志
-
-**v2.5.7**（2026-11-18）
-
-- 新增深色主题与返回手势动画
-- 应用与课表主题色支持自定义
-- 修复了课表显示异常：课名字号与行高按屏幕自动适配，窄屏不再挤成两字一行，整块高度跟着页面剩余空间走
-
-**v2.5.6.11**（2026-11-18）
-
-- 账号页新增「外观与主题」：分应用主题与课表外观两页
-- 应用主题：明暗模式（自动 / 浅色 / 深色）、主题色彩（默认 / 自定义）、悬浮底栏样式、返回手势动画
-- 课表外观：课程配色（默认 / 自定义，18 个色槽逐个可调）、课程文字颜色、格子圆角、格子不透明度、显示网格线开关；改动在上面就能看到实时预览
-- 深色是一套单独挑的灰阶，不是把浅色反相：正文、卡片、对话框、状态栏都跟着走
-
-**v2.5.6**（2026-11-17）
-
-- 修复慧生活798「进入独立用水」入口丢失：2.5.5 误用只读构建，用水控制没编进包；本版重新带上，支付宝免密登录照旧
-- 调课多段周次（`2-6周(双),11-15周`）不再被当作坏行跳过
-- 未登录自动跳对应登录页，登录完自动回原页并续跑被打断的查询
-- 校园页新增「教务系统」入口；「数据与隐私」移入「更多」
-
-**v2.5.3**（2026-11-17）
-
-- 账号页新增「意见反馈」（邮箱 / QQ 群，点一下复制）与「更多」（GitHub 仓库、开源许可证）
-- 项目按 MIT 许可证开源
-- 慧生活798 登录只保留支付宝授权，去掉手机号验证码登录
-
-**v2.5.0**（2026-11-16）
-
-- 开启用水固定走支付宝免密，去掉支付方式选择；设备未提供该方式时提前说明，不盲发请求
-- 请求层按开源项目 [WaterWidget](https://github.com/nocookies111/life-798) 的实测修正：版本头用版本名字符串、开启参数精简、吸收实测业务码表
-
-更早版本的明细见 [`delivery/release-*.md`](delivery/)。
-
-## 致谢
-
-- [nocookies111/life-798（WaterWidget）](https://github.com/nocookies111/life-798) —— 慧生活协议的请求头与业务码表
-- [ZXing](https://github.com/zxing/zxing)、[PdfBox-Android](https://github.com/TomRoush/PdfBox-Android)、[Bouncy Castle](https://www.bouncycastle.org/)、支付宝 SDK —— 扫码、PDF 解析、加密与支付
-- 所有在真机上帮忙试水控、试教务的同学
-
-## 免责声明
-
-本项目是第三方客户端，与趣智校园、慧生活798、河北工程大学及其科信学院、任何相关公司或部门**没有隶属或合作关系**。所有接口由第三方平台提供，可能随时变更或关闭，因此部分功能存在失效的可能。
-
-项目开源不代表学校或第三方平台授权其他开发者使用其名称、标识、接口或服务。使用者应遵守适用法律及相关平台规则，不要用于任何绕过计费的目的。使用本应用产生的任何后果由使用者自行承担。
-
-如相关平台方或学校对本项目提出异议，开发者将停止分发并移除相关代码。
+提 Issue 时请附上 App 版本、Android 版本与机型、复现步骤；涉及崩溃或请求失败时，可以在应用内导出脱敏诊断日志一并附上。**不要在公开 Issue 中粘贴密码、Token、Cookie、学号或任何账号凭据。**
 
 ## 开源协议
 
-科信小助手采用 [Mozilla Public License 2.0](LICENSE)（MPL-2.0）开源。
+项目自有代码采用 [Mozilla Public License 2.0](LICENSE)（MPL-2.0）开源。修改 MPL 覆盖文件并对外分发时，需遵守对应的源码提供与许可声明义务。
 
-你可以按照协议使用、修改及分发项目代码。对 MPL 覆盖文件进行修改并对外分发时，需要遵守对应的源码提供、许可声明及版权保留义务。
+历史上的 MIT 授权版本继续有效，原文存档见 [`docs/legacy/LICENSE-MIT.txt`](docs/legacy/LICENSE-MIT.txt)；迁移说明见 [`docs/licensing.md`](docs/licensing.md)。
 
-历史上已经根据 MIT License 发布的版本，其原有授权继续有效（原文存档见 [`docs/legacy/LICENSE-MIT.txt`](docs/legacy/LICENSE-MIT.txt)）。
+第三方组件（ZXing、PDFBox-Android、Bouncy Castle、支付宝 SDK）各自适用原有许可证，清单见 [`client/THIRD_PARTY.md`](client/THIRD_PARTY.md)。
 
-**每个版本都能拿到对应源码**：正式版打 `vX.Y.Z` tag、预览版用 `preview` tag，Release 说明写明该版本的源码地址；App 内「更多 → 开源许可」弹窗同样显示本机版本号与源码地址。
+正式版对应同版本号的 `vX.Y.Z` tag，预览版对应 `preview` tag，任何一只安装包都能回到生成它的源码。
 
-项目使用的第三方组件及资源可能适用不同的许可证，详情请参阅 [`client/THIRD_PARTY.md`](client/THIRD_PARTY.md)；迁移过程与例外说明见 [`docs/licensing.md`](docs/licensing.md)。
+## 致谢
+
+- [nocookies111/life-798](https://github.com/nocookies111/life-798)：慧生活用水协议的实测记录
+- [ZXing](https://github.com/zxing/zxing)、[PdfBox-Android](https://github.com/TomRoush/PdfBox-Android)、[Bouncy Castle](https://www.bouncycastle.org/)、支付宝 SDK：扫码、PDF 解析、加密与支付
+- 在真机上帮忙试用水控、教务导入与各项功能，以及提交 Issue 与 PR 的同学
+
+界面与交互设计参考过以下同类型校园开源项目，仅为设计交流，它们与科信小助手没有开发或隶属关系：
+
+- [不高山上（四川大学）](https://github.com/The-Brotherhood-of-SCU/Bugaoshan)
+- [岱宗盒子（西安交通大学）](https://github.com/yeliqin666/xjtu-toolbox-android)
+- [MyCHU（长安大学）](https://github.com/RinnMoe/my_chu)
