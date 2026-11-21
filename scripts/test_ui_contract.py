@@ -36,6 +36,18 @@ def forbid(source: str, needle: str, where: str, why: str):
         failures.append("%s: still has %r (%s)" % (where, needle, why))
 
 
+def _version_tuple(name: str):
+    """把 X.Y.Z 拆成可比较的整数三元组；解析不了就当成最小，交给版名格式检查去报错。"""
+    parts = str(name).split("-")[0].split(".")
+    try:
+        numbers = [int(part) for part in parts[:3]]
+    except ValueError:
+        return (0, 0, 0)
+    while len(numbers) < 3:
+        numbers.append(0)
+    return tuple(numbers)
+
+
 def main():
     global checks
     activity = ACTIVITY.read_text(encoding="utf-8")
@@ -894,7 +906,9 @@ def main():
     if more_src.count('text("接收预览版更新"') != 1:
         failures.append("MoreActivity: 开关的可视标题只能有一条，读者会以为是两个设置")
 
-    # 版本号：清单里的名字必须符合规范，代码必须高于线上正式清单（否则覆盖安装就会失败）。
+    # 版本号：清单里的名字必须符合规范，代码必须能覆盖线上正式清单，否则覆盖安装会被系统拒绝。
+    # 发版完成后这棵树正好停在「manifest == 线上正式版」，因此相等只在同名时放行：
+    # 相等但名字不同说明有人只改了号没改名字（或反过来），那才是真的会出事。
     import re as _re
     name_match = _re.search(r'android:versionName="([^"]+)"', manifest)
     checks += 1
@@ -903,18 +917,26 @@ def main():
         failures.append("AndroidManifest: versionName（%s）必须是 X.Y.Z 或 X.Y.Z-beta.N" % manifest_name)
     code_match = _re.search(r'android:versionCode="(\d+)"', manifest)
     checks += 1
-    if not code_match or int(code_match.group(1)) <= int(online["versionCode"]):
-        failures.append("AndroidManifest: versionCode 必须高于线上正式版（%s），否则覆盖安装会被系统拒绝"
-                        % online["versionCode"])
+    manifest_code = int(code_match.group(1)) if code_match else 0
+    online_code = int(online["versionCode"])
+    if manifest_code < online_code:
+        failures.append("AndroidManifest: versionCode %d 低于线上正式版（%d），覆盖安装会被系统拒绝"
+                        % (manifest_code, online_code))
+    elif manifest_code == online_code and manifest_name != str(online.get("version", "")):
+        failures.append("AndroidManifest: versionCode 与线上正式版同为 %d 但名字不同（%s vs %s）"
+                        % (online_code, manifest_name, online.get("version")))
     checks += 1
     beta_path = ROOT / "delivery/update/beta.json"
     if beta_path.exists():
         beta_manifest = json.loads(beta_path.read_text(encoding="utf-8"))
-        if not _re.fullmatch(r"[0-9]{1,2}(\.[0-9]{1,2}){2}-beta\.[1-9][0-9]{0,2}",
-                             str(beta_manifest.get("version", ""))):
+        beta_name = str(beta_manifest.get("version", ""))
+        beta_match = _re.fullmatch(r"([0-9]{1,2}\.[0-9]{1,2}\.[0-9]{1,2})-beta\.[1-9][0-9]{0,2}", beta_name)
+        if not beta_match:
             failures.append("beta.json: version 必须是 X.Y.Z-beta.N")
-        if int(beta_manifest.get("versionCode", 0)) <= int(online["versionCode"]):
-            failures.append("beta.json: 预览版 versionCode 必须高于线上正式版")
+        elif _version_tuple(beta_match.group(1)) > _version_tuple(str(online.get("version", ""))):
+            # 预览版跑到正式版前面时必须能覆盖安装；正式版追上来之后，预览清单停在旧号是正常的。
+            if int(beta_manifest.get("versionCode", 0)) <= online_code:
+                failures.append("beta.json: 预览版版名（%s）高于线上正式版，versionCode 必须同时高于它" % beta_name)
         required = {"version", "versionCode", "notes", "url", "bytes", "sha256"}
         if not required.issubset(beta_manifest):
             failures.append("beta.json: 缺少字段 %s" % ", ".join(sorted(required - set(beta_manifest))))

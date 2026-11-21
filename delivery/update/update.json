@@ -1,11 +1,13 @@
 {
-  "version": "2.5.9",
-  "versionCode": 210,
+  "version": "2.6.0",
+  "versionCode": 236,
   "notes": [
-    "修复趣智校园扫码无法跳转使用的bug，如果给您带来的不好的体验，非常抱歉。",
-    "修复部分版本检查不到更新：带四段版本号（如 2.5.8.1）的更新清单会被当成无效而跳过"
+    "教务新增「学生评价」：原生列表区分未评、已评、暂存，可筛选；答题页支持单选、多选、十级评分与主观题，可暂存、提交，已评能回看自己填过的答案",
+    "「更多」新增更新渠道（国内 / GitHub / Gitee），以及「接收预览版更新」开关，默认关闭",
+    "版本号统一为 2.6.0 这种写法，预览版写作 2.6.0-beta.1；四段版本号导致收不到更新的问题已在构建阶段拦下",
+    "开源协议改为 MPL-2.0，「开源许可」弹窗显示本机版本号与对应源码地址"
   ],
-  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.5.9.apk?sharecode=BZD63HRP4B",
-  "bytes": 5437306,
-  "sha256": "b022159dd8f259f47b97164e956fcfd8f2fb95e2a6d93b7dd07d4320c82ef605"
+  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.6.0.apk?sharecode=BZD63HRP4B",
+  "bytes": 5486527,
+  "sha256": "8658a047ab3a5c31a38b7c73d4ed1a5e5a5c357d401ba84c3fa0314478f589b7"
 }
