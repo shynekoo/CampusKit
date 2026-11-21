@@ -15,7 +15,7 @@
 | 最新 tag / Release | `v2.5.9`（[Release](https://github.com/shynekoo/CampusKit/releases/tag/v2.5.9)，附 ASCII 资产 `kexin-xiaozhushou-2.5.9.apk` 与 `update.json`）；`preview` 预发布现为 **2.6.0-beta.9 / 226**（APK + `beta.json`）；Gitee 侧同版本（`gitee.com/sun-heyue/CampusKit`） |
 | GitHub 登录 | `gh auth login` 已登录 `shynekoo`（ADMIN，repo scope）；按 AGENTS.md，push/tag/Release 仍需用户逐次确认 |
 | 工作区 | `feat/diag-2.5.8` 上未提交；主线 `main` 未改 |
-| 核心断言 | 实测 **1539 项全过**；UI 契约守卫 **354 锚点**；诊断隐私守卫 **691 项**；WebView 守卫 **5 处** |
+| 核心断言 | 实测 **1594 项全过**；UI 契约守卫 **377 锚点**；诊断隐私守卫 **717 项**；WebView 守卫 **5 处** |
 | 发布状态 | **2.5.8 已发布**：清单、直链、下载站、App 内更新日志已同步；早期 2.5.8.x 开发包未单独发布 |
 | 未发布开发版 | **2.6.0-beta.10 / versionCode 227**（评教接口按真实抓包重做：读表单只发官方那一发、解析改兄弟边界、请求体补三层 id 与 pjzt、写完回读 tjzt；暂存已用真实账号验证，提交未验证），**工作区改动，待构建**；上一包 beta.9 / 226 在 GitHub 与 Gitee 的 `preview` 上；WorkBuddy 站点仍是 beta.5 / 222 |
 | 预览渠道 | `delivery/update/beta.json` 为 2.6.0-beta.9 / 226；**WorkBuddy 站点仍是 beta.5 / 222**（发布被 `SITES_ACCOUNT_MISMATCH` 拒绝，appId 属另一账号）；GitHub 与 Gitee 的 `preview` 均已是 beta.9 / 226 |
@@ -370,7 +370,7 @@ UI-3 本轮修 5 处：滚动恢复带 generation 且改为布局后（pre-draw�
   短语；「操作成功」按不清楚处理。写完回读 `tjzt`，`1` 才算已提交，`0` 明说「收了但没记成已评」，
   读不到记 `write.unverified`。超时/断网不重发。
 - **守卫**：`test_core` 1520 → **1539**（三层 id、`pjzt`、不闭合片段 5 题、`outcome` 八种回话）；
-  `test_ui_contract` 339 → **354**（只发一次、禁止回退矩阵、平铺切片、三层 id、状态核对）；
+  `test_ui_contract` 339 → **354 → 371 → 374 → 377**（只发一次、禁止回退矩阵、平铺切片、三层 id、状态核对）；
   `test_diag_privacy` 679 → **691**。
 - **未验证**：真实提交（`tjzt=1`）与提交后状态同步——按约定要用户本人确认后才做，本轮没有代提交。
 
@@ -389,9 +389,55 @@ UI-3 本轮修 5 处：滚动恢复带 generation 且改为布局后（pre-draw�
 - **已发**：GitHub `preview`（`beta.json` 1,352 B，`campuskit-2.6.0-beta.10.apk` 5,470,074 B）与 Gitee `preview`
   （同两件，直链实测 `200` / 5,470,074 B / SHA-256 `c7e5cca4…1e69c83c`）。**WorkBuddy 站点仍未发布**，等切回原发布账号补 `beta.json`。
 
+## 三之十九、答题页反馈改成飘字 + 写成功自动返回（2.6.0-beta.13）
+
+- 之前「没填完」「已暂存」「已提交」都是 `status` 状态栏文字，用户要**飘字**：新增 `toast(String)`
+  （`Toast.makeText(this, …, LENGTH_SHORT).show()`）；「一个选项都没选」与「必填项没答全」统一成
+  `toast("请完成所有题目后再提交")`，`blockers()` 从此只管「不支持题型」这一种硬阻断。
+- 写成功后 `toastAndLeave(submit ? "已完成提交" : "已暂存")`：先飘字，600ms 后 `finish()`，
+  且只在 `!isFinishing() && !isDestroyed()` 时返回。Toast 是系统窗口，`finish()` 后仍显示完，
+  列表在 `onResume` 重读，刚写下的状态立刻可见。**失败 / UNCLEAR 不返回**，保留页面内说明供重试。
+- 承接 beta.12 的 id 修复：列表解析里显示用的 `text()` 会把 `jgh_id` 截到 80 字符，线上实测 256 字符，
+  截断即触发学校 200/6,923 B「参数异常」；改成 id 字段整串保留。真机 A/B 三轮已验证。
+- 产物 `2.6.0-beta.13`（versionCode 230，5,478,266 B，`a41078b9…f78220e2fca5`）已发 GitHub + Gitee
+  `preview`；WorkBuddy 站点仍 `SITES_ACCOUNT_MISMATCH`，未发布。测试：core 1587 / ui_contract 371 /
+  diag_privacy 716 / analytics 77+18，全过。
+
+## 三之二十、提交后回读 id 与已评回显（2.6.0-beta.14）
+
+- **真机症状**：确认提交后没有飘字「已完成提交」、也没返回列表；在「已评」里点开这份评价，题目在但没有当时选的答案。
+- **根因一（提交判定）**：`EduClient.evaluationState()` 拿表单 HTML 的 `data-jgh_id` 去列表里比对，
+  而学校给列表行的 `jgh_id` 是另一套 256 字符值——同一会话里两者 239 位不同，长度都是 256。
+  于是提交成功后回读仍 `UNKNOWN`，被判「状态未变」，不飘字不返回。改为从 intent 传来的列表
+  `EXTRA_CLASS` / `EXTRA_TEACHER_ID` 回读。
+- **根因二（已评回显）**：已提交行的 HTML 不含 radio / checked / textarea，答案是
+  `<td><span>良好&nbsp;</span></td>`（选择）或 `<div class="input-xspj">主观文字</div>`。
+  parser 新增 `SHOWN`（只读展示题）：从第二个 `td` 取文本，标 `readOnly`，UI 回显成一行文字；
+  `supported()` 为真以免被误报「不支持题型」，但 `body()` 永不写它的答案字段。
+- **实测**：真实账号已评行 4 条，各回 200/约 22 KB、1 面板 11 题；修复前 parser 读出 11 题全部
+  `kind=0` / `options=0`，修复后 11 题全部 `SHOWN` / 1 个选项（10 项「良好」+ 主观题「挺好」）。
+- 测试：core 1594 / ui_contract 374 / diag_privacy 716 / analytics 77+18 全过。
+
+## 三之二十一、提交成功判定与界面两处调整（2.6.0-beta.15）
+
+- **真机症状**：确认提交后依旧没有「已完成提交」飘字，也没有返回列表——beta.14 修的回读 id
+  不是这一条的根因。
+- **根因（代码路径确定）**：`send()` 里先从学校回话判 `outcome = OK`（「提交成功」），随后
+  `evaluationState()` 回读列表；老代码在回读不是 SUBMITTED 时执行
+  `else if (outcome == OK) outcome = UNCLEAR;`。列表 tjzt 是异步写的，多页查询/服务端延迟/
+  网络抖动都会让这一下读到 UNKNOWN，成功就被吞成 UNCLEAR，`done()` 只在 OK 时
+  `toastAndLeave()`，于是真机上什么也不发生。
+- **修复**：回话明确成功即生效；回读只作旁证和诊断——只有 `state == SAVED`（回话说成功但学校
+  只记了暂存）才降为 UNCLEAR，`SUBMITTED` 仍确认 OK，`UNKNOWN` 保留回话判定。诊断加
+  `status=<回读状态>`（白名单字段），下次真机可直接看出卡在哪一步。
+- 「更多」页移除匿名使用统计开关的调用；`analyticsSetting` 方法与隐私页说明保留，能力未删。
+- 更新渠道首个显示名 WorkBuddy → **国内**；`KEYS[0]` 仍是 `workbuddy`，存量偏好不变。
+- 测试：core 1594 / ui_contract 377 / diag_privacy 717 / analytics 77+18 全过。
+  **提交成功路径仍是静态 + 代码路径证据，未代用户真实提交**。
+
 ## 四、验证状态（如实）
 
-**已执行**：`test_core` **1539**、`test_build_config` 7、`test_diag_privacy` **691**、`test_diag_files`、`test_webview_policy` 5、`test_ui_contract` **354**，全部通过；2.6.0-beta.10 APK 已构建（5,470,074 B，`versionCode` 227，SHA-256 `c7e5cca4…1e69c83c`）并已发到 GitHub / Gitee 的 `preview`（Gitee 直链复验 200）；2.6.0-beta.9 APK（5,465,978 B，SHA-256 `11cbeab8…0baf5b73`）；Gitee 两个固定 tag 的清单与 APK 已匿名复验；`javac --release 8` 全量编译通过；2.5.8 APK 已构建（5 420 922 B，SHA-256 `ac40b21d…10d806`，v2/v3 验签通过，dex 水控路由 0）；2.5.8.6 / 2.5.8.7 / 2.5.8.8 普通版 APK 已构建并通过 v2/v3 验签（2.5.8.8 的 dex 反查含 `cxJxzxjhxfyqFKcxx` / `planCourses` / `opensCourses`，2.5.8.7 三项均为 0）；真实账号端到端拉取学业数据成功（GPA 2.9875、37 节点 5 层、16 课组 94 门课）；计划外课组按学校 `jdkcsx` 分流端点后复验（人文科学 5 门、自然科学 6 门，与学校页"共 N 门"一致）。
+**已执行**：`test_core` **1539**、`test_build_config` 7、`test_diag_privacy` **691**、`test_diag_files`、`test_webview_policy` 5、`test_ui_contract` **371**，全部通过；2.6.0-beta.10 APK 已构建（5,470,074 B，`versionCode` 227，SHA-256 `c7e5cca4…1e69c83c`）并已发到 GitHub / Gitee 的 `preview`（Gitee 直链复验 200）；2.6.0-beta.9 APK（5,465,978 B，SHA-256 `11cbeab8…0baf5b73`）；Gitee 两个固定 tag 的清单与 APK 已匿名复验；`javac --release 8` 全量编译通过；2.5.8 APK 已构建（5 420 922 B，SHA-256 `ac40b21d…10d806`，v2/v3 验签通过，dex 水控路由 0）；2.5.8.6 / 2.5.8.7 / 2.5.8.8 普通版 APK 已构建并通过 v2/v3 验签（2.5.8.8 的 dex 反查含 `cxJxzxjhxfyqFKcxx` / `planCourses` / `opensCourses`，2.5.8.7 三项均为 0）；真实账号端到端拉取学业数据成功（GPA 2.9875、37 节点 5 层、16 课组 94 门课）；计划外课组按学校 `jdkcsx` 分流端点后复验（人文科学 5 门、自然科学 6 门，与学校页"共 N 门"一致）。
 
 **未执行**：诊断页真机流程（G6–G17：开关、复现、导出、轮转、崩溃重启、长日志、深色/大字号）；真机验收清单其余全部（含 UI 2.0 的快速连点、滚动恢复与旋转/分屏、返回手势、关动画、320dp）；2.5.8.6 真机覆盖安装与学业页回归；真实支付用水、MobSF、签名轮换、旧版升级兼容。详见 [`known-issues.md`](known-issues.md)。
 

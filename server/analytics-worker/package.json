@@ -1,0 +1,16 @@
+{
+  "name": "campuskit-analytics",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "科信小助手匿名每日活跃统计（Cloudflare Workers + D1）",
+  "scripts": {
+    "test": "node --test",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "schema": "wrangler d1 execute campuskit-analytics --file=./schema.sql --remote"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

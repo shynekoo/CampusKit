@@ -9,6 +9,7 @@ import android.view.View;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 import io.qzxy.lite.core.EduEvaluation;
 import io.qzxy.lite.core.EduEvaluationForm;
 import java.io.IOException;
@@ -303,6 +304,16 @@ public final class EvaluationFormActivity extends Page {
                 block.addView(row);
             }
             item.paint();
+        } else if (question.shown()) {
+            // 已提交的行没有可编辑控件：把学校记下的那句话回显成一行只读文字。
+            String answerText = question.options.isEmpty() ? "" : question.options.get(0).label;
+            TextView shown = new TextView(this);
+            shown.setText(answerText.isEmpty() ? "（学校没有记录这一项的答案）" : answerText);
+            shown.setTextSize(14);
+            shown.setTextColor(AppUi.INK);
+            shown.setPadding(dp(12), dp(8), dp(12), dp(8));
+            shown.setBackground(AppUi.outlined(this, AppUi.SURFACE, 10, AppUi.LINE));
+            block.addView(shown, new LinearLayout.LayoutParams(-1, -2));
         } else if (question.kind == EduEvaluationForm.TEXT) {
             EditText input = new EditText(this);
             boolean sentence = EduEvaluationForm.FIELD_TEXT.equals(question.field);
@@ -443,8 +454,8 @@ public final class EvaluationFormActivity extends Page {
                 return;
             }
             int missing = missing();
-            if (missing > 0) {
-                status.setText("还有 " + missing + " 个必填项没选，选完再提交。");
+            if (missing > 0 || !anyAnswered()) {
+                toast("请完成所有题目后再提交");
                 return;
             }
         }
@@ -452,17 +463,20 @@ public final class EvaluationFormActivity extends Page {
         if (submit) confirm(); else send(false);
     }
 
-    /** Why 提交 cannot go through at all: an unsupported question, or no answer anywhere. */
+    /** Why 提交 cannot go through at all: an unsupported question this page cannot draw. */
     private String blockers() {
-        boolean any = false;
         for (Item item : items) {
             if (!item.question.supported()) {
                 Diag.event(Diag.WARN, "EVAL", "sheet.unsupported", "count", items.size());
                 return "这份表单里有本页还不支持的题型，请到教务网页里完成这一次评价。";
             }
-            if (item.question.answered(item.answer)) any = true;
         }
-        return any ? "" : "一个选项都还没选。";
+        return "";
+    }
+
+    private boolean anyAnswered() {
+        for (Item item : items) if (item.question.answered(item.answer)) return true;
+        return false;
     }
 
     private int missing() {
@@ -504,7 +518,10 @@ public final class EvaluationFormActivity extends Page {
         status.setText(submit ? "正在提交…" : "正在暂存…");
         setButtonsEnabled(false);
         final int ticket = generation;
-        final String classId = form.classId, teacherId = form.teacherId;
+        // 列表行的 jgh_id 与表单 HTML 的 data-jgh_id 是两个不同的 256 字符值（同一会话实测：
+        // 只有前几位相同，239 位不同）。回读列表必须拿打开本页时那一行自己的 id，拿表单里的
+        // 那套永远匹配不到，提交成功后会被误判成「状态未变」——既不飘字也不返回。
+        final String classId = value(EXTRA_CLASS), teacherId = value(EXTRA_TEACHER_ID);
         worker.execute(() -> {
             int outcome = EduEvaluationForm.UNCLEAR;
             String words = "";
@@ -534,8 +551,16 @@ public final class EvaluationFormActivity extends Page {
                 if (trouble == null) trouble = EduClient.describe(unreadable);
             }
             if (submit) {
-                if (state == EduEvaluation.SUBMITTED) outcome = EduEvaluationForm.OK;
-                else if (outcome == EduEvaluationForm.OK) outcome = EduEvaluationForm.UNCLEAR;
+                // 学校回话已经明确说「提交成功」就以回话为准。列表的 tjzt 是异步写的，回读
+                // 这一下很可能还没翻到 1（多页查询、服务端延迟、网络抖动），拿它去否决学校的
+                // 原话就会把成功吞成 UNCLEAR —— 真机上表现为「点了提交没飘字也没返回」。
+                // 回读只留作旁证和诊断：只有它明确读到「仍是暂存」时才说明提交没真正完成。
+                if (state == EduEvaluation.SAVED && outcome == EduEvaluationForm.OK) {
+                    outcome = EduEvaluationForm.UNCLEAR;
+                } else if (state == EduEvaluation.SUBMITTED) {
+                    outcome = EduEvaluationForm.OK;
+                }
+                // state == UNKNOWN：保留回话判定，不降级。
             } else if (state == EduEvaluation.SAVED || state == EduEvaluation.SUBMITTED) {
                 outcome = EduEvaluationForm.OK;
             }
@@ -555,16 +580,13 @@ public final class EvaluationFormActivity extends Page {
             outcome == EduEvaluationForm.OK
                 ? (submit ? "write.sent" : "write.saved")
                 : (submit || state != EduEvaluation.UNKNOWN ? "write.unverified" : "write.failed"),
-            "result", Integer.toString(outcome), "count", items.size());
+            "result", Integer.toString(outcome), "status", Integer.toString(state),
+            "count", items.size());
         if (outcome == EduEvaluationForm.OK) {
-            if (submit) {
-                status.setText("已提交，学校已记为已评。");
-                // The list behind this screen re-reads on resume; closing here is what makes the
-                // 已提交 state visible right away instead of after a manual refresh.
-                watchdog.postDelayed(this::finish, 900);
-            } else {
-                status.setText("已暂存，可以继续评或直接提交。");
-            }
+            // The list behind this screen re-reads on resume, so closing is what makes the new
+            // state visible right away. A Toast is a system window and survives finish(); the
+            // short delay only lets it appear before the screen goes away.
+            toastAndLeave(submit ? "已完成提交" : "已暂存");
             return;
         }
         if (outcome == EduEvaluationForm.FAILED) {
@@ -591,6 +613,19 @@ public final class EvaluationFormActivity extends Page {
             child.setEnabled(enabled);
             child.setAlpha(enabled ? 1f : 0.5f);
         }
+    }
+
+    /** 飘字反馈：toast 是系统窗口，finish 之后仍会显示完，返回列表不会吞掉提示。 */
+    private void toast(String message) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+    }
+
+    private void toastAndLeave(String message) {
+        toast(message);
+        // 列表在 resume 时重读；关掉本页让新状态立刻可见，留一点时间让飘字先出现。
+        watchdog.postDelayed(() -> {
+            if (!isFinishing() && !isDestroyed()) finish();
+        }, 600);
     }
 
     // ---- plumbing --------------------------------------------------------------------------

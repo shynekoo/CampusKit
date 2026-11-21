@@ -1,0 +1,31 @@
+# 匿名每日活跃统计 Worker（Cloudflare Workers + D1）
+#
+# 这份文件是模板：DATABASE_ID 必须换成你自己创建 D1 后拿到的 id，
+# 换成真实值之前 `wrangler deploy` 会失败——这是故意的，免得把占位值当成已上线。
+#
+# 密钥不写在这里。HMAC 密钥用 `wrangler secret put ANALYTICS_HMAC_SECRET` 上传，
+# 本地调试写在 .dev.vars（已被 .gitignore 忽略）。
+
+name = "campuskit-analytics"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+
+# 只接受一个环境（生产）。预览环境没必要：没有第二个数据库就没有第二套数据。
+workers_dev = true
+
+# 关掉每个版本自动生成的 preview URL：这个服务只需要一个地址，
+# 多出来的那些 URL 同样是公开可打的，没理由留着。
+preview_urls = false
+
+[[d1_databases]]
+binding = "DB"
+database_name = "campuskit-analytics"
+database_id = "59cf4cf8-df33-40e7-b4ed-7a5d151eb4fa"
+migrations_dir = "."
+
+# 清理任务：每天 03:10 UTC（北京时间 11:10）删掉保留期以外的行。
+[triggers]
+crons = ["10 3 * * *"]
+
+[observability]
+enabled = true

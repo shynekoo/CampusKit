@@ -1,8 +1,8 @@
 # 模块清单
 
-按实际 source set 与文件名整理（`rglob('*.java')` 实测：core 51、android 81、fieldtest 7、core 测试 1）。完整类清单可直接看目录，这里按职责分组。
+按实际 source set 与文件名整理（`rglob('*.java')` 实测：core 56、android 83、fieldtest 7、core 测试 1）。完整类清单可直接看目录，这里按职责分组。
 
-## client/core — 平台无关规则（51 个文件，JVM 可测）
+## client/core — 平台无关规则（56 个文件，JVM 可测）
 
 | 组 | 类 | 职责 |
 | :-- | :-- | :-- |
@@ -15,13 +15,14 @@
 | 更新 | `UpdateManifest`、`UpdateUrls`、`ReleaseVersion`、`UpdateChannel` | 更新清单必填字段校验、HTTPS 逐跳重定向策略、版本名规范（`X.Y.Z` / `X.Y.Z-beta.N` / 四段兼容）与双渠道挑选（按 `versionCode` 取大） |
 | 安全策略 | `TrustedUrlPolicy`、`SnapshotPolicy`、`DiagPolicy` | WebView 准入、敏感页快照、诊断默认关 |
 | 诊断 | `DiagRedact`、`DiagEvent`、`DiagCatalog` | 字段白名单与脱敏、行格式与解析、事件中文文案 |
+| 匿名统计 | `AnalyticsDay`、`AnalyticsRequest`、`AnalyticsReply` | 北京时间自然日（无 java.time）、两字段请求体与形状校验（UUID/版本号/上限）、应答四判定（记上/重复/拒绝/重试） |
 | 教务学业 | `EduAcademic` | 学生学业情况：GPA/统计/去重学分树解析（含 `appendTo` 层级还原与 `jdkcsx` 端点分流），课程明细 JSON 解析（`parseCourses`） |
 | 教务评价 | `EduEvaluation`、`EduEvaluationForm` | 列表与统计解析：教学班/课程/教师/学时类型、状态码 `-1/0/1` 归一（`stateOf`）、`withState` 分组、`counts`、分页（`pageCount`/`rowCount`/`of`）；问卷片段按学校 `xspj_display.js` 的选择器读成题目/选项（`parse`，切片按**兄弟边界**——线上片段 `<div>` 不闭合，按嵌套切会把 11 题读成 2 题），并把作答还原成学校那套 `modelList[i].xspjList[j].childXspjList[k]` 请求体（每行必带 `pjzbxm_id`/`pfdjdmb_id`/`zsmbmcb_id`，表级再带一个 `pjzbxm_id`，并按必填项是否全答写 `pjzt`）；成败先按学校回话严格分类（`outcome`），最终以回读的 `tjzt` 为准 |
 | 其他 | `DailyQuote`、`AlipayWaterLink`、`PickupCodeLinks`、`RechargeSignature`、`NativeSigningV6528` | 文案、跳转链接、签名/协议辅助 |
 
-测试：`client/core/test/.../CoreTests.java` —— 当前工作区实跑 1418 项断言（含 `jdkcsx` 课程端点分流与诊断脱敏），涵盖上述状态机、解析与策略。
+测试：`client/core/test/.../CoreTests.java` —— 当前工作区实跑 1584 项断言（含 `jdkcsx` 课程端点分流、诊断脱敏与统计的日期/请求体/应答判定），涵盖上述状态机、解析与策略。
 
-## client/android — 原生界面与平台适配（81 个文件）
+## client/android — 原生界面与平台适配（83 个文件）
 
 | 组 | 代表文件 | 职责 |
 | :-- | :-- | :-- |
@@ -32,6 +33,7 @@
 | 教务 | `EduClient`、`EduLoginActivity`、`EduQueryActivity`、`EduResultActivity`、`EduPortalActivity`、`EduTimetableImportActivity`、`EduTables`、`EduTimetableReader`、`AcademicActivity`、`AcademicStatusActivity`、`EvaluationActivity`、`EvaluationFormActivity` | 教务会话、查询、导入、学业情况页（学分树 + 点击展开课程明细）、学业页与表单页（原生列表读状态；表单页把学校模块装进菜单壳宿主，评分与提交在学校页面上完成） |
 | 慧生活/水控 | `LifeLoginActivity`、`LifeDeviceActivity`、`LifeDeviceApi`、`LifeAuthApi`、`LifeDeviceProfile`、`DeviceDetails`、`DeviceLookup`、`ScanActivity`、`QrDecoder`、`WaterApi` | 登录、设备资料（只读）、扫码、订单状态 |
 | 趣智校园 | `SmsAccountApi`、`UseCodeApi`、`UseCodeActivity`、`QzxyAlipayActivity`、`AlipayLogin` | 使用码、支付宝授权登录；充值/收银不在应用内，只把设备交给支付宝 |
+| 匿名统计 | `AnalyticsPreferences`、`AnalyticsReporter` | 同意状态（默认关）、本机随机 UUID（只在同意后生成）、每自然日一次上报、进入前台触发、关闭时删除历史记录；不读设备标识、不进日志 |
 | 更新/隐私/其他 | `UpdateCheck`、`AppChangelog`、`ChangelogActivity`、`ApkProvider`、`PrivacyActivity`、`NoticeActivity`、`LegalText`、`LegalView`、`NoticeDialog`、`FeedbackActivity`、`MoreActivity`、`AppearanceActivity`、`SchoolSiteActivity`、`TimetableWebActivity`、`WebBack`、`HttpForm`、`ColorDialog` | 应用内更新（正式 + 预览两条清单，开关在「更多」页、状态存 `update-v1` 偏好）、更新日志（`AppChangelog` 内置数据 + `ChangelogActivity` 展开式卡片页，离线、无网络）、数据与隐私页、使用公告（页面 + 首次启动弹窗，共用 `LegalText` 文案与 `LegalView` 排版）、外观、网页容器、网络与弹窗 |
 
 ## client/fieldtest — 用水控制（7 个文件，正式包不编入）
@@ -42,12 +44,13 @@
 
 | 脚本 | 检查内容 |
 | :-- | :-- |
-| `scripts/test_core.py` | core 源码 JVM 编译 + `CoreTests`（当前工作区实跑 1369 项） |
+| `scripts/test_core.py` | core 源码 JVM 编译 + `CoreTests`（当前工作区实跑 1584 项） |
 | `scripts/test_build_config.py` | 7 项诊断开关检查（含 `DIAG_BASIC` 恒开） |
-| `scripts/test_diag_privacy.py` | 644 项诊断隐私守卫（调用点字段/文案、已移除入口、导出路径） |
+| `scripts/test_diag_privacy.py` | 716 项诊断隐私守卫（调用点字段/文案、已移除入口、导出路径） |
 | `scripts/test_diag_files.py` | 5 组 `DiagFiles` 实跑场景（轮转、1 MB 封顶、行序连续、超限裁剪、清空、7 天清理） |
 | `scripts/test_webview_policy.py` | 5 处 WebView 导航 HTTPS 守卫（学生评价改成原生后不再有第 6 处） |
-| `scripts/test_ui_contract.py` | 259 个 UI 结构锚点（当前工作区实跑；静态守卫，非真机测试；含 UI-1/UI-2 守卫、两个取课端点守卫与诊断页锚点） |
+| `scripts/test_ui_contract.py` | 364 个 UI 结构锚点（当前工作区实跑；静态守卫，非真机测试；含 UI-1/UI-2 守卫、两个取课端点守卫、诊断页与匿名统计入口锚点） |
+| `scripts/test_analytics.py` | 77 项统计隐私守卫（请求体只有两字段、同意默认关、触发点唯一、服务端不存原始 UUID）+ 跑 `server/analytics-worker` 的 `node --test` |
 
 ## 改动时的落点建议
 

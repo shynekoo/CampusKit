@@ -28,6 +28,13 @@ def require(source: str, needle: str, where: str, why: str):
         failures.append("%s: missing %r (%s)" % (where, needle, why))
 
 
+def forbid(source: str, needle: str, where: str, why: str):
+    global checks
+    checks += 1
+    if needle in source:
+        failures.append("%s: still has %r (%s)" % (where, needle, why))
+
+
 def main():
     global checks
     activity = ACTIVITY.read_text(encoding="utf-8")
@@ -262,6 +269,12 @@ def main():
             "the list must come from the shared signed-in client, not a scraped page")
     require(core_evaluation_src, "public static int pageCount(String json, int pageSize)", "EduEvaluation",
             "the grid pages; a list that reads only page one silently drops courses")
+    # 学校的 jgh_id 是 256 个字符，按显示宽度（80）剪掉后会被判「参数异常」（200，6,923 B）。
+    # id 必须走 ident()（整串保留），显示用的名字才走 text()。
+    require(core_evaluation_src, 'teacherId = ident(raw.get("jgh_id"))', "EduEvaluation",
+            "教职工 id 必须整串带回学校，不能按显示宽度截断")
+    require(core_evaluation_src, 'classId = ident(raw.get("jxb_id"))', "EduEvaluation",
+            "教学班 id 同样整串保留")
     require(client, "EduEvaluation.pageCount(reply, EVAL_PAGE_SIZE)", "EduClient",
             "the paging loop must follow the count the school reports")
     require(evaluation_src, 'stat(row, "未评", pending)', "EvaluationActivity",
@@ -319,6 +332,16 @@ def main():
             "the confirmation must say that a submission cannot be undone")
     require(form_src, "int missing = missing();", "EvaluationFormActivity",
             "提交 must refuse while a 必填项 is unanswered")
+    require(form_src, 'if (missing > 0 || !anyAnswered())', "EvaluationFormActivity",
+            "一个选项都没选 and 只选一部分 both count as unfinished")
+    require(form_src, 'toast("请完成所有题目后再提交")', "EvaluationFormActivity",
+            "没填完点提交 must show a toast, not only a line of status text")
+    require(form_src, 'toastAndLeave(submit ? "已完成提交" : "已暂存")', "EvaluationFormActivity",
+            "写成功 must toast 已完成提交 / 已暂存 and then return to the list")
+    require(form_src, "if (!isFinishing() && !isDestroyed()) finish();", "EvaluationFormActivity",
+            "自动返回 must not finish a screen that is already gone")
+    require(form_src, "Toast.makeText(this, message, Toast.LENGTH_SHORT).show()", "EvaluationFormActivity",
+            "the feedback must be a real Toast")
     require(form_src, "if (!item.question.supported()) {", "EvaluationFormActivity",
             "an unsupported question must block 提交 instead of sending a wrong parameter")
     require(form_src, "EduEvaluationForm.outcome(reply)", "EvaluationFormActivity",
@@ -436,8 +459,21 @@ def main():
     # 写完之后以学校记录为准，而不是以那句话为准。
     require(form_src, "EduClient.evaluationState(classId, teacherId)", "EvaluationFormActivity",
             "after a write the screen must re-read the school's own state")
+    require(form_src, 'final String classId = value(EXTRA_CLASS), teacherId = value(EXTRA_TEACHER_ID)',
+            "EvaluationFormActivity",
+            "状态回读必须拿列表行自己的 id：表单 HTML 的 data-jgh_id 与列表 jgh_id 是两个不同的值")
+    require(form_src, "question.shown()", "EvaluationFormActivity",
+            "已提交的行答案以纯文本展示，必须回显而不是报成不支持题型")
+    require(form_src, "answerText.isEmpty()", "EvaluationFormActivity",
+            "只读回显为空时也要明说，不留空白题")
     require(form_src, "state == EduEvaluation.SUBMITTED", "EvaluationFormActivity",
-            "只有学校记成已提交，才显示「评价成功」")
+            "回读到已提交时仍然确认成功")
+    require(form_src, "state == EduEvaluation.SAVED && outcome == EduEvaluationForm.OK",
+            "EvaluationFormActivity",
+            "回读只否决「回话说成功却仍是暂存」这一种；列表异步导致的 UNKNOWN 不能吞掉成功")
+    forbid(form_src, "else if (outcome == EduEvaluationForm.OK) outcome = EduEvaluationForm.UNCLEAR;",
+            "EvaluationFormActivity",
+            "这条降级曾让真机上提交成功却不飘字、不返回")
     require(form_src, '"write.unverified"', "EvaluationFormActivity",
             "a success sentence without a state change is its own diagnosis, not a success")
     require(client, "static int evaluationState(String classId, String teacherId)", "EduClient",
@@ -669,6 +705,30 @@ def main():
             "使用公告页需要注册，否则入口点了会崩")
     require(manifest, 'android:name=".PrivacyActivity"', "AndroidManifest",
             "数据与隐私页仍在清单里")
+    # --- 匿名使用统计：开关在「更多」，删除在「数据与隐私」，触发在 App 的前台切换 ---------
+    more_src_path = PREVIEW / "MoreActivity.java"
+    more_src = more_src_path.read_text(encoding="utf-8")
+    analytics_prefs_path = PREVIEW / "AnalyticsPreferences.java"
+    analytics_prefs = analytics_prefs_path.read_text(encoding="utf-8") if analytics_prefs_path.exists() else ""
+    app_src = (PREVIEW / "App.java").read_text(encoding="utf-8")
+    require(more_src, "private void analyticsSetting(", "MoreActivity",
+            "匿名使用统计的能力保留，隐私页与日后恢复都还指得到它")
+    forbid(more_src, "analyticsSetting(card", "MoreActivity",
+           "读者要求隐藏统计入口：「更多」页不得摆出这个开关")
+    require(more_src, '"匿名使用统计"', "MoreActivity", "开关的标题是读者看得懂的那四个字")
+    require(more_src, "AnalyticsReporter.setConsent(this, true)", "MoreActivity",
+            "打开统计要经过统一的同意入口")
+    require(more_src, "AnalyticsReporter.setConsent(this, false)", "MoreActivity",
+            "关闭统计要停上报并请求删除")
+    require(analytics_prefs, "getBoolean(KEY_CONSENT, false)", "AnalyticsPreferences",
+            "统计默认关闭，升级安装不得自动开启")
+    require(app_src, "AnalyticsReporter.onForeground", "App",
+            "统计只在进程进入前台时检查一次")
+    require(privacy_src, '"匿名使用统计"', "PrivacyActivity", "隐私页要交代统计这件事")
+    require(privacy_src, "删除已上传的匿名记录", "PrivacyActivity",
+            "隐私页要能单独删除已上传的匿名记录")
+    require(legal, '"5. 匿名使用统计"', "LegalText", "隐私说明必须有一节讲统计")
+    require(legal, "90 天", "LegalText", "统计记录的保留期必须写明")
     # 离线可读：这两页不许引入 WebView 或任何请求。注释里提到这些词不算（说明文里会解释
     # 「不用 WebView」），只看真正的代码行。
     def code_lines(text):
@@ -818,7 +878,7 @@ def main():
             "渠道选择要落盘")
     require(more_src, "setSingleChoiceItems(names, picked[0]", "MoreActivity", "渠道是三选一")
     # 渠道表本身也要守住：三条地址都写死在 core，测试与应用读同一份，新增渠道不能只改页面。
-    require(sources_src, '"WorkBuddy", "GitHub", "Gitee"', "UpdateSources", "三个渠道按这个顺序出现")
+    require(sources_src, '"国内", "GitHub", "Gitee"', "UpdateSources", "三个渠道按这个顺序出现，首个显示是国内")
     require(sources_src, '"workbuddy", "github", "gitee"', "UpdateSources", "每个渠道都有落盘用的键")
     require(sources_src, "gitee.com", "UpdateSources", "Gitee 的清单地址")
     require(sources_src, "/download/release/update.json", "UpdateSources",

@@ -42,8 +42,12 @@ public final class UpdateSources {
     public static final String WORKBUDDY_BETA =
         "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/beta.json?sharecode=BZD63HRP4B";
 
-    /** The hosts, in the order the settings page shows them. */
-    public static final String[] HOSTS = {"WorkBuddy", "GitHub", "Gitee"};
+    /**
+     * The hosts, in the order the settings page shows them. The first one is the WorkBuddy-hosted
+     * site, shown to readers as 国内 because that is what it means to them: the domestic mirror.
+     * The stored key stays {@code workbuddy} so existing installs keep their choice.
+     */
+    public static final String[] HOSTS = {"国内", "GitHub", "Gitee"};
 
     /** The stored key of each host, index-aligned with {@link #HOSTS}. */
     public static final String[] KEYS = {"workbuddy", "github", "gitee"};

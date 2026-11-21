@@ -1399,7 +1399,7 @@ public final class CoreTests {
         // a release and a preview list; an absent or unknown value must resolve to WorkBuddy, never
         // to a blank host.
         equal(3, UpdateSources.HOSTS.length);
-        equal("WorkBuddy", UpdateSources.HOSTS[0]);
+        equal("国内", UpdateSources.HOSTS[0]);
         equal("GitHub", UpdateSources.HOSTS[1]);
         equal("Gitee", UpdateSources.HOSTS[2]);
         equal(true, UpdateSources.isWorkBuddy(null));
@@ -1812,6 +1812,15 @@ public final class CoreTests {
         // An unfamiliar state code is shown as the school wrote it instead of being guessed at.
         equal(EduEvaluation.UNKNOWN, EduEvaluation.stateOf("9"));
         equal("9", new EduEvaluation.Item(fields("jxb_id", "C", "tjzt", "9")).label());
+        // 线上 jgh_id 是 256 个字符。截到显示上限（80）后学校回 200 / 6,923 B 的「参数异常」，
+        // 所以 id 必须整串带回去；名字仍然按显示宽度剪。
+        String longTeacher = repeat('a', 200) + repeat('b', 56);
+        EduEvaluation.Item longId = EduEvaluation.parse("{\"items\":[{\"jxb_id\":\"A9\","
+            + "\"kch_id\":\"K9\",\"jgh_id\":\"" + longTeacher + "\",\"xsdm\":\"01\",\"tjzt\":\"-1\""
+            + ",\"kcmc\":\"" + repeat('课', 100) + "\"}]}").items.get(0);
+        equal(256, longId.teacherId.length());
+        equal(longTeacher, longId.teacherId);
+        equal(80, longId.course.length());          // 课程名只用于显示，仍按 80 剪
         rejects(() -> EduEvaluation.parse(null));
         rejects(() -> EduEvaluation.parse(""));
         rejects(() -> EduEvaluation.parse("[]"));
@@ -1987,6 +1996,26 @@ public final class CoreTests {
         equal(EduEvaluationForm.UNSUPPORTED, EduEvaluationForm.parse(oddSheet).questions().get(0).kind);
         equal(false, EduEvaluationForm.parse(oddSheet).questions().get(0).supported());
 
+        // 已提交的行的答案渲染成纯文本（学校实测 <td><span>良好</span></td> 与
+        // <div class="input-xspj">挺好</div>），没有 radio/textarea：必须回显当时的选择。
+        String submitted = "<div class=\"xspj-body\" data-jxb_id=\"J5\"><div class=\"panel-pjdx\""
+            + " data-pjmbmcb_id=\"MB5\"><table class=\"table-xspj\"><tbody>"
+            + "<tr class=\"tr-xspj\" data-pjzbxm_id=\"ZB6\" data-pfdjdmb_id=\"D6\" data-dtlx=\"2\">"
+            + "<td>言行模范</td><td><span class=\"\">良好&nbsp;</span></td></tr>"
+            + "<tr class=\"tr-xspj zgpjsfxs\" data-pjzbxm_id=\"ZB7\" data-pfdjdmb_id=\"D7\">"
+            + "<td>建议</td><td><div class=\"input-xspj\">挺好</div></td></tr>"
+            + "</tbody></table></div></div>";
+        EduEvaluationForm.Form shown = EduEvaluationForm.parse(submitted);
+        equal(2, shown.count());
+        equal(EduEvaluationForm.SHOWN, shown.questions().get(0).kind);
+        equal(true, shown.questions().get(0).supported());
+        equal(true, shown.questions().get(0).shown());
+        equal("良好", shown.questions().get(0).options.get(0).label);
+        equal("挺好", shown.questions().get(1).options.get(0).label);
+        // 展示型答案永不写回请求：已提交的行学校不再接受修改。
+        String shownBody = EduEvaluationForm.body(shown, shown.answers(), new ArrayList<String>(), true);
+        equal(false, shownBody.contains("childXspjList%5B0%5D.pfdjdmxmb_id"));
+
         // No 评价项 is not an error to hide: the screen says so, so the parser says so.
         String noItems = "<div class=\"xspj-body\" data-jxb_id=\"J4\"></div>";
         rejects(() -> EduEvaluationForm.parse(noItems));
@@ -2122,6 +2151,62 @@ public final class CoreTests {
         equal("", DiagRedact.stack(null, 8));
         System.out.println("PASS: diagnostics records are structured and cannot carry sensitive values");
 
+        // ---- 匿名活跃统计：日期只按北京时间算，请求体里只有两样东西 ---------------------
+        // 15:59Z 还是北京时间当天，16:00Z 就跨到次日：自然日按 UTC+8 切，不按 UTC，也不按手机
+        // 的默认时区。（客户端只拿它对照「今天报过没有」，服务端另有自己的一份。）
+        equal("2026-11-20", AnalyticsDay.of(utc(2026, 11, 20, 15, 59)));
+        equal("2026-11-21", AnalyticsDay.of(utc(2026, 11, 20, 16, 0)));
+        equal("2024-02-29", AnalyticsDay.of(utc(2024, 2, 29, 12, 0)));
+        equal("1970-01-01", AnalyticsDay.of(0L));
+        equal("1970-01-02", AnalyticsDay.of(16L * 3600 * 1000));
+        equal(true, AnalyticsDay.valid("2026-11-20"));
+        equal(false, AnalyticsDay.valid("2026-13-01"));
+        equal(false, AnalyticsDay.valid("2026-11-20 08:00"));
+        equal(false, AnalyticsDay.valid(""));
+        equal(false, AnalyticsDay.valid(null));
+
+        equal(true, AnalyticsRequest.validInstallId("0f8fad5b-d9cb-469f-a165-70867728950e"));
+        equal(true, AnalyticsRequest.validInstallId("0F8FAD5B-D9CB-469F-A165-70867728950E"));
+        equal(false, AnalyticsRequest.validInstallId("0f8fad5bd9cb469fa16570867728950e"));
+        equal(false, AnalyticsRequest.validInstallId("0f8fad5b-d9cb-469f-a165-70867728950g"));
+        equal(false, AnalyticsRequest.validInstallId(null));
+        equal(true, AnalyticsRequest.validVersion("2.6.0-beta.11"));
+        equal(false, AnalyticsRequest.validVersion("2.6.0 beta"));
+        equal(false, AnalyticsRequest.validVersion(repeat('1', 33)));
+        equal(false, AnalyticsRequest.validVersion(""));
+        equal("{\"installId\":\"0f8fad5b-d9cb-469f-a165-70867728950e\",\"version\":\"2.6.0\"}",
+            AnalyticsRequest.body("0F8FAD5B-D9CB-469F-A165-70867728950E", "2.6.0"));
+        equal("{\"installId\":\"0f8fad5b-d9cb-469f-a165-70867728950e\"}",
+            AnalyticsRequest.forgetBody("0f8fad5b-d9cb-469f-a165-70867728950e"));
+        rejects(() -> AnalyticsRequest.body("not-a-uuid", "2.6.0"));
+        rejects(() -> AnalyticsRequest.body("0f8fad5b-d9cb-469f-a165-70867728950e", "2.6.0 1"));
+        rejects(() -> AnalyticsRequest.forgetBody(""));
+        equal("https://analytics.example/v1/active",
+            AnalyticsRequest.endpoint("https://analytics.example/", AnalyticsRequest.ACTIVE_PATH));
+        rejects(() -> AnalyticsRequest.endpoint("http://analytics.example", AnalyticsRequest.ACTIVE_PATH));
+        rejects(() -> AnalyticsRequest.endpoint("https://analytics.example", "/v1/stats"));
+        equal(false, AnalyticsRequest.configured(""));
+        equal(false, AnalyticsRequest.configured(null));
+        equal(false, AnalyticsRequest.configured("http://analytics.example"));
+        equal(true, AnalyticsRequest.configured("https://analytics.example"));
+
+        // 只有服务端明确认过才算「今天统计过了」：200 里 counted 是 true/false 都算记上了。
+        equal(AnalyticsReply.COUNTED, AnalyticsReply.of(200, "{\"ok\":true,\"counted\":true}"));
+        equal(AnalyticsReply.DUPLICATE, AnalyticsReply.of(200, "{ \"ok\": true, \"counted\": false }"));
+        equal(AnalyticsReply.TRANSIENT, AnalyticsReply.of(200, "<html>"));
+        equal(AnalyticsReply.TRANSIENT, AnalyticsReply.of(200, "{\"ok\":false}"));
+        equal(AnalyticsReply.REFUSED, AnalyticsReply.of(400, "{\"ok\":false}"));
+        equal(AnalyticsReply.REFUSED, AnalyticsReply.of(413, ""));
+        equal(AnalyticsReply.TRANSIENT, AnalyticsReply.of(429, "{\"ok\":false}"));
+        equal(AnalyticsReply.TRANSIENT, AnalyticsReply.of(503, ""));
+        equal(AnalyticsReply.TRANSIENT, AnalyticsReply.of(0, null));
+        equal(true, AnalyticsReply.accepted(AnalyticsReply.COUNTED));
+        equal(true, AnalyticsReply.accepted(AnalyticsReply.DUPLICATE));
+        equal(false, AnalyticsReply.accepted(AnalyticsReply.REFUSED));
+        equal(true, AnalyticsReply.retryable(AnalyticsReply.TRANSIENT));
+        equal(false, AnalyticsReply.retryable(AnalyticsReply.REFUSED));
+        System.out.println("PASS: anonymous activity statistics stay on a two-field payload and a server-side day");
+
         System.out.println("All " + assertions + " assertions passed. Live API/Bluetooth compatibility is not tested here.");
     }
 
@@ -2130,5 +2215,14 @@ public final class CoreTests {
         byte[] raw = value.toByteArray();
         if (raw.length > 1 && raw[0] == 0) return Arrays.copyOfRange(raw, 1, raw.length);
         return raw;
+    }
+
+    /** 一个确定的 UTC 时刻。构造毫秒数比在断言里写魔数更好读，也不会跟着本机时区变。 */
+    private static long utc(int year, int month, int date, int hour, int minute) {
+        java.util.Calendar calendar = java.util.Calendar.getInstance(
+            java.util.TimeZone.getTimeZone("UTC"));
+        calendar.clear();
+        calendar.set(year, month - 1, date, hour, minute, 0);
+        return calendar.getTimeInMillis();
     }
 }

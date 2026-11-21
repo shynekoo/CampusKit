@@ -38,6 +38,7 @@ python scripts/build_preview.py                # 普通只读版出包（默认�
 | `--version-code N` | 覆盖 versionCode；用水版不传时取 manifest+1 |
 | `--beta` | 声明本次是预览版构建：名字必须是 `X.Y.Z-beta.N`，产物报告写 `"channel": "beta"` |
 | `--allow-lower-version-code` | 允许 versionCode 不高于已发布清单（只用于内部构建，会打印 WARNING） |
+| `--analytics-endpoint https://…` | 把匿名统计服务地址写进 `BuildFlags.ANALYTICS_ENDPOINT`；不给则为空串（开关置灰、一个请求都不发）。只接受 `https://`，结尾斜杠会被去掉 |
 
 只读版构建后，脚本验证 7 条控制路由与 field-test 类型描述符在 dex 中 occurrence **全为 0**——「不能发控制请求」是产物级可检查属性，不是口头声明。三配置（普通 / 用水 / 内部诊断）均已实测通过断言与 v2/v3 验签。
 

@@ -13,6 +13,10 @@
   构建级证据；发布公告的「已知问题」已如实写明。真机验收清单见 [`real-device-acceptance.md`](real-device-acceptance.md)。
 - 2.5.8.2–2.5.8.6 已提交（学业情况查询、外观修复、闪退修复、层级排版、课程明细展开）。普通版 APK 已构建并验签，但**未建 tag / Release、未发版、未同步下载站**。
 - 真机验收 [`real-device-acceptance.md`](real-device-acceptance.md) 全部待勾选；未完成前不得发布。
+- **匿名使用统计只有代码与静态守卫，没有线上服务**（2026-11-20）：`server/analytics-worker/` 的
+  `wrangler.toml` 仍是 `REPLACE_WITH_D1_DATABASE_ID` 占位值，没有 D1 库、没有 HMAC 密钥；本地构建的
+  `2.6.0-beta.11`（228）未带 `--analytics-endpoint`，统计开关在包里是灰的、不会发请求。部署步骤见
+  [`real-device-acceptance.md`](real-device-acceptance.md) N 节与 `server/analytics-worker/README.md`。
 
 ## 未验证事项（本环境无法执行）
 
@@ -21,6 +25,7 @@
 | 真机 UI / 手势 / A3 就地刷新视觉、滚动位置、跨天与周次 | 未实测（静态守卫 240 锚点已过，不等于真机通过） |
 | 「数据与隐私」「使用公告」的排版、系统大字体、320dp 换行、深浅色对比 | 未实测（只做了构建级与静态守卫） |
 | 旧版覆盖升级（凭据/课表保留） | 未实测 |
+| 匿名统计的真实上报、断网补报、关闭删除、覆盖升级标识不变、卸载重装、服务端异常 | 未实测（服务未部署，见上） |
 | 学业情况页在真机的排版、闪退修复、登录态复用、课程明细展开 | 未实测 |
 | 用水真实出水/关水/账单、进程被杀恢复 | 未对生产服务测试（安全约束禁止） |
 | 支付宝 SDK 与 MobSF 扫描 | 未做；扫描结果也需人工复核 |
@@ -46,6 +51,14 @@
 - 日志轮转与保留规则（256 KB/文件、1 MB 总量、7 天清理、清空）已由 `scripts/test_diag_files.py` 在 JVM 上实跑，
   但「应用被杀时正在写」这类时序仍只有真机能验；`prepare()` 期间对超限文件做裁剪，是唯一会重写整个文件的路径。
 - 构建测试循环里不要用 `| head` 截断管道：SIGPIPE 会中断 Python 导致 BuildFlags 读到旧值；重定向到文件即可。
+
+- **匿名统计的服务地址国内不可达，功能暂停启用**（2026-11-21 实测）：`server/analytics-worker/` 已部署到
+  `https://campuskit-analytics.campuskit.workers.dev`（D1、表、HMAC 密钥、每日清理 cron 均就位），但
+  `*.workers.dev` 在国内被**按域名（SNI）封锁**——同一 Cloudflare 边缘 IP `104.21.8.221` 换 SNI 为
+  `www.cloudflare.com` 返回 `200`，换回 `*.workers.dev` 立即被重置；本机 DNS 解析不到，Chrome 直连
+  `/health` 报 `Failed to fetch`。因此代码留在 `feat/analytics` 分支，出包**不传** `--analytics-endpoint`
+  （设置页显示「统计服务尚未配置」，一个请求都不发）。重新启用前必须先有绑定到 Cloudflare 的自定义域，
+  并**先验可达再出包**，方法见 [`analytics.md`](analytics.md)。**不要把带代理的 `curl` 通当作用户能通。**
 
 ## 文档维护注意
 

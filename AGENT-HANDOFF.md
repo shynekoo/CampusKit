@@ -4,10 +4,10 @@
 
 ## 一、项目概况
 
-- 河北工程大学科信学院的第三方安卓客户端（趣智校园 / 慧生活798 / 教务 / 菜鸟）。单 APK、无后端、无 Gradle，Java + 原生 View 手工构建。
+- 河北工程大学科信学院的第三方安卓客户端（趣智校园 / 慧生活798 / 教务 / 菜鸟）。单 APK、业务无后端、无 Gradle，Java + 原生 View 手工构建。仓库里唯一的服务端代码是 `server/analytics-worker/`（可选的匿名活跃统计，默认关闭，见 [`docs/analytics.md`](docs/analytics.md)）。
 - 模块：`client/android`（原生界面 / Activity）、`client/core`（不依赖 Android 的会话、二维码协议、用水状态机、解析）、`scripts`（构建、断言、核验）。
 - 系统要求 Android 7.0+（API 24），targetSdk 36；第三方库 ZXing 3.5.3、PDFBox-Android 2.0.27.0、Bouncy Castle 1.72、支付宝 SDK 15.8.42。
-- 权限仅 5 项；凭据 AES-256-GCM 加密存本地私有目录，密钥由 Android Keystore 保护；无推送 / 统计 / 广告 SDK。
+- 权限仅 5 项；凭据 AES-256-GCM 加密存本地私有目录，密钥由 Android Keystore 保护；无推送 / 第三方统计 / 广告 SDK；匿名统计为自建 Worker 且默认关闭。
 
 ## 二、当前版本状态（2026-11-19 核查）
 
@@ -24,7 +24,7 @@
 | GitHub Release | 最新为 [v2.5.9](https://github.com/shynekoo/CampusKit/releases/tag/v2.5.9) | 附 `kexin-xiaozhushou-2.5.9.apk`（5,437,306 字节）与 `update.json`；`preview` 预发布现为 **2.6.0-beta.6 / 223**（`campuskit-2.6.0-beta.6.apk` + `beta.json`） |
 | GitHub 登录 | 已用 `gh auth login` 登录 `shynekoo`（ADMIN，token scopes 含 repo） | 技术上有 push/tag/Release 权限；按 AGENTS.md 仍需用户逐次确认才执行 |
 | 未发布开发版 | **2.6.0-beta.10**（versionCode 227，工作区改动，待构建） | 评教接口按真实抓包重做：读表单只发官方那一发（`?gnmkdm=N401605` + 七项只在请求体；查询串重复 id 会被判「参数异常」、少 `gnmkdm` 回 911）；解析改兄弟边界（线上片段 `<div>` 不闭合，嵌套切会把 11 题读成 2 题）；请求体补 `pjzbxm_id`/`pfdjdmb_id`/`zsmbmcb_id` 三层身份、表级 `pjzbxm_id` 与 `pjzt`；`outcome()` 否定词先判、写完回读 `tjzt` 才算成功。实测：暂存回 `"暂存成功！"`、回读 10 个单选与文字都在、列表 `tjzt` 由 -1 变 0；**提交未验证** |
-
+| 已搁置（未提交） | **feat/analytics**（2026-11-20 起） | 匿名每日活跃统计：`Analytics*`（core 3 个 + android 2 个）、`server/analytics-worker/`、`--analytics-endpoint` 构建开关、隐私说明第 5 节。Worker 已部署（D1 + 表 + 密钥 + cron 就位），但 `*.workers.dev` 国内被 SNI 封锁，**功能暂停、不进包**；重启需先有自定义域，见 `docs/analytics.md`「当前状态」 |
 - **版本号规范（2026-11-20 起）**：正式版 `X.Y.Z`、预览版 `X.Y.Z-beta.N`（N 从 1 起），四段 `X.Y.Z.W` 只保留读取兼容；
   新旧一律比 `versionCode`（`core/UpdateChannel`），不比较版本名。`build_preview.py` 的 `check_version_name()` /
   `check_version_code()` 在出包时拦住不合规名字与「不高于已发布清单」的版本代码。

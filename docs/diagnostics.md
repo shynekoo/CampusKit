@@ -34,7 +34,7 @@
 
 - **日期时间**：本地时区，毫秒精度。
 - **等级**：`INFO` / `WARN` / `ERROR` / `CRASH`。
-- **模块**：`APP`、`EDU`、`TIMETABLE`、`NETWORK`、`LIFE`、`QZXY`、`AUTH`、`UPDATE`、`UI`、`DIAG`。
+- **模块**：`APP`、`EDU`、`TIMETABLE`、`NETWORK`、`LIFE`、`QZXY`、`AUTH`、`UPDATE`、`ANALYTICS`、`UI`、`DIAG`。
 - **事件代码**：稳定标识（`load.failed`），文案改动不影响它。
 - **关联 ID**：一次操作内几条记录共用，随机生成，与用户身份无关。
 - **线程**：`main` / `worker`（其余压成 ASCII 短名）。
@@ -149,6 +149,7 @@ JWT、超长文本、堆栈不含异常消息）。
 | 支付宝 `AUTH` | `auth.start` / `auth.returned` / `auth.failed` | SDK 是否返回、状态码（9000/6001…）、是否给了授权码 |
 | 趣智 `QZXY` | `code.failed` / `request.rejected` | 接口不可用、业务码拒绝、解析失败 |
 | 更新 `UPDATE` | `check.start` / `check.available` / `check.failed` / `install.start` / `download.failed` / `verify.failed` | 清单读不到、下载中断、大小 / 摘要 / 包身份校验失败 |
+| 匿名统计 `ANALYTICS` | `report.done`（`http`+`stage`+`duration`，stage 为 counted/duplicate/refused/retry）/ `report.failed` / `forget.done`（`http`）/ `forget.failed` | 今天这次上报有没有成、服务端怎么回答、删除请求成没成；**不记安装标识、不记请求体** |
 | 界面 `UI` | `nav.open` / `back.gesture` / `render.done`（仅内部版） | 页面是否打开、返回手势走到哪一步、渲染结果 |
 | 诊断 `DIAG` | `log.start` / `log.stop` / `log.lost` / `log.write.failed` | 诊断系统自身的状态 |
 | 学生评价 `EVAL` | `sheet.start` / `sheet.shape`（`form`+`bytes`）/ `sheet.ready` / `sheet.empty` / `sheet.failed`（`stage`）/ `write.sent` / `write.saved` / `write.failed` / `write.unverified` | 请求形态只有一种（官方那一发），`bytes` 是回包字节数；`write.unverified` 表示学校说成功、但回读的状态还没变——只记阶段、形态与计数，不记题目、评语与任何 id |

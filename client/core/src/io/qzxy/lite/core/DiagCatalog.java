@@ -22,6 +22,7 @@ public final class DiagCatalog {
             case "QZXY": return "趣智校园";
             case "AUTH": return "支付宝";
             case "UPDATE": return "更新";
+            case "ANALYTICS": return "匿名统计";
             case "UI": return "界面";
             case "DIAG": return "诊断";
             default: return code;
@@ -29,7 +30,7 @@ public final class DiagCatalog {
     }
 
     /** 稳定的模块代码，供筛选按模块聚合。 */
-    public static final String[] MODULES = {"EDU", "EVAL", "TIMETABLE", "NETWORK", "LIFE", "QZXY", "UPDATE", "UI"};
+    public static final String[] MODULES = {"EDU", "EVAL", "TIMETABLE", "NETWORK", "LIFE", "QZXY", "UPDATE", "ANALYTICS", "UI"};
 
     public static String title(String module, String code) {
         if (code == null) return "";
@@ -41,6 +42,12 @@ public final class DiagCatalog {
             case "log.rotate": return "日志已轮转";
             case "log.write.failed": return "日志写入失败";
             case "log.lost": return "有记录未能写入";
+
+            // 匿名统计只记「发没发出去、服务端怎么回答」，不记标识、不记请求体。
+            case "report.done": return "活跃统计已上报";
+            case "report.failed": return "活跃统计上报失败";
+            case "forget.done": return "匿名记录删除结果";
+            case "forget.failed": return "匿名记录删除失败";
 
             case "login.start": return "开始登录";
             case "login.success": return "登录成功，已建立会话";
