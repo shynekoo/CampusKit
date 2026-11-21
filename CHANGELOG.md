@@ -59,11 +59,15 @@ v2 + v3 签名，证书 `13b96892…d4209`（与 2.5.9 一致，可覆盖安装�
 
 ### 发布状态
 
-| 渠道 | 状态（2026-11-21 15:00） |
+| 渠道 | 状态（2026-11-21 15:05，三渠道均核对到 200） |
 | :-- | :-- |
-| GitHub `v2.6.0`（Latest） | 已上线：`kexin-xiaozhushou-2.6.0.apk` + `update.json`，清单经下载核对与产物哈希一致 |
-| 国内（WorkBuddy 下载站） | **未上线**：两次发布均报 `SITES_UPLOAD_FAILED`（`ECONNRESET` / `UND_ERR_HEADERS_TIMEOUT`），上传面的网络问题，与账号无关；站点仍是 2.5.9 / 210 |
-| Gitee `release` tag | **未更新**：本机没有 Gitee token，待提供后按「先传新、再删旧」替换 APK 与 `update.json` |
+| GitHub `v2.6.0`（Latest） | 已上线：`kexin-xiaozhushou-2.6.0.apk` + `update.json`；清单经下载回读核对 |
+| 国内（WorkBuddy 下载站） | 已上线：`update.json` 与 `campuskit-2.6.0.apk?sharecode=…` 均 200，5,486,527 B，哈希与产物一致 |
+| Gitee `release` tag | 已上线：新 APK + `update.json` 先传、旧同名附件后删（`204`）；直链 200、5,486,527 B、哈希一致 |
+
+**国内站三次上传失败的根因**：`delivery/update/` 里堆了 146 MB 历史 APK（30 个），上传包过大后两次报
+`ECONNRESET` / `UND_ERR_HEADERS_TIMEOUT`。把历史包移到 `delivery/_apk-archive/`（本地保留，不进站点），
+只剩 `2.6.0` 与 `2.5.9` 两只、站点降到 11 MB，第三次上传成功。**以后发版后顺手归档旧包**。
 
 ---
 

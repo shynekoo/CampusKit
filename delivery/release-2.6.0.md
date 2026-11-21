@@ -106,6 +106,17 @@
 1. [x] 构建 APK（`--field-water`，236），签名 / 对齐 / manifest / 产物体检通过
 2. [x] `test_ui_contract` 388 / `test_secrets` 通过；`AppChangelog` 追加 2.6.0
 3. [x] 三份 `update*.json` 写好，APK 复制进 `delivery/update/`
-4. [ ] GitHub：push `main`、tag `v2.6.0`、Release 附 APK + `update.json`、README 同步
-5. [ ] Gitee：`release` tag 内替换 APK + `update.json`（先传新、再删旧）
-6. [ ] 下载站重发布；线上页面、三份清单与直链核对 200
+4. [x] GitHub：push `main`（`8dc2541`）、tag `v2.6.0`、Release 附 APK + `update.json`（Latest）、README 同步
+5. [x] Gitee：`release` tag 内替换 APK + `update.json`（先传新、再删旧，删除均 `204`）
+6. [x] 下载站重发布；三个渠道清单与 APK 直链均 200，字节数与 SHA-256 与产物一致
+
+### 线上核对结果（2026-11-21 15:05）
+
+| 渠道 | 清单 | APK 直链 | 字节 / SHA-256 |
+| :-- | :-- | :-- | :-- |
+| 国内 WorkBuddy | 200，`2.6.0` / 236 | 200 | 5,486,527 B / 一致 |
+| GitHub | 200（`gh release download` 回读） | 200 | 5,486,527 B / 一致 |
+| Gitee | 200 | 200 | 5,486,527 B / 一致 |
+
+> 国内站前三次上传失败是 `delivery/update/` 里堆了 146 MB 历史 APK 导致上传超时；归档到
+> `delivery/_apk-archive/` 后站点降到 11 MB，重发布成功。回滚点：`campuskit-2.5.9.apk` 仍留在站点目录。

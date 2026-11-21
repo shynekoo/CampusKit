@@ -16,7 +16,7 @@
 | GitHub 登录 | `gh auth login` 已登录 `shynekoo`（ADMIN，repo scope）；按 AGENTS.md，push/tag/Release 仍需用户逐次确认 |
 | 工作区 | `main` 与 `origin/main` 同步；许可证迁移 `0392cea`、安全整改与 beta.18 出包均已入库 |
 | 核心断言 | 实测 **1554 项全过**（2026-11-21 删除充值签名器的 40 项断言）；UI 契约守卫 **388 锚点**；诊断隐私守卫 **717 项**；WebView 守卫 **5 处** |
-| 发布状态 | **2.6.0 已推送并建 Release**（`8dc2541` / `v2.6.0`，GitHub Latest 附 `kexin-xiaozhushou-2.6.0.apk` + `update.json`，直链经 `gh release download` 核对内容与哈希）。**国内下载站两次发布均失败**（`SITES_UPLOAD_FAILED`：`ECONNRESET` / `UND_ERR_HEADERS_TIMEOUT`，上传面网络问题，非账号问题）；**Gitee `release` tag 未更新**（本机无 Gitee token，需用户提供后再传 APK + `update.json`） |
+| 发布状态 | **2.6.0 三渠道全部上线并核对 200**：GitHub `v2.6.0`（Latest，`kexin-xiaozhushou-2.6.0.apk` + `update.json`）、国内 WorkBuddy 下载站（`update.json` + `campuskit-2.6.0.apk`，5,486,527 B）、Gitee `release` tag（同名替换，旧附件先传新后删旧）。国内站前三次 `SITES_UPLOAD_FAILED` 的根因是 `delivery/update/` 堆了 146 MB 历史 APK；归档到 `delivery/_apk-archive/` 后降到 11 MB 即成功 |
 | 最新构建 | **2.6.0-beta.18 / 235**（`delivery/科信小助手-2.6.0-beta.18.apk`，5,486,527 B，`sha256 e6e674bb…707bf3e`，v2+v3 签名、证书与历史各版一致）；它把 beta.17 残留的趣智签名盐从 dex 里清掉，类集合只少 `RechargeSignature` / `NativeSigningV6528`，内嵌 URL 53 条与 beta.17 逐条一致。同日清理 `preview` 上 19 个带盐旧包（GitHub 12 / Gitee 7），GitHub secret scanning 与 push protection 已开启。**正式版 2.6.0 的方案见 `tmp/release-2.6.0-plan.md`，未执行。** |
 | 当前线上预览 | **2.6.0-beta.18 / 235**（GitHub 与 Gitee 的 `preview`）：`--beta --field-water`；安全整改后的重新出包，dex 不再含已删除的趣智签名盐。上一版 beta.17 / 234 仍带盐，已从两渠道移除 |
 | 预览渠道 | 仓库内三份清单均为 2.6.0-beta.18 / 235 且各自指向本渠道（`beta.json` → WorkBuddy、`beta-github.json` → GitHub、`beta-gitee.json` → Gitee）；GitHub 与 Gitee 已上线 235；**WorkBuddy 站点仍是 beta.5 / 222**（发布被 `SITES_ACCOUNT_MISMATCH` 拒绝，appId `wbapp_g8yY3kLcI8KmEUFM6vdn0h` 属另一账号），账号切回后重发布即可 |
