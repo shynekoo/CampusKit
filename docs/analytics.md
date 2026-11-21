@@ -27,7 +27,7 @@
 结论：**Cloudflare 的边缘是通的，被封的是 `workers.dev` 这个域名本身。** 换一个自定义域即可，
 Worker 代码与 D1 一行都不用改。
 
-所以本功能当前**暂停启用**：代码在 `feat/analytics` 分支，出包不传 `--analytics-endpoint`，设置页显示
+所以本功能当前**暂停启用**：代码已并入主线但默认不可用，出包不传 `--analytics-endpoint`，设置页显示
 「统计服务尚未配置」，一个请求都不发。重启步骤：
 
 1. 准备一个 NS 托管在 Cloudflare 的域名（自有域名，或 `eu.org` / DigitalPlat 这类免费域名）
