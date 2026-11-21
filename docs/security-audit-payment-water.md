@@ -33,7 +33,7 @@
 - `requireUsable()` 双门控：构建开关 `WATER_CONTROL` + 运行时设备校验，且在开 socket 前执行（`:56-60`）。
 - 路由白名单 `ROUTES`（`:41-42`），`control()` 只接受白名单内路径（`:137`）。
 - `settle()` 校验返回订单号与请求一致（`:127`），账单不匹配直接拒绝。
-- 只读版不含此类：`WaterControl.java` 位于 `client/fieldtest/`，`--field-water` 才编译；DEX 扫描由 `scripts/verify_release.py` 保证。
+- 只读版不含此类：`WaterControl.java` 位于 `client/fieldtest/`，`--field-water` 才编译；产物级 DEX 扫描由 `build_preview.py` 的 `check_route_boundary()` 执行。
 
 ### 3. 客户端返回值不作为成功依据
 
@@ -57,7 +57,7 @@
 ### 6. 支付宝 exported 回调组件
 
 - Manifest 中 `PayResultActivity` / `AlipayResultActivity` 为 `exported="true"`（`:67-72`），系支付宝 SDK 回调所需；其余所有 App Activity 均 `exported="false"`。
-- 支付宝 SDK 静态分析结果（`client/build/jadx-sdk/sources/com/alipay/sdk/app/PayResultActivity.java:69-103`）显示其用进程内随机请求号 `b.a` 比对 `intExtra`，不符则走失败分支；这是 SDK 自身职责，非本项目代码。
+- 对该 SDK 的静态分析显示其用进程内随机请求号比对 `intExtra`，不符则走失败分支；这是 SDK 自身职责，非本项目代码，分析产物不入库。
 - 本项目不读取这两个 Activity 的回调来确认交易；用水成功以服务端状态为准（见第 3 项）。故不存在"外部 Intent 伪造支付成功"的本地链路。
 
 ## 未发现 / 未修改项（明确记录，不为凑数而改）

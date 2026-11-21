@@ -6,7 +6,7 @@
 
 | 来源 | 入口类 | 用途 | 写操作边界 |
 | :-- | :-- | :-- | :-- |
-| 学校教务系统 | `EduClient`（android）+ `Edu*` core 解析类 | 登录、课表导入、成绩/平时分/空教室、学业情况（GPA/学分树）、学生评价状态 | 只读查询；课表导入为本地存储；评价的填写与提交在学校自己的页面上完成 |
+| 学校教务系统 | `EduClient`（android）+ `Edu*` core 解析类 | 登录、课表导入、成绩/平时分/空教室、学业情况（GPA/学分树）、学生评价状态 | 只读查询；课表导入为本地存储；评价在原生答题页填写后提交到学校系统（不预填、不代选、不批量） |
 | 慧生活798 | `LifeAuthApi`、`LifeDeviceApi`、`WaterApi` | 登录授权、设备资料/状态（只读）、订单状态查询 | 控制请求仅在 field-test source set |
 | 趣智校园 | `SmsAccountApi`、`UseCodeApi` | 余额、使用码（8 位） | 使用码设置/生成；余额只读 |
 | 支付宝 SDK | `AlipayLogin`、`QzxyAlipayActivity` | 授权登录、充值收银台、用水免密 | 支付凭据不经应用服务器 |
@@ -41,22 +41,12 @@
 ## 解析与模型（core）
 
 - `TimetablePdfParser` / `TimetableWebCourseParser`：教务网页表格与七列文字 PDF 表格；扫描版 PDF 会明确提示失败。
-- `EduAcademic.parse()`：学业情况页一次 GET 服务端渲染整棵树，无分页 JSON；解析前先剥离 HTML 注释（真实页面统计行被注释切分），从 `title1` 提取已获/要求学分与通过标记，按完整 id 去重并保留首个有效节点；按脚本 `appendTo($("#ul父ID"))` 还原父子层级（实测 37 节点 5 层）；有 `MAX_HTML=4_000_000` / `MAX_NODES=120` 上限；输出 GPA、统计与学分树。每个课组标签还带 `jdkcsx`：它的取值决定课程走哪个端点（见下一条），`Node.planCourses` 保存该判定；未带标记的页面默认走计划内端点。哪些行可点由树的父子关系决定——学校只给叶子节点挂展开链接，父行只折叠。
-- 课程明细有两个只读端点，按课组标签上的 `jdkcsx` 选择（学校脚本即如此）：`POST /xsxy/xsxyqk_cxJxzxjhxfyqKcxx.html`（`jdkcsx == '1'`，计划内课程）与 `POST /xsxy/xsxyqk_cxJxzxjhxfyqFKcxx.html`（其余取值，计划外课程，如通识选修/公共艺术）。`EduAcademic.Node.planCourses` 携带该判定；计划外请求只带 `fromXh_id`/`xfyqjd_id`/`xh_id`，计划内请求额外回显页面隐藏学年学期字段。按 `xfyqjd_id` 一次取一个课组的课程列表，参数取自页面隐藏字段（`EduClient.valueOf()` 双向匹配 `name`/`id` 与 `value`，不依赖属性顺序）；`EduAcademic.parseCourses()` 解析为课程名/学分/成绩/绩点/修读状态/学期/课程性质；状态码 1 在读、3 未修、4/21 已通过、2 未过。UI 侧懒加载并缓存。
-- `EduEvaluation.parse()`：学生评价（评教）列表走学校 jqGrid 的 `doType=query` 只读接口，返回每个教学班一条扁平对象；解析出教学班/课程/教师/学时类型（理论·实验·实践）与学校自己的状态码（`tjzt`：`-1` 未评、`0` 暂存、`1` 已提交），状态词优先用服务端 `tjztmc`，缺失时按码归一；没有教学班 id 的行无法打开表单，直接丢弃；`MAX_JSON=2_000_000` / `MAX_ROWS=400` 上限。`EduEvaluation.counts()` 读评价情况接口的 `wpgs/bcgs/tjgs` 与 `pjtsxx` 提示（列表本身不带统计，两者分开取；统计失败不影响列表）。
-- 学生评价的**问卷**是学校服务端渲染的 HTML 片段，端点与参数就是列表页 `xspj_index.js` 里那一句 `$(panel_content).load("/xspjgl/xspj_cxXspjDisplay.html", {七项})`：**POST，七项只在请求体**。2026-11-20 用实测账号（某专业课 · 任课教师）逐项实测，三种失败各有确定原因，因此现在**只发这一种形态**：
-  | 形态 | 结果 |
-  | :-- | :-- |
-  | `?gnmkdm=N401605` + 七项在请求体（官方） | **200，46,234 B，1 个面板 11 道题** |
-  | 同上，但查询串里再拼一份 id | 200 + 「参数异常」页（6,923 B） |
-  | 不带 `gnmkdm` | HTTP **911** + 392 B 的页面模型 JSON |
-  | 不带 `X-Requested-With` | **照样 200 + 完整表单**（因此不加这个头，少一处无依据的差异） |
-  片段里没有暂存/提交按钮（`#btn_xspj_bc` / `#btn_xspj_tj` 在列表页 HTML 里），但题目、选项与全部 id 都在片段里，因此可以原生渲染，不需要 WebView。查询串重复 id 这一条尤其重要：两版「双写」修复都在这里被学校判成参数异常，却被读成「id 不对」。
-- `EduEvaluationForm.parse()` 读这份片段。切片方式是**平铺的兄弟边界**（每个 `panel-pjdx` / `table-xspj` / `tr-xspj` 一直延伸到下一个同类开始标签），不是按标签嵌套计数：学校这份片段不闭合自己的 `<div>`（线上传热学那张表 63 个 `<div>`、73 个 `</div>`），按嵌套切会在第二题处收尾，把 11 道题读成 2 道，用户看到的就是「学校没有下发评价项」。选择器与学校自己的 `xspj_display.js` 一一对应：`div.panel-pjdx` 一份评价模板（`data-pjmbmcb_id / pjmbmc / pjdxdm / fxzgf / xspfb_id`）、`table.table-xspj` 一个一级指标、`tr.tr-xspj` 一个评价项（`data-pjzbxm_id / pfdjdmb_id / dtlx / sfbt / qzz`，`dtlx` 1 主观题 / 2 客观单选 / 3 多选）；选项是 `div.input-xspj` 包着 `input.radio-pjf`（单选，值取 `data-pfdjdmxmb_id`）或 `input[type=checkbox]`（多选），标签是该 `div` 的文字；十级制行的 `select[name=pjf]` 直接回分数；主观题是 `textarea.input-zgpj`；必须 `data-sfbt="1"`。识别不了的题型记为 `UNSUPPORTED`，页面上说明「这一项要在学校页面上填」并**阻止提交**，绝不按猜的形状发参数。`data-xspj-body` 上的 `ztpjbl / jszdpjbl / xykzpjbl` 与四个 id 也一并读回，请求要原样回显。
-- `EduEvaluationForm.body()` 生成的请求体与学校 `buildRequestMap()` 逐字段同构（用真实片段对比过 60 个字段，除 `tjzt` 由按钮决定外键值全同）：`modelList[i].pjmbmcb_id / pjmbmc / pjdxdm / fxzgf / py / xspfb_id`，题目在 `modelList[i].xspjList[j].childXspjList[k].` 下，`j` 是一级指标表序号、`k` 是表内行序号。每一行必须回填**三个身份字段**：`pjzbxm_id`（二级指标）、`pfdjdmb_id`（评分等级）、`zsmbmcb_id`（模板名称，取 `tr` 的 `data-zsmbmcb_id`）——答与不答都发，它们是身份不是答案；一级指标表自己还有一个不同的 `pjzbxm_id` 写在 `modelList[i].xspjList[j].pjzbxm_id`。此外 `modelList[i].pjzt` 由「必填项是否全答」算出（1 全答 / 0 未答完），与学校脚本一致。答案字段：单选/多选写 `pfdjdmxmb_id`（多选同名字段重复出现，因此请求体按字符串拼，不走 `Map`），十级制写 `pjf`，主观题写 `zgpj`；**未作答的题目不发答案字段**。评语按学校做法先 `encodeURIComponent` 再由表单编码，请求体里是**双重编码**——服务端对该字段解码两次，只编码一次会乱码。实测：客户端自己拼的这份 body 直接 POST 到暂存端点，学校回 `"暂存成功！"`，回读时 10 个单选与主观题文字都在。
-- 暂存/提交是两个独立端点：`POST /xspjgl/xspj_bcXspj.html`（`tjzt=0`）与 `POST /xspjgl/xspj_tjXspj.html`（`tjzt=1`），同一份 `modelList` 参数。学校用**一句话**回应，而且是 **JSON 字符串**（实测 `"暂存成功！"`，7 字节），所以 `outcome()` 先去掉引号再判定：否定词（不成功 / 失败 / 不能 / 请先 / 错误 / 异常 / 已放弃 / 维护）**先判**，成功必须是学校自己的短语（整体提交成功 / 暂存成功 / 提交成功 / 保存成功）；只说「操作成功」不算数，因为「提交不成功」也含「成功」。判不出来就如实说「还不能确认」。**写完必须回读状态**：`EduClient.evaluationState()` 重新查列表里这一行的 `tjzt`，提交只有变成 `1` 才显示「已提交，学校已记为已评」；仍是 `0`（暂存）就明说「学校收了但没有记成已评」；查询失败则记 `write.unverified` 事件。超时或断网时**不重发**，先去查状态。提交是一次性的：只在用户手动选完并二次确认后才发，不代填任何一项。
-- 列表接口 `POST /xspjgl/xspj_cxXspjIndex.html?gnmkdm=N401605&doType=query` 是 jqGrid，**会分页**：`EduClient.evaluations()` 按 `queryModel.currentPage` 循环取页（每页 100），页数取回复里的 `totalPage` / `total`，缺失时用 `totalResult ÷ 每页条数` 估算；某页没有新行即停止，跨页按 `jxb_id` 去重。只读一页会漏课程，而漏掉的课看起来就像「应用弄丢了」。
-- `EduClient.checkPath()` 只放行五个按名字指定的 `/xspjgl/` 端点：列表查询、评价情况统计、问卷片段、暂存、提交。写端点只接受 `EduEvaluationForm.body()` 拼好的请求体，会话、HTTPS 与 Referer 仍由同一套传输处理。
+- `EduAcademic.parse()`：学业情况页一次 GET 拿到服务端渲染的整棵树，没有分页 JSON，因此按 id 去重、按页面脚本的 `appendTo` 还原父子层级；有 `MAX_HTML` / `MAX_NODES` 上限；输出 GPA、学分统计与学分树。
+- 课程明细是两个只读端点，按课组标签上的 `jdkcsx` 选择，与学校页面自身的分流一致；参数取自页面隐藏字段，按 `name` / `id` 双向匹配取值，不依赖属性顺序。字段名与拼装方式以 `EduClient`、`EduAcademic.parseCourses()` 为准，本文档不复制。
+- `EduEvaluation.parse()`：学生评价列表走学校 jqGrid 的 `doType=query` 只读接口，一个教学班一条；状态优先取服务端返回的状态词，缺失时按学校状态码归一；有 `MAX_JSON` / `MAX_ROWS` 上限。列表本身不带统计，统计另取，失败不影响列表。列表会分页，`EduClient.evaluations()` 按 `totalPage` 循环取页并跨页去重——只读一页会漏课。
+- 学生评价的**问卷**是学校服务端渲染的 HTML 片段，由 `EduEvaluationForm.parse()` 读成题目与选项，再在原生控件上渲染，因此这条链路不引入任何网页执行环境。片段不闭合自身标签，切片按「同类开始标签」的平铺边界做，不按嵌套计数。请求形态、参数字段与回填方式以 `EduEvaluationForm` 为准：只发学校页面自身下发的那一种形态，本文档不抄写字段表；识别不了的题型记为 `UNSUPPORTED`，页面说明并阻止提交，不按猜测的接口形状发参数。
+- 暂存与提交是两个独立写端点，只接受 `EduEvaluationForm.body()` 拼好的请求体。学校以一句话回应，`outcome()` 先判否定词再判成功短语，判不出来就如实说「还不能确认」。**写完必须回读状态**：重新查列表确认已评才显示「已提交」；回话成功但学校只记了暂存时明说；超时或断网不重发，先查状态。提交只在用户手动选完并二次确认后才发，不代填、不批量。
+- `EduClient.checkPath()` 只按名字放行指定的读端点与两个写端点，其余教务路径同样走白名单。
 - `Course` / `CourseJsonMapper`：课程无损映射到 JSON，不改既有存储键。
 - `UseCode`：8 位码按 5+3 分段供键盘显示。
 

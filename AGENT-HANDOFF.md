@@ -1,144 +1,61 @@
 # AGENT-HANDOFF · 科信小助手（CampusKit）接手指南
 
-供任意版本、任意 Agent 接手时快速对齐现状。原则：**以当前仓库代码和技术文档为准，不凭记忆推断**。变更内容见 [`CHANGELOG.md`](CHANGELOG.md)。
+供任意版本、任意 Agent 接手时快速对齐现状。原则：**以当前仓库代码和技术文档为准，不凭记忆推断**。
+本文只写现状与硬约束；逐轮排查过程不入库，需要时查 Git 历史与 [`CHANGELOG.md`](CHANGELOG.md)。
 
 ## 一、项目概况
 
-- 河北工程大学科信学院的第三方安卓客户端（趣智校园 / 慧生活798 / 教务 / 菜鸟）。单 APK、业务无后端、无 Gradle，Java + 原生 View 手工构建。仓库里唯一的服务端代码是 `server/analytics-worker/`（可选的匿名活跃统计，默认关闭，见 [`docs/analytics.md`](docs/analytics.md)）。
-- 模块：`client/android`（原生界面 / Activity）、`client/core`（不依赖 Android 的会话、二维码协议、用水状态机、解析）、`scripts`（构建、断言、核验）。
-- 系统要求 Android 7.0+（API 24），targetSdk 36；第三方库 ZXing 3.5.3、PDFBox-Android 2.0.27.0、Bouncy Castle 1.72、支付宝 SDK 15.8.42。
-- 权限仅 5 项；凭据 AES-256-GCM 加密存本地私有目录，密钥由 Android Keystore 保护；无推送 / 第三方统计 / 广告 SDK；匿名统计为自建 Worker 且默认关闭。
+- 河北工程大学科信学院学生的第三方 Android 校园助手：教务（课表 / 成绩 / 学业情况 / 空教室 / 学生评价）+ 校园生活（慧生活798 用水、趣智校园余额与使用码、取件与官网快捷入口）。
+- 单 APK、业务无后端、无 Gradle：Java + 原生 View，Python 脚本调官方 `aapt2` / `d8` / `zipalign` / `apksigner` 出包。
+- 仓库里唯一的服务端代码是 `server/analytics-worker/`（Cloudflare Workers + D1，可选的匿名活跃统计，默认关闭且当前未配置地址）。架构文档写「业务无后端」，不要写成绝对「无后端」。
+- 模块：`client/android`（界面）、`client/core`（不依赖 Android 的规则层）、`client/fieldtest`（用水控制 source set，仅 `--field-water` 编入）、`scripts`（构建 / 断言 / 发布辅助）、`docs`（技术文档）、`delivery`（发布说明与更新清单）。
+- Android 7.0+（API 24），targetSdk 36。**权限 4 项**：网络、网络状态、相机（扫码）、安装 APK。
+- 第三方：ZXing 3.5.3、PDFBox-Android 2.0.27.0、Bouncy Castle 1.72、支付宝 SDK 15.8.42，版本与 SHA-256 固定在构建脚本。
 
-## 二、当前版本状态（2026-11-19 核查）
+## 二、当前状态
 
-| 项 | 值 | 说明 |
-| :-- | :-- | :-- |
-| 线上正式版 / 下载站 | **2.5.9** | `delivery/update/update.json`，versionCode `210`，2026-11-20 发布；修复扫码跳转 + 四段版本号检查不到更新 |
-| 线上 APK | `campuskit-2.5.9.apk` | 5,437,306 字节，SHA-256 `b022159d…c82ef605`；带 `?sharecode=BZD63HRP4B`；用水版（`--field-water`），dex 水控类命中 4/100/3 |
-| 被取代的 209 包 | 2.5.8.1（versionCode 209） | 曾短暂发布，因四段版名使旧客户端检查不到更新，被 2.5.9 取代；另有同名历史开发包 199（commit `6406500`），均非当前产物 |
-| 已提交（本地 `main`，合并后重建） | **2.5.8.8**（versionCode 206） | 产物 `delivery/科信小助手-2.5.8.8.apk`；主线已含少课修复，dex 反查通过，详见「同步状态」 |
-| 当前分支 | **2.5.8**（versionCode 208，已发布） | `feat/diag-2.5.8`：诊断系统重构 + 把 2.5.8.1–2.5.8.9 合并成正式版本号；产物 `delivery/科信小助手-2.5.8.apk`，5 420 922 B，SHA-256 `ac40b21d…10d806` |
-| 发布公告（当前版） | `delivery/release-2.5.9.md` | 含短版 / 长版公告、根因、测试与上线清单；`update.json` 与 App 内更新日志已同步 |
-| 上一版未发版包 | 2.5.8.7（versionCode 205） | 产物仍在 `delivery/`，**不含少课修复**，仅作历史对照 |
-| 最新 Git tag | `v2.5.9` | 2.5.8 为 `00d7bb4`；2.5.8.x 早期开发迭代未各自建 tag |
-| GitHub Release | 最新为 [v2.5.9](https://github.com/shynekoo/CampusKit/releases/tag/v2.5.9) | 附 `kexin-xiaozhushou-2.5.9.apk`（5,437,306 字节）与 `update.json`；`preview` 预发布现为 **2.6.0-beta.6 / 223**（`campuskit-2.6.0-beta.6.apk` + `beta.json`） |
-| GitHub 登录 | 已用 `gh auth login` 登录 `shynekoo`（ADMIN，token scopes 含 repo） | 技术上有 push/tag/Release 权限；按 AGENTS.md 仍需用户逐次确认才执行 |
-| 未发布开发版 | **2.6.0-beta.10**（versionCode 227，工作区改动，待构建） | 评教接口按真实请求样本重做：读表单只发学校页面的那一种形态（`?gnmkdm=N401605` + 七项只在请求体；查询串重复 id 会被判「参数异常」、少 `gnmkdm` 回 911）；解析改兄弟边界（线上片段 `<div>` 不闭合，嵌套切会把 11 题读成 2 题）；请求体补 `pjzbxm_id`/`pfdjdmb_id`/`zsmbmcb_id` 三层身份、表级 `pjzbxm_id` 与 `pjzt`；`outcome()` 否定词先判、写完回读 `tjzt` 才算成功。实测：暂存回 `"暂存成功！"`、回读 10 个单选与文字都在、列表 `tjzt` 由 -1 变 0；**提交未验证** |
-| 已搁置（未提交） | **feat/analytics**（2026-11-20 起） | 匿名每日活跃统计：`Analytics*`（core 3 个 + android 2 个）、`server/analytics-worker/`、`--analytics-endpoint` 构建开关、隐私说明第 5 节。Worker 已部署（D1 + 表 + 密钥 + cron 就位），但 `*.workers.dev` 国内被 SNI 封锁，**功能暂停、不进包**；重启需先有自定义域，见 `docs/analytics.md`「当前状态」 |
-- **版本号规范（2026-11-20 起）**：正式版 `X.Y.Z`、预览版 `X.Y.Z-beta.N`（N 从 1 起），四段 `X.Y.Z.W` 只保留读取兼容；
-  新旧一律比 `versionCode`（`core/UpdateChannel`），不比较版本名。`build_preview.py` 的 `check_version_name()` /
-  `check_version_code()` 在出包时拦住不合规名字与「不高于已发布清单」的版本代码。
-- **预览渠道**：`delivery/update/beta.json`（与 `update.json` 同字段）已写好但**未部署**；App 内「更多 → 更新日志」下方新增
-  「接收预览版更新」开关，**一律默认关闭**（预览包首装也一样），打开前必过确认框「预览版供开发者测试使用，可能不稳定，
-  不建议开启。」，只有「仍然开启」才落盘；状态存 `update-v1` 偏好，切换后旧检查作废。线上 `beta.json` 现为 404，读到即视为该渠道无内容。
-- **更新渠道（工作区改动，未构建）**：「更多 → 更新渠道」在「接收预览版更新」上方，二选一 WorkBuddy（默认）/ GitHub，存 `update-v1` 的 `source` 键。
-  core `UpdateSources` 保存四个清单地址；GitHub 正式清单在 `releases/latest/download/update.json`、预览清单在固定 `preview` tag；`UpdateUrls` 保留 Location 自带签名 query、剥掉与上一跳同名的参数。
-  GitHub 发布链路：v2.5.9 已附正式清单；preview 预发布已附 2.6.0-beta.8 APK 与预览清单（225），资产经 API 与 octet-stream 读取核对（version/versionCode/bytes/sha256 一致），**直链在本机网络多次连不上，仍待真机复核**。
-- **Gitee 渠道（2.6.0-beta.9）**：`UpdateSources` 第三渠道，正式清单 `releases/download/release/update.json`、预览 `releases/download/preview/beta.json`。仓库为**公开**的 `gitee.com/sun-heyue/CampusKit`（此前写的 `shynekoo` 在 Gitee 上不存在，用户页即 404）。实测匿名链路 `download/…` → 302 `attach_files/…` → 302 `foruda.gitee.com/…?token=…&ts=…` → 200，约 0.85 MB/s（同网络 WorkBuddy 约 4 MB/s、GitHub 数十 KB/s）；APK 与清单 sha256 一致。坑：建仓 API 传 `private:false` 仍可能落成私有（匿名读附件 403），改可见性要 `PATCH` 且带 `name`。**App 内未实测，见 B0c。**
+| 项 | 值 |
+| :-- | :-- |
+| 线上正式版 | **2.6.0 / 236**（tag `v2.6.0`） |
+| 线上预览 | **2.6.0-beta.18 / 235**（GitHub 与 Gitee 的 `preview`） |
+| 当前分支 | `main`，与 `origin/main` 同步 |
+| 断言 | core 1554 · build_config 7 · diag_privacy 717 · diag_files 6650 · webview 5 · ui_contract 388 · analytics 77 |
 
-## 二之二、同步状态（2026-11-19 22:45 合并完成）
+三处发布限制（WorkBuddy 站点账号不匹配、预览清单按渠道各一份、预览通道默认关闭）与各问题的历史结论见
+[`docs/agent-handoff.md`](docs/agent-handoff.md)。安全边界与已知残留风险见 [`docs/security.md`](docs/security.md)。
 
-- 本地 `main` 已 rebase 到 `origin/main`（`8fe5e6e`，含 `9c9bfbf` 少课修复），原 `4139aec` / `a8e0efe` 两个提交被重放为 `4bded0c` / `e59f1d2`，本地与远端重新回到线性、无分叉。
-- rebase 冲突只有 4 个文件：`CHANGELOG.md`、`docs/agent-handoff.md`、`docs/ui-navigation.md`（`scripts/test_ui_contract.py` 自动合并）。三处均按**合并后实跑的真值**填写，没有照抄任一方：核心断言 **1278**、UI 守卫 **213**（不是分支上的 212，也不是主线的 208）。
-- 冲突内容取舍：`CHANGELOG` 事实基准改为合并后视角并保留双方的版本段；`ui-navigation` 的公告守卫取主线较新的「唯一入口在 `PrivacyActivity`」措辞，同时保留本轮的学业页端点守卫。
-- 关键教训：**2.5.8.7 的包是在 `16cec29` 上构建的，那时少课修复还在并行分支上**，dex 里 `cxJxzxjhxfyqFKcxx` / `planCourses` / `opensCourses` 命中数均为 0，所以装 2.5.8.7 看第二课堂仍然少课。合并后的 2.5.8.8 三项均为 1（`jdkcsx` 3 处），已确认修复真的在安装包里。
-- 结论：**出包前先确认 `git log` 里有修复提交**，光看"已经合并"不等于本地工作区拿到了代码。
+## 三、发版前必做（用户明确要求，缺一不可）
 
-## 二之三、诊断系统改造（2.5.8，未提交、未合并）
-
-- 目的：让「课表加载失败」能定位到登录 / 网络 / 解析 / 渲染中的具体一段，而不是只说「失败」。
-- 结构：`core/DiagRedact`（字段白名单、脱敏、安全堆栈、原因分类）+ `core/DiagEvent`（固定行格式与解析）+
-  `core/DiagCatalog`（中文文案）；`android/Diag`（开关、崩溃兜底、异步写）+ `android/DiagFiles`（256 KB × 4、7 天）
-  + `DiagActivity`（筛选/展开/分页/复制/导出/清空）+ `DiagReportActivity`（故障报告）。
-- 正式版也有诊断页：`DIAG_BASIC` 恒开，运行期默认关；`--diagnostics` 只多编细节事件（`Diag.DETAIL`，正式包被 javac 删除）。
-- SDK 原文日志回调已彻底移除；不再依赖 `maskCode` / `maskChain` / `maskSdk` 正则，改为「字段进不来」。
-- 已接入：教务登录四阶段、课表候选端点/解析/写入、网络状态与超时、慧生活、支付宝、趣智、更新、页面导航。
-- 未接入：扫码/相机、课表拖拽缩放、支付 Activity 被回收的竞态、ANR / native crash。
-- 权威文档：[`docs/diagnostics.md`](docs/diagnostics.md)。
-
-## 三、开发进度
-
-### 已提交（2.5.8.1，未发版）
-- 安全整改 S1–S6：更新校验（大小 + SHA-256 + HTTPS、重定向策略、APK 身份）、诊断默认关闭并脱敏、WebView 主机白名单、敏感页面退出返回快照、支付/用水业务审计、教务 WebView 统一准入。
-- 架构重构 A1–A4：导航状态机下沉 core、typed `Course` 模型、今日页真局部刷新（`RefreshDecision` / `TodayDynamic`）、会话检查去抖缓存与错误隔离。
-- 新增「使用码」（8 位码可不扫码开设备）、UI 结构静态守卫（当时 33 锚点，当前工作区 46）、真机验收清单。
-
-### 已提交（2.5.8.2–2.5.8.6，未发版）
-- **新增学业情况查询**：`EduAcademic`（core 解析，绩点 / 统计 / 去重学分树）、`AcademicStatusActivity`（结果排版）；`EduClient` 增加 `/xsxy/` 只读页与 Referer 白名单；manifest 注册新 Activity，versionCode 199 → 202、versionName 2.5.8.1 → 2.5.8.4。
-- 外观页圆角预览按 dp 换算修复、文案调整、删除两段过时说明。
-- **2.5.8.4 修复**：学业页 `card()` 双重挂载导致闪退，改为唯一入口 `addCard()` 挂载；`screen.note()` 只在 `onCreate` 设置一次；教务卡顺序调为第一行 成绩/空教室/教务系统，第二行 学业情况/河工程官网/科信官网。
-- 相应新增核心断言与 UI 守卫（46 锚点）。
-
-**未提交文件清单**（`feat/diag-2.5.8` 的 `git status`）：
-
-- 修改：`CHANGELOG.md`、`README.md`、`AndroidManifest.xml`、`Diag.java`、`DiagActivity.java`、`AlipayLogin.java`、
-  `App.java`、`EduClient.java`、`EduTimetableImportActivity.java`、`HttpForm.java`、`LifeAuthApi.java`、
-  `LifeLoginActivity.java`、`MoreActivity.java`、`Page.java`、`TimetableActivity.java`、`UpdateCheck.java`、
-  `UseCodeApi.java`、`CoreTests.java`、`scripts/build_preview.py`、`check_doc_sync.py`、`test_build_config.py`、
-  `test_ui_contract.py`、7 个文档。
-- 新增：`DiagFiles.java`、`DiagReportActivity.java`、`DiagRedact.java`、`DiagEvent.java`、`DiagCatalog.java`、
-  `docs/diagnostics.md`、`scripts/test_diag_privacy.py`。
-- 未提交、未合并、未 push（按约定由用户确认）。
-
-## 四、验证状态（如实标注）
-
-**已执行（本环境，2026-11-19）**
-- `python scripts/test_core.py` → **1228 项断言全部通过**。输出明确：Live API / Bluetooth 兼容性不在本测试范围。
-- 当前：`test_core` 1228 / `test_build_config` 5 / `test_webview_policy` 5 / `test_ui_contract` 46 全绿。
-- 2.5.8.1 阶段：三配置构建（普通 / 用水 / 诊断）均过断言与 v2/v3 签名；只读版 DEX 控制路由 occurrence 全 0。2.5.8.4 普通版 APK 已构建并通过 v2/v3 验签（构建级，非真机）。
-
-**未执行 / 未通过（不得标记通过）**
-- 真机验收：`docs/real-device-acceptance.md` 全部待勾选（导航手势、局部刷新、支付用水、安装包配置、旧 Android / 异常 APK 等）。
-- 旧版覆盖升级、水控真实出水与付款、支付宝 SDK / MobSF 扫描、签名轮换、FLAG_SECURE 真机效果——均未实测，见 `docs/rectification-acceptance.md`。
-- 2.5.8.4 普通版已出包并验签，但真机覆盖安装与学业页回归未做（1228 断言 + 验签 ≠ 真机可用）。
-
-## 五、遗留问题与风险
-
-1. **真机验收是发布硬门槛**：未全部勾选前不得发布 2.5.8.x。
-2. **工作区有未提交改动**：接手先 `git status` + `git diff` 确认；不要用 `git checkout .` / `reset --hard` 清掉 WIP。
-3. **构建开关**：正式版必须用不带 `--field-water` / `--diagnostics` 的普通构建；诊断版会产出与正式版同名 APK，勿误传。
-4. **签名**：`tools/keys/preview.p12` 与口令不进仓库（`QZXY_KS_PASS` 或 `tools/keys/keystore.pass`）；换签名会让已装用户无法覆盖安装，务必保留备份。
-5. **README 数字已修正**：原 `1073` / `1034` 两处断言数已按实测改为 `1228`。README 的「约 1.5 万行 Java / 110 个受管文件」也是旧值（实测受管 Java 133 文件、约 7200 行），本次未改该行——如需精确请单独核对口径（含 3 个 scripts 辅助 Java）。
-6. **隐私**：确认任何文档都不写入 Token / 密码 / Cookie / 密钥口令；签名证书指纹可留（公开信息）。
-
-## 六、发版前必做（用户明确要求，缺一不可）
-
-1. 构建 APK，跑核心断言；写 `delivery/update/update.json`（version / versionCode / notes / url / bytes / sha256）。
-2. GitHub 同步：`git push`、`tag vX.Y.Z`、建 Release 上传 APK、更新 README（版本表 / 下载链接 / SHA-256 / 更新日志）。
-3. 下载站同步：新 APK 复制到 `delivery/update/`，`update.json` 更新，重新发布 sites 站点。
+1. 构建 APK 并跑断言；写 `delivery/update/update.json`（`version` / `versionCode` / `notes` / `url` / `bytes` / `sha256`）。
+2. GitHub 同步：`git push`、tag `vX.Y.Z`、建 Release 上传 APK、更新 README 的版本信息。
+3. 下载站同步：新 APK 放进 `delivery/update/`，`update.json` 更新，重新发布站点。
 4. 发布后核对线上页面与直链均返回 200。
-5. 同步更新 `CHANGELOG.md` 与本文档的版本状态、开发进度、遗留问题；核对版本号与对应 Git Commit；验证文档链接有效。
+5. 同步更新 `CHANGELOG.md` 与本文档的状态、遗留问题；核对版本号与 Git 提交；验证文档链接。
 
-## 七、关键文档索引
+预览版按 `docs/build-and-release.md` 构建，清单按渠道各写一份，**只传包不传清单等于没发**。
+
+## 四、遗留与风险
+
+1. **真机验收是发布硬门槛**：`docs/real-device-acceptance.md` 未全部勾选前不得发布。
+2. **预览通道默认关闭**：用户须自选渠道并打开「接收预览版更新」。
+3. **构建开关**：正式版必须用不带 `--field-water` / `--diagnostics` 的普通构建；预览包必须带 `--field-water`。
+4. **签名**：`tools/keys/` 下的密钥与口令不进仓库；换签名会让已装用户无法覆盖安装。
+5. **不要用 `git checkout .` / `reset --hard` 清工作区**，先确认有没有 WIP。
+
+## 五、文档索引
 
 | 文档 | 用途 |
 | :-- | :-- |
-| [`AGENTS.md`](AGENTS.md) | 所有开发任务的强制流程与文档同步约定 |
-| [`README.md`](README.md) | 项目介绍、功能、下载、构建、FAQ（含更新日志） |
-| [`CHANGELOG.md`](CHANGELOG.md) | 各版本新增 / 修复 / 变更 / 废弃 |
-| [`docs/agent-handoff.md`](docs/agent-handoff.md) | 完整交接文档（现状 / 进度 / 索引） |
-| [`docs/architecture.md`](docs/architecture.md) | 架构分层、数据流、不变量、文档归属表 |
+| [`AGENTS.md`](AGENTS.md) | 开发流程、测试入口、文档红线、许可证维护（**权威**） |
+| [`docs/agent-handoff.md`](docs/agent-handoff.md) | 现状快照、已解决问题的结论、分发现状 |
+| [`docs/architecture.md`](docs/architecture.md) | 分层、数据流、不变量、文档归属 |
 | [`docs/modules.md`](docs/modules.md) | core / android / fieldtest 模块清单 |
-| [`docs/build-and-release.md`](docs/build-and-release.md) | 构建开关、版本号、发布清单、CI |
-| [`docs/security.md`](docs/security.md) | 安全架构与约束（不含敏感值） |
-| [`docs/ui-navigation.md`](docs/ui-navigation.md) | tab、返回栈、手势、刷新、主题 |
-| [`docs/data-interfaces.md`](docs/data-interfaces.md) | 数据来源分类与解析约束 |
-| [`docs/known-issues.md`](docs/known-issues.md) | 未验证事项与已知限制 |
+| [`docs/data-interfaces.md`](docs/data-interfaces.md) | 数据来源分类、入口类、写操作边界 |
+| [`docs/security.md`](docs/security.md) | 安全架构、残留风险登记（R1–R4） |
+| [`docs/build-and-release.md`](docs/build-and-release.md) | 构建开关、版本号规则、发布清单、CI |
 | [`docs/real-device-acceptance.md`](docs/real-device-acceptance.md) | 真机验收清单（全部待勾选） |
-| [`docs/rectification-acceptance.md`](docs/rectification-acceptance.md) | S1–S6 / A1–A4 整改说明与遗留风险 |
-| [`docs/security-audit-network-sdk.md`](docs/security-audit-network-sdk.md) | 网络与 SDK 安全审计 |
-| [`docs/security-audit-payment-water.md`](docs/security-audit-payment-water.md) | 支付与用水业务安全审计 |
-| [`docs/back-gesture.md`](docs/back-gesture.md) | 返回手势行为 |
-| [`client/THIRD_PARTY.md`](client/THIRD_PARTY.md) | 第三方组件许可证 |
-| [`design-system/campuskit/MASTER.md`](design-system/campuskit/MASTER.md) | 界面规范 |
-| [`delivery/release-*.md`](delivery/) | 历次发布说明与 notes 文案 |
-
-## 八、文档维护制度（用户 2026-11-19 确立，每次开发任务必须遵循）
-
-1. 阅读相关现有文档 → 2. 分析代码并修改 → 3. 检查 Git Diff → 4. 识别受影响文档 → 5. 增量更新文档 → 6. 更新 `CHANGELOG.md` → 7. 执行可用编译与测试 → 8. 检查代码与文档一致性 → 9. 汇总代码 / 文档 / 测试变更。
-- 影响技术实现、架构、接口、数据流、UI 行为或功能状态 → 必须同步更新文档；纯格式改动可豁免但必须做影响检查。
-- 优先增量更新，禁止无理由重写整套文档；文档内容以实际代码为依据，禁止编造。**严禁把未执行的测试标记为已通过。**
+| [`client/THIRD_PARTY.md`](client/THIRD_PARTY.md) | 第三方组件与许可证 |
 
 ---
 
-*最后更新：2026-11-19 · 依据 Git HEAD `6406500` + 当前工作区 diff + 实跑 1228 项断言*
+*最后更新：2026-11-21 · 依据 `main` 当前提交与实跑断言*

@@ -50,7 +50,7 @@
 - 无 `android:debuggable`、无 `testOnly`。
 - 权限最小化：`INTERNET`、`ACCESS_NETWORK_STATE`、`CAMERA`（required=false）、`REQUEST_INSTALL_PACKAGES`（仅用于向系统安装器递交用户已确认的更新包）。无短信/通讯录/定位等敏感权限。
 - `ACCESS_WIFI_STATE` 已于 2.5.8.6 移除：全仓库无 `WifiManager` 调用，支付宝 SDK 也只用 `ConnectivityManager`（8 个类引用），不需要 Wi-Fi 状态。
-- 组件导出：App 自有 Activity 中仅 `TimetableActivity`（启动入口）为 exported；其余全部 `exported="false"`。4 个 exported 的 `com.alipay.sdk.app.*` 回调 Activity 为支付宝 SDK manifest 要求，SDK 静态分析结果（`client/build/jadx-sdk/sources/com/alipay/sdk/app/PayResultActivity.java:69-103`）显示其用进程内随机请求号比对回调，本项目不以其作为交易成功依据（见 S5 审计）。
+- 组件导出：App 自有 Activity 中仅 `TimetableActivity`（启动入口）为 exported；其余全部 `exported="false"`。4 个 exported 的 `com.alipay.sdk.app.*` 回调 Activity 为支付宝 SDK manifest 要求；对该 SDK 的静态分析显示其用进程内随机请求号比对回调（分析产物不入库）。本项目不以其作为交易成功依据（见 S5 审计）。
 
 ## 三、构建产物 / 第三方依赖层
 
@@ -60,7 +60,7 @@
 - ZXing `core-3.5.3.jar`
 - PDFBox `pdfbox-android-2.0.27.0.aar` + BouncyCastle 1.72（bcpkix/bcprov/bcutil）
 
-SDK 证书实现：SDK 静态分析结果 `com/alipay/android/phone/mrpc/core/b.java:235` 使用 `SSLSocketFactory.STRICT_HOSTNAME_VERIFIER`（严格主机名校验），未发现信任全部证书的自定义 TrustManager。该 SDK 为第三方产物，不在本项目修改范围；如需深入可做一次 MobSF 扫描作为补充（本次未执行，扫描结果亦不能直接当漏洞结论）。
+SDK 证书实现：对该 SDK 的静态分析显示其使用 `SSLSocketFactory.STRICT_HOSTNAME_VERIFIER`（严格主机名校验），未发现信任全部证书的自定义 TrustManager；分析产物与逐类证据不入库。该 SDK 为第三方产物，不在本项目修改范围；如需深入可做一次 MobSF 扫描作为补充（本次未执行，扫描结果亦不能直接当漏洞结论）。
 
 构建期还执行 `check_route_boundary()`：扫描 dex 字面量，确认只读版不含用水控制路由字符串、用水版才含——保证 source set 隔离在最终产物中生效。
 
