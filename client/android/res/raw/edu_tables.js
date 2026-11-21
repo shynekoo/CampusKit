@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 (function () {
   // Reads only rendered table text. Nothing here touches inputs, cookies or login state.
   const MAX_TABLES = 8, MAX_ROWS = 400, MAX_COLS = 24, MAX_CELL = 120;

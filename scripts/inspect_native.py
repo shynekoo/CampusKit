@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MPL-2.0
 """Disassemble named ARM64 JNI functions without executing the APK."""
 
 import argparse

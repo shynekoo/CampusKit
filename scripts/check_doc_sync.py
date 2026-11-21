@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MPL-2.0
 """Remind which docs may need an update after a code change, based on Git diff.
 
  Advisory only: never modifies files, never fails the build by default. The point is to make
@@ -27,7 +28,10 @@ DOC_MAP = (
     ("scripts/", ("docs/build-and-release.md",)),
     (".github/workflows/", ("docs/build-and-release.md",)),
     ("delivery/update/", ("docs/build-and-release.md", "CHANGELOG.md")),
-    ("client/THIRD_PARTY.md", ("docs/build-and-release.md",)),
+    ("client/THIRD_PARTY.md", ("docs/build-and-release.md", "docs/licensing.md")),
+    ("LICENSE", ("docs/licensing.md", "README.md")),
+    ("client/android/res/raw/mpl_license.txt", ("docs/licensing.md", "README.md")),
+    ("docs/legacy/", ("docs/licensing.md", "README.md")),
 )
 
 DOC_SUFFIXES = (".md",)

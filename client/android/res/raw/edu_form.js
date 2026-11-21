@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 (function () {
   // Drives the school's own query form: lists its filters, sets them, presses its 查询 button and
   // reads the rendered table. Nothing here stores credentials or writes to the page.

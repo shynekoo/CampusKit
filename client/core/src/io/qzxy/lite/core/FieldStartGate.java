@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 package io.qzxy.lite.core;
 
 /** A recent idle answer permits one start; every new query invalidates the old answer. */

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 package io.qzxy.lite.preview;
 
 import android.app.Activity;
@@ -18,36 +19,30 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+
 /**
  * 更多：the things about this project itself — what it stores on the phone, where the source is,
  * and under what terms it may be used.
  *
  * <p>All are one tap from the account page and none needs the network to be understood, so the
- * licence is shown here in full rather than as a link that fails on a phone with no browser. The
- * repository is a link, because a copy of GitHub inside this app would be a second browser nobody
- * asked for; the page hands the address to whatever app already handles web pages.</p>
+ * licence is shipped inside the APK (res/raw/mpl_license.txt) and shown in full rather than as a
+ * link that fails on a phone with no browser. The repository is a link, because a copy of GitHub
+ * inside this app would be a second browser nobody asked for; the page hands the address to
+ * whatever app already handles web pages.</p>
  */
 import io.qzxy.lite.core.UpdateSources;
 
 public final class MoreActivity extends Page {
     private static final String REPO = "https://github.com/shynekoo/CampusKit";
 
-    private static final String MIT =
-        "MIT License\n\n"
-        + "Copyright (c) 2026 shynekoo\n\n"
-        + "Permission is hereby granted, free of charge, to any person obtaining a copy of this "
-        + "software and associated documentation files (the \"Software\"), to deal in the Software "
-        + "without restriction, including without limitation the rights to use, copy, modify, merge, "
-        + "publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons "
-        + "to whom the Software is furnished to do so, subject to the following conditions:\n\n"
-        + "The above copyright notice and this permission notice shall be included in all copies or "
-        + "substantial portions of the Software.\n\n"
-        + "THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, "
-        + "INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR "
-        + "PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE "
-        + "FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR "
-        + "OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER "
-        + "DEALINGS IN THE SOFTWARE.";
+    /** Project licence. Third-party components keep their own terms — see client/THIRD_PARTY.md. */
+    private static final String LICENCE = "Mozilla Public License 2.0";
+    private static final int LICENCE_TEXT = R.raw.mpl_license;
 
     private int dp(int n) { return AppUi.dp(this, n); }
 
@@ -362,17 +357,46 @@ public final class MoreActivity extends Page {
     }
 
     private void showLicence() {
-        TextView body = text(MIT, 13, AppUi.INK);
+        TextView body = text(sourceNotice() + "\n\n" + licenceText(), 13, AppUi.INK);
         body.setTypeface(Typeface.MONOSPACE);
         body.setTextIsSelectable(true);
         body.setPadding(dp(18), dp(8), dp(18), dp(8));
         ScrollView scroll = new ScrollView(this);
         scroll.addView(body);
         Theme.dialog(this)
-            .setTitle("MIT License")
+            .setTitle(LICENCE)
             .setView(scroll)
             .setPositiveButton("关闭", null)
             .show();
+    }
+
+    /**
+     * MPL 3.2 asks whoever distributes the executable to say how its source can be obtained, so the
+     * address and this build's own version number sit above the licence text instead of only in the
+     * repository nobody opened.
+     */
+    private String sourceNotice() {
+        String version = AppUi.version(this);
+        return "科信小助手" + (version.isEmpty() ? "" : " " + version) + "\n"
+            + "源码地址：" + REPO + "\n"
+            + "本版本对应源码见该仓库 Releases 中同版本号的 tag 与说明；预览版对应 preview tag。";
+    }
+
+    /**
+     * The bundled MPL text. Reading it can fail (a build that dropped the raw resource), and an
+     * empty dialog would read as "this project has no licence", so fall back to naming it.
+     */
+    private String licenceText() {
+        StringBuilder text = new StringBuilder();
+        try (InputStream in = getResources().openRawResource(LICENCE_TEXT);
+             BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) text.append(line).append('\n');
+        } catch (IOException | RuntimeException unreadable) {
+            return LICENCE + "\n\nhttps://mozilla.org/MPL/2.0/\n\n"
+                + "随包附带的协议全文读取失败，完整条款见仓库根目录的 LICENSE。";
+        }
+        return text.toString();
     }
 
     /** 数据与隐私 lives behind this page now, but it is still one tap from 校园. */
@@ -432,11 +456,11 @@ public final class MoreActivity extends Page {
                 () -> startActivity(new Intent(this, DiagActivity.class)));
         }
         entry(card, "globe", "本项目 GitHub 仓库", "github.com/shynekoo/CampusKit", true, this::openRepository);
-        entry(card, "score", "查看开源许可证", "MIT License", false, this::showLicence);
+        entry(card, "score", "开源许可", "MPL-2.0", false, this::showLicence);
         root.addView(card);
 
-        TextView note = text("客户端源码公开在 GitHub。第三方组件（ZXing、PDFBox、支付宝 SDK）"
-            + "各自的许可证见仓库中的 client/THIRD_PARTY.md。", 12, AppUi.MUTED);
+        TextView note = text("项目采用 Mozilla Public License 2.0。第三方组件（ZXing、PDFBox、"
+            + "Bouncy Castle、支付宝 SDK）各自的许可证见仓库中的 client/THIRD_PARTY.md。", 12, AppUi.MUTED);
         note.setPadding(dp(4), dp(14), dp(4), 0);
         root.addView(note);
 

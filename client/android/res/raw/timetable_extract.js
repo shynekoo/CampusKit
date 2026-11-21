@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 (function () {
   // Read only rendered timetable cells; never inspect inputs, cookies or login state.
   const result = {courses: [], error: ''};

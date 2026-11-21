@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import io.qzxy.lite.core.*;
 public final class WebCourseCheck {
     public static void main(String[] args) {

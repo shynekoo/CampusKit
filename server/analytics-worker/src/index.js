@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 /**
  * 匿名每日活跃统计 Worker。
  *

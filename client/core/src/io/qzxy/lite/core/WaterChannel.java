@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 package io.qzxy.lite.core;
 
 /** Only the observed explicit channel refusal qualifies; code 10000 alone is insufficient. */

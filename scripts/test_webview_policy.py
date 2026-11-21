@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MPL-2.0
 """Guard WebView navigation admission so plaintext cannot slip through one page.
 
 Run with: python scripts/test_webview_policy.py

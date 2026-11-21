@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 /**
  * 匿名每日活跃统计的纯规则。没有 D1、没有 Request —— 全部输入输出都是普通值，所以能在
  * `node --test` 里逐条断言，而不必起一个 Worker。

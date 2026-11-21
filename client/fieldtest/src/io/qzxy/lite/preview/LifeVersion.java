@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 package io.qzxy.lite.preview;
 import org.json.JSONObject;
 import java.util.Locale;

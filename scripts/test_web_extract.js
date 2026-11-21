@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const script=fs.readFileSync('client/android/res/raw/timetable_extract.js','utf8');
 const cell=(text,span=1,rowSpan=1)=>({innerText:text,cloneNode:()=>({textContent:text,querySelectorAll:()=>[]}),colSpan:span,rowSpan,getClientRects:()=>[{}],querySelectorAll:()=>[],querySelector:()=>null});

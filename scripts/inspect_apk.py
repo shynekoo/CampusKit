@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MPL-2.0
 """Read-only APK inventory. Does not execute code from the APK."""
 
 import argparse

@@ -54,10 +54,10 @@ python scripts/check_doc_sync.py --base origin/main   # 检查一个提交范围
 ```bash
 python scripts/test_core.py            # core JVM 断言（当前 1594 项）
 python scripts/test_build_config.py    # 诊断构建开关 7 项
-python scripts/test_diag_privacy.py    # 诊断隐私守卫 716 项
+python scripts/test_diag_privacy.py    # 诊断隐私守卫 717 项
 python scripts/test_diag_files.py      # 日志轮转/上限/清空/过期清理实跑
 python scripts/test_webview_policy.py  # WebView 导航守卫 5 项
-python scripts/test_ui_contract.py     # UI 行为静态守卫 377 锚点
+python scripts/test_ui_contract.py     # UI 行为静态守卫 388 锚点
 python scripts/test_analytics.py       # 统计隐私守卫 77 项 + server/analytics-worker 的 node --test
 ```
 
@@ -68,3 +68,14 @@ CI 在 `.github/workflows/docs-ci.yml`：推送 / PR 时自动跑以上七个入
 - 发版按项目发版清单执行（构建 → `delivery/update/update.json` → GitHub 同步 → 下载站 → 线上核对）；详见 [`docs/build-and-release.md`](docs/build-and-release.md)。
 - **所有 Git 提交与推送必须由用户明确确认**；Agent 不自行 `git commit` / `git push` / 建 tag / 建 Release。
 - 真机验收清单 [`docs/real-device-acceptance.md`](docs/real-device-acceptance.md) 未全部勾选前不得发布。
+
+## 6. 许可证维护
+
+项目自有代码统一采用 **MPL-2.0**；例外与归属说明见 [`docs/licensing.md`](docs/licensing.md)，第三方组件见 [`client/THIRD_PARTY.md`](client/THIRD_PARTY.md)。
+
+- 新增自有源码文件首行加 SPDX 标识：Java / JavaScript 用 `// SPDX-License-Identifier: MPL-2.0`，Python 用 `# SPDX-License-Identifier: MPL-2.0`（放在 shebang 与编码声明之后）。
+- **不得**给第三方源码、二进制依赖、随包许可证文本添加 MPL 标识，也不得改写 `client/android/res/raw/*_license.txt` 的原文。
+- 修改根目录 `LICENSE` 时同步三处：`client/android/res/raw/mpl_license.txt`（App 内全文）、`docs/licensing.md`、README 的「开源协议」章节。
+- 引入新的第三方组件必须在 `client/THIRD_PARTY.md` 登记版本、许可证与分发形式；许可证不明的组件单独记录，不擅自认定。
+- **每次发布都要提供该版本的源码**（MPL 3.2 的义务）：正式版打与版本号一致的 `vX.Y.Z` tag、预览版用 `preview` tag，Release 说明与下载站发布项写明源码地址；App 内「更多 → 开源许可」弹窗已显示本机版本号与源码地址，改这段文案时不得删掉。
+- 历史 MIT 存档固定放在 `docs/legacy/LICENSE-MIT.txt`，**不要**移到仓库根目录或改名成 `LICENSE`，否则会被 GitHub 误判为当前主许可证。

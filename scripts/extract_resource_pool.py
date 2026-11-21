@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MPL-2.0
 """Extract the global string pool without decoding individual Android resources."""
 
 import argparse

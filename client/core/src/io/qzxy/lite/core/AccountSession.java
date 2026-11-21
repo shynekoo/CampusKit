@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 package io.qzxy.lite.core;
 
 /** Minimum authenticated identity. Never contains the user's password or SMS code. */

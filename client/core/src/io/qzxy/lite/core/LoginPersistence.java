@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 package io.qzxy.lite.core;
 
 /** A login replacement on one serial worker; cancellation restores the prior session. */

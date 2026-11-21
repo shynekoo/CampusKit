@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import io.qzxy.lite.core.TimetablePdfParser;
 import java.nio.file.*;
 import java.util.*;

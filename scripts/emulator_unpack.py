@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MPL-2.0
 """模拟器动态解包编排脚本。
 
 用法：

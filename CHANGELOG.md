@@ -65,6 +65,42 @@
   已发 GitHub `preview` 与 Gitee `preview`，Gitee 清单与 APK 直链复验 200 且摘要一致。WorkBuddy
   下载站因发布账号不匹配未能覆盖（其 `beta.json` 仍停在 beta.5），需切回原账号后补发。
 
+## [未发布] — 开源协议迁移：MIT → MPL-2.0（2026-11-21）
+
+- **根目录 `LICENSE` 换成 MPL-2.0 官方英文全文**（未改动一字，取自 <https://www.mozilla.org/en-US/MPL/2.0/>，16,726 字节）。GitHub 的 license 徽章会随之显示 MPL-2.0。
+- **自有源码加 SPDX 标识**：`client/android/src`、`client/core/src`、`client/core/test`、`client/androidTest/src`、
+  `client/fieldtest/src`、`client/fieldtestTest/src`、`client/android/res/raw/*.js`、`scripts/*.{py,java,js}`、
+  `server/analytics-worker/{src,test}` 共 191 个文件首行加 `SPDX-License-Identifier: MPL-2.0`（Python 用 `#`，
+  `decode_bathroom_qr.py` 的编码声明保留在第一行）。只加一行注释，未改任何逻辑。
+- **App 内许可证同步**：「更多 → 查看开源许可证」改为「更多 → 开源许可」（副标题 `MPL-2.0`），弹窗标题
+  `Mozilla Public License 2.0`，正文改为读取随包资源 `client/android/res/raw/mpl_license.txt`（与根目录 `LICENSE`
+  同一份全文），仍离线可读、可选中、长文滚动；读取失败时回落为协议名 + 官方地址 + 仓库 LICENSE 提示，不留空白弹窗。
+  底部说明改为「项目采用 MPL-2.0，第三方组件见 `client/THIRD_PARTY.md`」。
+- **弹窗补上源码告知**（MPL 3.2）：协议正文之上先显示「科信小助手 <本机版本号>」、`源码地址：` 与「本版本对应源码见
+  同版本号的 tag，预览版见 `preview` tag」。版本号取自 `AppUi.version(this)`，不硬编码；地址与「本项目 GitHub 仓库」共用
+  `REPO` 常量。
+- **发布义务写进流程**：`AGENTS.md` 第 6 节与 `docs/build-and-release.md` 发布清单都要求正式版打 `vX.Y.Z`、预览版用
+  `preview`，并在 Release 说明里写出该版本的源码地址——每只 APK 都能回到同版本号的提交，不是只有最新版有源码。
+- **README**：开源协议章节按 MPL-2.0 重写（含「MPL 覆盖文件修改后分发需提供源码」的义务说明与「历史 MIT 版本授权继续有效」）；
+  免责声明删掉「代码仅供学习与个人使用」「不要用于商业用途」这类与 MPL 权限冲突的表述，保留非官方身份与平台规则说明；
+  功能表、路线图里的 `MIT` 字样同步为 `MPL-2.0`。**历史更新日志里「项目按 MIT 许可证开源」不删**。
+- **第三方版权**：`client/THIRD_PARTY.md` 重排为「组件总表 + 各组件细节 + 归属需单独记录」，明确四类组件的许可证
+  （ZXing / PDFBox：Apache-2.0，Bouncy Castle：MIT，支付宝 SDK：官方条款、AAR 内无 LICENSE 文件），并写明它们
+  **不在**项目自有 MPL 授权范围内；随包存放的 `res/raw/*_license.txt` 原文一字未改。
+- **新增 `docs/licensing.md`**：当前许可、MPL 的文件级 Copyleft 范围（明确「文件级只划边界，不允许把 MPL 文件改完闭源」）、
+  不在授权范围内的内容、历史 MIT 授权继续有效的说明与**边界**（本次迁移提交之前构建的任何 APK，含 `2.5.9` 与
+  `2.6.0-beta.1`–`beta.15`）、迁移时发现的归属例外、外部开发者分发修改版的合规要求。历史 MIT 原文存档在
+  `docs/legacy/LICENSE-MIT.txt`（带「历史资料，非当前许可证」抬头，且不在仓库根目录，GitHub 不会误判为当前主许可证）。
+- **开发约定**：`AGENTS.md` 新增第 6 节「许可证维护」（新增源码加标识、第三方不得改标、改 `LICENSE` 要同步三处、
+  历史 MIT 存档不得移回根目录）；`scripts/check_doc_sync.py` 的 `DOC_MAP` 增加 `LICENSE` / `mpl_license.txt` /
+  `docs/legacy/` 的映射；`docs/architecture.md` 的文档归属表与相关文档链接补 `licensing.md`。
+- **下载站页面**（`delivery/update/index.html`）页脚「MIT 开源」改为「MPL-2.0 开源」；**线上页面需重新发布才生效**。
+- 测试：`test_core` 1594、`test_build_config` 7、`test_diag_privacy` 717、`test_diag_files` 6650、
+  `test_webview_policy` 5、`test_ui_contract` **388**（+11，新增许可证锚点：入口文案、`R.raw.mpl_license`、
+  `LICENSE` 与随包全文必须一致、不得再出现 `MIT License`、弹窗先给源码地址与本机版本号）、`test_analytics` 77 + Worker 18，全部通过。
+- 编译核对：用 `aapt2` 重新生成 `R.java` 后 `javac --release 8` 编译 `client/android/src` + `client/core/src` +
+  `client/fieldtest/src`（149 个源文件）通过；**未重新出包、未真机验证**「更多 → 开源许可」的弹窗滚动与深色模式。
+
 ## [未发布] — 匿名每日活跃统计（可选，默认关闭）
 
 分支 `feat/analytics`。**尚未提交、未发布**；`2.6.0-beta.11`（versionCode `228`）只在本地构建过，

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 package io.qzxy.lite.preview;
 import android.content.Context;
 import android.content.res.ColorStateList;

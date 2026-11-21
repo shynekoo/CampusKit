@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MPL-2.0
 """Run the log-retention rules for real: rotation, the 1 MB cap, ordering, clear, pruning.
 
 Run with: python scripts/test_diag_files.py

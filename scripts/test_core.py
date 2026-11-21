@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MPL-2.0
 """Compile and test platform-independent client logic using the local JDK."""
 import subprocess
 from pathlib import Path

@@ -74,6 +74,7 @@ server/analytics-worker  Cloudflare Worker + D1 —— 匿名活跃统计，默�
 | `client/fieldtest/**`、`AndroidManifest.xml` | `modules.md`、`security.md` |
 | `client/**/Analytics*.java`、`client/android/**/Analytics*` | `analytics.md`、`security.md`、`diagnostics.md` |
 | `server/**` | `analytics.md`、`data-interfaces.md` |
+| `LICENSE`、`client/THIRD_PARTY.md`、`client/android/res/raw/*_license.txt` | `licensing.md`、`build-and-release.md` |
 | `scripts/build_preview.py`、`scripts/*.py` | `build-and-release.md`、`known-issues.md` |
 | `delivery/update/**` | `build-and-release.md`、`CHANGELOG.md` |
 | 任何行为变更 | `CHANGELOG.md`（未发布段） |
@@ -82,4 +83,4 @@ server/analytics-worker  Cloudflare Worker + D1 —— 匿名活跃统计，默�
 
 ## 相关文档
 
-[模块清单](modules.md) · [匿名统计](analytics.md) · [诊断日志](diagnostics.md) · [构建与发布](build-and-release.md) · [安全约束](security.md) · [UI 与导航](ui-navigation.md) · [数据接口](data-interfaces.md) · [已知问题](known-issues.md) · [Agent 交接](agent-handoff.md)
+[模块清单](modules.md) · [匿名统计](analytics.md) · [诊断日志](diagnostics.md) · [构建与发布](build-and-release.md) · [安全约束](security.md) · [UI 与导航](ui-navigation.md) · [数据接口](data-interfaces.md) · [开源许可](licensing.md) · [已知问题](known-issues.md) · [Agent 交接](agent-handoff.md)

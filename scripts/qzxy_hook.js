@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // 强制易盾壳走 arm64 libnesec 加载路径（与真机一致），并记录 dlopen 失败原因。
 Java.perform(function () {
     var MyJni = Java.use("com.netease.nis.wrapper.MyJni");

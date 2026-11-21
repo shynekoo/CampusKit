@@ -81,6 +81,7 @@ python scripts/build_preview.py                # 普通只读版出包（默认�
 
 1. 构建 APK，跑核心断言；写 `delivery/update/update.json`（`version` / `versionCode` / `notes` / `url` / `bytes` / `sha256`）。
 2. GitHub 同步：`git push`、`tag vX.Y.Z`、建 Release 上传 APK、更新 README（版本表 / 下载链接 / SHA-256 / 更新日志）。
+   - **Release 说明必须写明该版本的源码**：`源码：https://github.com/shynekoo/CampusKit/tree/vX.Y.Z`（预览版写 `…/tree/preview`）。这是 MPL-2.0 第 3.2 节对分发可执行形式的要求，也是 README「每个版本都能拿到对应源码」这句的依据；App 内「更多 → 开源许可」弹窗会显示同样的地址与本机版本号。
 3. 下载站同步：新 APK 复制到 `delivery/update/`，`update.json` 更新为新版本，重新发布 sites 站点（目录 `delivery/update`；每次重发布需用户当次明确同意）。
 4. 发布后核对线上页面与 APK 直链均返回 200。
 5. **在 `AppChangelog.java` 顶部追加本版条目**（版本号、版本代码、发布日期、面向用户的 2–5 条说明），否则 `test_ui_contract.py` 会以「最新条目与 `update.json` 不一致」失败——这是「发版忘了写更新日志」的自动拦截。**预览版不进 `AppChangelog`**：那是已发布正式版的记录，Beta 的说明来自 `beta.json` 的 `notes`。

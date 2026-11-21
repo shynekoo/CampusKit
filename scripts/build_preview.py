@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MPL-2.0
 """Build/sign the account test app with official SDK tools."""
 
 import hashlib

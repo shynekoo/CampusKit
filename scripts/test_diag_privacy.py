@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MPL-2.0
 """Guard the diagnostics privacy boundary.
 
 Run with: python scripts/test_diag_privacy.py

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 package io.qzxy.lite.preview;
 
 /** School bell times supplied by the user; unknown sections have no inferred time. */

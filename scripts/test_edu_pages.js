@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // Offline checks for the two page scripts used by the academic-system screens.
 // The WebView hands these scripts a real DOM; here the smallest DOM they touch is faked.
 const fs = require('fs'), vm = require('vm'), assert = require('assert');

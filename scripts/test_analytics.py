@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MPL-2.0
 """Guard the anonymous activity statistics' privacy boundary and its tests.
 
 Run with: python scripts/test_analytics.py

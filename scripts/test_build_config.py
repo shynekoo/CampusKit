@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MPL-2.0
 """Guard the diagnostics build configurations.
 
 Run with: python scripts/test_build_config.py

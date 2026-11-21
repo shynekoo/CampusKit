@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MPL-2.0
 """Capture only the foreground QZXY app for local interoperability research."""
 
 import argparse

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MPL-2.0
 """Guard the UI behaviour contract that refactors must not regress.
 
 Run with: python scripts/test_ui_contract.py
@@ -966,6 +967,27 @@ def main():
     require(more_src, "BuildFlags.DIAG_BASIC || BuildFlags.DIAGNOSTICS", "MoreActivity",
             "诊断入口在正式版与内部版都出现")
     require(more_src, "DiagActivity.class", "MoreActivity", "更多页要有诊断日志入口")
+
+    # --- 开源许可：MPL-2.0 全文随包附带，入口与弹窗不得再写 MIT -----------------------
+    licence_root = (ROOT / "LICENSE").read_text(encoding="utf-8")
+    licence_raw = (ROOT / "client/android/res/raw/mpl_license.txt").read_text(encoding="utf-8")
+    require(licence_root, "Mozilla Public License Version 2.0", "LICENSE",
+            "根目录是 MPL 2.0 官方全文")
+    require(licence_raw, "Exhibit A - Source Code Form License Notice", "res/raw/mpl_license.txt",
+            "App 内展示的协议全文必须完整，含 Exhibit A")
+    checks += 1
+    if licence_root.strip() != licence_raw.strip():
+        failures.append("LICENSE 与 res/raw/mpl_license.txt 必须是同一份 MPL 全文，否则 App 内与仓库不一致")
+    require(more_src, '"开源许可"', "MoreActivity", "入口叫「开源许可」，副标题写 MPL-2.0")
+    require(more_src, "R.raw.mpl_license", "MoreActivity", "协议全文随 APK 附带，离线可读")
+    require(more_src, "openRawResource", "MoreActivity", "正文从本地资源读，不走网络")
+    forbid(more_src, "MIT License", "MoreActivity", "项目已不是 MIT，弹窗与入口不得再写 MIT")
+    require(more_src, "client/THIRD_PARTY.md", "MoreActivity",
+            "第三方组件提示继续指向 THIRD_PARTY.md，不并入 MPL")
+    require(more_src, "sourceNotice() + \"\\n\\n\" + licenceText()", "MoreActivity",
+            "协议弹窗先给源码地址与本机版本号，再给协议正文（MPL 3.2 的源码告知义务）")
+    require(more_src, "AppUi.version(this)", "MoreActivity", "弹窗写的是本机安装的版本号，不是硬编码")
+    require(more_src, "\"源码地址：\" + REPO", "MoreActivity", "源码地址与「本项目 GitHub 仓库」同一常量")
 
     if failures:
         print("UI CONTRACT FAILED (%d/%d checks):" % (len(failures), checks))

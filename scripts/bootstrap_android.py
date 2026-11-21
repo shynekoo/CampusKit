@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MPL-2.0
 """Fetch a minimal Android build toolchain from Google's SDK repository."""
 
 import hashlib

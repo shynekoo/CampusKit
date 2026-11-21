@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 (function () {
   // Finds the academic system's own menu entry instead of hard-coding a route, so a semester
   // change on the school side cannot silently send the user to a dead page.

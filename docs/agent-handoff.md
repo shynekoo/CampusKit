@@ -435,6 +435,23 @@ UI-3 本轮修 5 处：滚动恢复带 generation 且改为布局后（pre-draw�
 - 测试：core 1594 / ui_contract 377 / diag_privacy 717 / analytics 77+18 全过。
   **提交成功路径仍是静态 + 代码路径证据，未代用户真实提交**。
 
+## 三之二十二、开源协议迁移 MIT → MPL-2.0（2026-11-21，工作区改动、未提交）
+
+- 根目录 `LICENSE` 换为 MPL-2.0 官方全文（16,726 B，未改动）；GitHub 徽章随之变为 MPL-2.0。
+- 自有源码首次加 `SPDX-License-Identifier: MPL-2.0`：191 个文件（`client/android/src`、`client/core/src`、
+  `client/core/test`、`client/androidTest/src`、`client/fieldtest/src`、`client/fieldtestTest/src`、
+  `client/android/res/raw/*.js`、`scripts/*.{py,java,js}`、`server/analytics-worker/{src,test}`）各加一行注释，无逻辑改动。
+- App 内：「更多 → 查看开源许可证」改为「**开源许可**」（副标题 `MPL-2.0`），弹窗读
+  `client/android/res/raw/mpl_license.txt`（与根目录 `LICENSE` 同一份），仍离线、可选中、可滚动；
+  读取失败回落为协议名 + 官方地址。第三方组件提示仍指向 `client/THIRD_PARTY.md`，不改标为 MPL。
+- 弹窗正文之上先给「本机版本号 + 源码地址 + 本版本对应源码见同版本号 tag（预览版 `preview`）」，取自
+  `AppUi.version(this)` 与 `REPO` 常量；`AGENTS.md` 第 6 节与 `build-and-release.md` 发布清单同步要求
+  Release 说明写明该版本源码地址（MPL 3.2 的可执行形式源码告知义务）。
+- 文档：新增 `docs/licensing.md`；`README.md` 开源协议与免责声明重写（删掉与 MPL 冲突的「仅供学习、不得商用」）；
+  `client/THIRD_PARTY.md` 重排为组件总表；`AGENTS.md` 新增第 6 节「许可证维护」；历史 MIT 原文存档
+  `docs/legacy/LICENSE-MIT.txt`（不在根目录，不会被 GitHub 误判为当前许可证）。
+- 未做：**未提交、未推送、未出包、未真机验证**弹窗滚动与深色模式；`delivery/` 里历史 release 说明保持原样。
+
 ## 四、验证状态（如实）
 
 **已执行**：`test_core` **1539**、`test_build_config` 7、`test_diag_privacy` **691**、`test_diag_files`、`test_webview_policy` 5、`test_ui_contract` **371**，全部通过；2.6.0-beta.10 APK 已构建（5,470,074 B，`versionCode` 227，SHA-256 `c7e5cca4…1e69c83c`）并已发到 GitHub / Gitee 的 `preview`（Gitee 直链复验 200）；2.6.0-beta.9 APK（5,465,978 B，SHA-256 `11cbeab8…0baf5b73`）；Gitee 两个固定 tag 的清单与 APK 已匿名复验；`javac --release 8` 全量编译通过；2.5.8 APK 已构建（5 420 922 B，SHA-256 `ac40b21d…10d806`，v2/v3 验签通过，dex 水控路由 0）；2.5.8.6 / 2.5.8.7 / 2.5.8.8 普通版 APK 已构建并通过 v2/v3 验签（2.5.8.8 的 dex 反查含 `cxJxzxjhxfyqFKcxx` / `planCourses` / `opensCourses`，2.5.8.7 三项均为 0）；真实账号端到端拉取学业数据成功（GPA 2.9875、37 节点 5 层、16 课组 94 门课）；计划外课组按学校 `jdkcsx` 分流端点后复验（人文科学 5 门、自然科学 6 门，与学校页"共 N 门"一致）。
@@ -452,4 +469,4 @@ UI-3 本轮修 5 处：滚动恢复带 generation 且改为布局后（pre-draw�
 
 ## 六、文档索引
 
-[架构](architecture.md) · [模块](modules.md) · [诊断日志](diagnostics.md) · [构建与发布](build-and-release.md) · [安全约束](security.md) · [UI 与导航](ui-navigation.md) · [数据接口](data-interfaces.md) · [已知问题](known-issues.md) · [安全审计：网络/SDK](security-audit-network-sdk.md) · [安全审计：支付/用水](security-audit-payment-water.md) · [真机验收](real-device-acceptance.md) · [整改验收](rectification-acceptance.md) · [返回手势](back-gesture.md) · [变更日志](../CHANGELOG.md)
+[架构](architecture.md) · [模块](modules.md) · [诊断日志](diagnostics.md) · [构建与发布](build-and-release.md) · [安全约束](security.md) · [UI 与导航](ui-navigation.md) · [数据接口](data-interfaces.md) · [开源许可](licensing.md) · [已知问题](known-issues.md) · [安全审计：网络/SDK](security-audit-network-sdk.md) · [安全审计：支付/用水](security-audit-payment-water.md) · [真机验收](real-device-acceptance.md) · [整改验收](rectification-acceptance.md) · [返回手势](back-gesture.md) · [变更日志](../CHANGELOG.md)

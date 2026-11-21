@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MPL-2.0
 """Read DEX objects from the explicitly authorized, account-free MuMu lab only."""
 import argparse
 import hashlib

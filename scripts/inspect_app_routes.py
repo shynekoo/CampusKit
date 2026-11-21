@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MPL-2.0
 """Read bounded QZXY process logs; retain only operator URL paths, without queries."""
 import argparse
 import collections

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MPL-2.0
 """frida spawn 启动脚本：让易盾加固壳在 x86_64 模拟器上走 arm64 加载路径。
 
 原理：壳在 MyApplication.attachBaseContext 里根据 MyJni.a()（读 os.arch 与

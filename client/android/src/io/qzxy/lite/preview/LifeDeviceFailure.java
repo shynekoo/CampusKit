@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 package io.qzxy.lite.preview;
 
 /** Only bounded, locally generated diagnostics; never echo response values or credentials. */

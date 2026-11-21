@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
