@@ -59,11 +59,11 @@ v2 + v3 签名，证书 `13b96892…d4209`（与 2.5.9 一致，可覆盖安装�
 
 ### 发布状态
 
-| 渠道 | 状态 |
+| 渠道 | 状态（2026-11-21 15:00） |
 | :-- | :-- |
-| 国内（WorkBuddy 下载站） | 见 §发布记录 |
-| GitHub `v2.6.0` | 见 §发布记录 |
-| Gitee `release` tag | 见 §发布记录 |
+| GitHub `v2.6.0`（Latest） | 已上线：`kexin-xiaozhushou-2.6.0.apk` + `update.json`，清单经下载核对与产物哈希一致 |
+| 国内（WorkBuddy 下载站） | **未上线**：两次发布均报 `SITES_UPLOAD_FAILED`（`ECONNRESET` / `UND_ERR_HEADERS_TIMEOUT`），上传面的网络问题，与账号无关；站点仍是 2.5.9 / 210 |
+| Gitee `release` tag | **未更新**：本机没有 Gitee token，待提供后按「先传新、再删旧」替换 APK 与 `update.json` |
 
 ---
 
