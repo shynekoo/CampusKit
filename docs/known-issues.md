@@ -12,6 +12,7 @@
   **2.5.8 发版时未经真机验收**：底栏/转场/跨周滑页、诊断页的开关与导出、学业情况展开均只有静态守卫与
   构建级证据；发布公告的「已知问题」已如实写明。真机验收清单见 [`real-device-acceptance.md`](real-device-acceptance.md)。
 - 2.5.8.2–2.5.8.6 已提交（学业情况查询、外观修复、闪退修复、层级排版、课程明细展开）。普通版 APK 已构建并验签，但**未建 tag / Release、未发版、未同步下载站**。
+- **2.6.1-beta.1（237）预览已发 GitHub `preview` 与国内下载站，Gitee `preview` 未上传**（本机没有可用的 Gitee 令牌）：Gitee 渠道线上清单仍是 beta.18，选该渠道的用户暂时收不到这次预览；仓库内 `beta-gitee.json` 已按 237 写好，拿到令牌后直接传即可。正式版 2.6.1 未发布，等真机确认正常用水后再执行。
 - 真机验收 [`real-device-acceptance.md`](real-device-acceptance.md) 全部待勾选；未完成前不得发布。
 - **匿名使用统计：服务已部署，但地址在国内不可达，功能暂停启用**（2026-11-21）。代码已在
   `main`（`AnalyticsReporter` / `AnalyticsPreferences` / `core/Analytics*` / `server/analytics-worker/`），
