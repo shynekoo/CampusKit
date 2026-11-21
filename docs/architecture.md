@@ -63,6 +63,8 @@ server/analytics-worker  Cloudflare Worker + D1 —— 匿名活跃统计，默�
 - **覆盖安装**：包名 `io.qzxy.lite.preview` 与签名身份保持稳定，versionCode 单调递增。
 - **版本命名**：正式版 `X.Y.Z`，预览版 `X.Y.Z-beta.N`（N 从 1 起），四段 `X.Y.Z.W` 只对旧清单与已安装包只读兼容；新旧只比 `versionCode`，正式版必须能覆盖此前的 Beta。
 - **测试先行**：core 规则改动先补 `CoreTests`；UI 结构改动先补 `scripts/test_ui_contract.py`；WebView 改动先补 `scripts/test_webview_policy.py`。
+- **发布闸门**：`scripts/test_secrets.py` 在打包前无条件运行、打包后复查 dex，扫描不通过就不出包；
+  它守的是「仓库里不出现签名盐与凭据」，不是业务正确性，所以不与上面几条等同对待。
 
 ## 文档归属表（Git Diff 提示映射依据）
 

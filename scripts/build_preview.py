@@ -190,6 +190,9 @@ def main():
     allow_lower_code = "--allow-lower-version-code" in sys.argv
     # 诊断默认不编入：正式包（含用水版）都不带这条分支，测试构建显式 --diagnostics 才开。
     diagnostics = diagnostics_enabled(sys.argv)
+    # 发布闸门，不是回归测试：源码里出现已删除的签名盐或我方凭据就直接停下，
+    # 并且刻意不受 --skip-tests 影响——跳过测试可以，跳过红线不行。
+    run([sys.executable, ROOT / "scripts/test_secrets.py"])
     if "--skip-tests" not in sys.argv:
         run([sys.executable, ROOT / "scripts/test_core.py"])
         run([sys.executable, ROOT / "scripts/test_build_config.py"])
@@ -317,7 +320,8 @@ def main():
                     apk.writestr(name, aar.read(name))
         for dex in (BUILD / "dex").glob("*.dex"):
             apk.write(dex, dex.name)
-    aligned = BUILD / "aligned.apk"
+    # 名字必须自带「未签名」：曾经这个中间产物叫 aligned.apk，被当成成品上传，用户端报「解析软件包时出现问题」。
+    aligned = BUILD / "unsigned-aligned.apk"
     run([tools / "zipalign.exe", "-f", "4", unsigned, aligned])
     key = ROOT / "tools/keys/preview.p12"
     key.parent.mkdir(parents=True, exist_ok=True)
@@ -339,6 +343,8 @@ def main():
     run(signer + ["sign", "--v4-signing-enabled", "false", "--ks", key, "--ks-key-alias", "preview", "--ks-pass", "pass:" + store_pass,
                   "--out", result, aligned])
     run(signer + ["verify", "--verbose", result])
+    # 产物级复查：源码扫描只能证明仓库干净，不能证明包里干净（历史 APK 就是这样把盐带出去的）。
+    run([sys.executable, ROOT / "scripts/test_secrets.py", "--apk", result, "--quiet"])
     if device_tests:
         print("Device-only test artifact: " + str(result), flush=True)
         return

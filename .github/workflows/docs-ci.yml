@@ -33,6 +33,9 @@ jobs:
           distribution: temurin
           java-version: '21'  # tests compile core with --release 8; no APK build here
 
+      - name: Run sensitive-information guards
+        run: python scripts/test_secrets.py
+
       - name: Run core assertions
         run: python scripts/test_core.py
 

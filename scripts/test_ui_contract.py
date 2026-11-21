@@ -381,7 +381,7 @@ def main():
             "提交 is a named route, not a folder")
     require(client, 'path.startsWith("/xspjgl/xspj_bcXspj.html")', "EduClient",
             "暂存 is a named route too")
-    # 2026-11-20 用真实账号逐项实测（传热学 · 孟鑫，账号匿名化），三种失败各有确定原因：
+    # 2026-11-20 用真实账号逐项实测（某专业课 · 任课教师，账号匿名化），三种失败各有确定原因：
     #   · 查询串里再拼一份 id → 200 + 「参数异常」页（6,923 B）
     #   · 少了 gnmkdm         → HTTP 911 + 392 B 的页面模型 JSON
     #   · 与官方完全一致的一发 → 200、46,234 B、1 个面板 11 道题

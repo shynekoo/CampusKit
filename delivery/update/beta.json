@@ -1,13 +1,13 @@
 {
-  "version": "2.6.0-beta.15",
-  "versionCode": 232,
+  "version": "2.6.0-beta.17",
+  "versionCode": 234,
   "notes": [
-    "修复：确认提交后仍不飘字、不返回——写完回读列表 tjzt 若没立刻读到已提交，就会把学校的成功回话降级成未确认。现在学校回话明确成功即生效，回读只作旁证",
-    "「更多」页不再显示匿名使用统计开关；能力与隐私说明保留",
-    "更新渠道首个名字从 WorkBuddy 改成「国内」，存储不变，老选择不受影响",
-    "承接 beta.14：提交后回读用列表自己的 id、已评点开显示当时的答案"
+    "修复 beta.16 安装包无法解析的问题：上一次上传的是未签名的中间产物，这次换成正规签名产物（签名证书与之前各版本一致，可直接覆盖安装）",
+    "开源协议从 MIT 迁移到 MPL-2.0：仓库 LICENSE 换成官方全文，自有源码统一标注 MPL-2.0，历史 MIT 版本的原有授权继续有效",
+    "「更多」里的「查看开源许可证」改为「开源许可」，弹窗离线显示 MPL 2.0 全文，上方标注本机版本号和源码地址",
+    "第三方组件（ZXing、PDFBox、Bouncy Castle）的许可证保持各自原文，未并入 MPL；功能、登录、支付、用水、更新下载均未变动"
   ],
-  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.6.0-beta.15.apk?sharecode=BZD63HRP4B",
-  "bytes": 5482362,
-  "sha256": "0f6de0c83b42a77d2fc688f09653b866f83a4fcd5fdb2ae5f221e22e20a37bc5"
+  "bytes": 5486527,
+  "sha256": "cab737846bc59da4d4ebfe02eae549229b64e38cd705a70ae7b3e97824101723",
+  "url": "https://wbapp-g8yy3klci8kmeufm6vdn0h.app.workbuddy.host/campuskit-2.6.0-beta.17.apk?sharecode=BZD63HRP4B"
 }

@@ -16,11 +16,12 @@ python scripts/test_build_config.py            # 构建开关 7 项
 python scripts/test_diag_privacy.py            # 诊断隐私 651 项
 python scripts/test_diag_files.py              # 日志轮转/上限/清空/过期清理实跑
 python scripts/test_webview_policy.py          # WebView 守卫 6 项
-python scripts/test_ui_contract.py             # UI 契约 291 锚点
+python scripts/test_ui_contract.py             # UI 契约守卫
+python scripts/test_secrets.py                 # 公开仓库红线：禁用盐值 / 我方凭据 / 被跟踪但忽略的文件
 python scripts/build_preview.py                # 普通只读版出包（默认跑前 5 个测试）
 ```
 
-`build_preview.py` 默认调用 `test_core` / `test_build_config` / `test_diag_privacy` / `test_diag_files` / `test_webview_policy`；**不调用** `test_ui_contract`，需单独跑（CI 会跑全部六个）。加 `--skip-tests` 会跳过内置测试，仅用于排障。
+`build_preview.py` 默认调用 `test_core` / `test_build_config` / `test_diag_privacy` / `test_diag_files` / `test_webview_policy`；**不调用** `test_ui_contract`，需单独跑（CI 会跑全部）。加 `--skip-tests` 会跳过内置测试，仅用于排障——但 `test_secrets.py` 在打包前**无条件**运行，`--skip-tests` 跳不过；打包后还会用 `--apk` 复查产物的 dex。这是 Beta 自动发布前的最后一道闸门。
 
 ## 构建开关
 
@@ -87,6 +88,8 @@ python scripts/build_preview.py                # 普通只读版出包（默认�
 5. **在 `AppChangelog.java` 顶部追加本版条目**（版本号、版本代码、发布日期、面向用户的 2–5 条说明），否则 `test_ui_contract.py` 会以「最新条目与 `update.json` 不一致」失败——这是「发版忘了写更新日志」的自动拦截。**预览版不进 `AppChangelog`**：那是已发布正式版的记录，Beta 的说明来自 `beta.json` 的 `notes`。
 6. 同步更新 `CHANGELOG.md` 与 [`agent-handoff.md`](agent-handoff.md)；核对版本号与对应 Git Commit；检查无敏感信息写入文档。
 7. **预览版另走一条**：`python scripts/build_preview.py --beta --field-water --version-code <新号>` → 把 APK 放进 `delivery/update/` → 写清单 → 上传 APK 后再上传清单 → 核对线上两个直链 200。`update.json` 与下载站首页的正式版信息此时**不动**。
+   - **只认签名产物**：唯一可分发的是 `delivery/科信小助手-<version>.apk`（脚本内 `result`，已用 `tools/keys/preview.p12` 签 v2+v3 并自校验）。`client/build/preview/` 下的 `unsigned-aligned.apk` / `unsigned.apk` / `resources.apk` 都是中间文件，**未签名**，装上会报「解析软件包时出现问题」。上传前先跑一次 `apksigner verify -v <文件>` 看到 `Verifies` 再传；`bytes` / `sha256` 必须取自这一个文件。
+   - **预览版必须带 `--field-water`**：预览包历史上都含用水控制（`WaterActivity` / `LifeWaterActivity`），漏掉这个开关会静默产出一个缺用水功能的包。构建后可用 `aapt2 dump xmltree --file AndroidManifest.xml <apk>` 确认两个 Activity 在列。
    - **一份 `beta.json` 服务不了三个渠道**：清单里的 `url` 必须指向该渠道自己的下载地址，所以按渠道各写一份——`delivery/update/beta.json`（WorkBuddy，带 `sharecode`）、`beta-github.json`（`github.com/shynekoo/CampusKit/releases/download/preview/<ASCII 名>.apk`）、`beta-gitee.json`（`gitee.com/sun-heyue/CampusKit/releases/download/preview/<ASCII 名>.apk`）。三者除 `url` 外字段完全相同，`bytes` / `sha256` 取自同一次构建的 `.build.json`。
    - 上传时文件必须**叫 `beta.json`**（GitHub / Gitee 的固定资产名），所以在临时目录里把对应变体复制成 `beta.json` 再传：GitHub 用 `gh release upload preview … --clobber`；Gitee 先 `DELETE …/releases/{release_id}/attach_files/{attach_file_id}` 删旧附件（`204` 才算删掉，不要用不带 `release_id` 的路径，那会 404），再 `POST …/releases/{release_id}/attach_files` 传 APK 和 `beta.json`。
    - 只传 APK 不传清单 = 用户端永远看不到更新：客户端读的是清单里的 `versionCode`，线上清单停在旧版就等于「已是最新」。

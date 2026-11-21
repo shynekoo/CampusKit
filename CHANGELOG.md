@@ -21,6 +21,49 @@
 
 ---
 
+## [未发布] — 公开仓库安全整改（2026-11-21）
+
+按 `tmp/security-audit-public-repo-2026-11-21.md` 的结论执行，**只动仓库，不动功能边界**：
+慧生活登录、用水、教务、课表、成绩、更新全部保持原行为。
+
+### 移除
+
+- **趣智校园请求签名盐**：删除 `core/RechargeSignature` 与 `core/NativeSigningV6528`。两者在应用里
+  **没有调用方**（充值入口 1.4.8 已移除），只被测试引用，因此删除对功能零影响；随之一并删除
+  40 项只校验这两个类的断言。该盐值此前已随公开发布的 APK 扩散，删除源码不能让旧副本失效，
+  但继续留在仓库里没有任何收益。`scripts/test_secrets.py` 对它的两种形态做硬阻断。
+- **被 Git 跟踪的构建产物与分析文档**：`analysis/recharge-integration.md`（反编译记录，含盐值与
+  路由表）、5 个历史 APK（DEX 内含同一盐值）、3 个 `.build.json`。取消跟踪、文件留在本地，
+  历史清理另案处理。
+- **真实个人数据**：文档、源码注释与测试夹具里的任课教师姓名、真实 GPA 与学分统计数值，全部
+  换成中性表述或合成值。学校名称、课程名与公开接口信息保留。
+
+### 变更
+
+- `scripts/test_secrets.py`（新增）：三道守卫——已知禁用字面量（只存 SHA-256，不存原文）、
+  我方凭据形态（私钥块 / 云 AccessKey / 平台令牌 / 被删盐值形态）、被跟踪但命中 `.gitignore`
+  的文件。`build_preview.py` 打包前**无条件**调用它（`--skip-tests` 跳不过），打包后再用
+  `--apk` 复查产物 dex——**扫描不通过就不出包**，Beta 自动发布因此拿不到带盐值的包。
+- `.gitignore`：补 `*.dex`、`.idea/`、`.vscode/`、`*.log`、`*.har`、`*.pcap`；`delivery/` 的文档
+  白名单从 `release-*.md` 放宽到 `*.md`（设计记录也属文档）。
+- `docs/security.md`：新增「已知残留风险」，如实记录慧生活授权串（R1）、已删除的趣智盐值（R2）
+  与 token 进深链（R3），并列出「已检查并确认不需要改」的项。
+- CI 增加 `test_secrets.py` 一步；`AGENTS.md` 的测试入口从七个改为八个。
+
+### 未做（需单独确认）
+
+- Git 历史重写、force push、删除 GitHub Release、Gitee 镜像同步：**未执行**，方案见
+  `tmp/history-rewrite-plan.md`。
+- 慧生活支付宝授权串（`AlipayLogin.AUTH_INFO`）：保留。它是慧生活客户端的固定常量，删源码
+  不能让它失效，却会让登录与用水对未登录用户停摆。定性见 `docs/security.md` R1。
+
+### 测试
+
+- `test_core` **1554**（−40，删掉的正是两个签名器的断言）、`test_ui_contract` **388**、
+  `test_secrets` 通过（文本 297 个文件 / 被跟踪但忽略 0 个）。其余入口见提交时的实测记录。
+
+---
+
 ## [已构建 · 2.6.0-beta.15] — 提交成功判定 + 两处界面调整（versionCode 232）
 
 - **确认提交后仍不飘字、不返回**：根因不是 id，而是写完的判定顺序。`send()` 先按学校回话把
@@ -157,7 +200,7 @@ HMAC 密钥、每日清理 cron 均已就位），但实测 `*.workers.dev` 在�
 
 ## [已发 GitHub / Gitee · 2.6.0-beta.10] — 评教接口按真实抓包重做（versionCode 227）
 
-> 这一版不再猜。用真实账号（传热学 · 孟鑫）登录学校教务，把官方页面发出的每一条请求抓下来逐项复现，
+> 这一版不再猜。用实测账号（某专业课 · 任课教师）登录学校教务，把官方页面发出的每一条请求抓下来逐项复现，
 > 三条失败各有确定原因：
 >
 > | 请求形态 | 学校回应 |
@@ -996,7 +1039,7 @@ release CDN 在境内常在数十 KB/s 量级甚至超时。Gitee 的价值是�
 - `EduAcademic.Node` 新增 `depth` 字段、`Report.layered` 标记：深度来自页面自身的 jQuery 建树关系（`<li id='li…'>` 被 `.appendTo($("#ul父ID"))`），不是猜的；父链断裂的节点降为根节点，保证不漏分类。
 
 ### 验证
-- `test_core` **1239** / `test_build_config` 5 / `test_webview_policy` 5 / `test_ui_contract` **52** 全绿；真实账号端到端跑 Java 解析器：`layered=true, 37 节点, 最深 5 层, GPA 2.9875, 计划 118/通过 54/未修 50/在读 14`。普通版 APK v2/v3 验签通过，三开关全 false、控制路由全 0。
+- `test_core` **1239** / `test_build_config` 5 / `test_webview_policy` 5 / `test_ui_contract` **52** 全绿；真实账号端到端跑 Java 解析器：`layered=true, 37 节点, 最深 5 层, 学分统计 计划/通过/未修/在读 全部解析（具体数值不记录）`。普通版 APK v2/v3 验签通过，三开关全 false、控制路由全 0。
 
 ---
 

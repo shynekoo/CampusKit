@@ -534,21 +534,9 @@ public final class CoreTests {
         try { SessionCipher.open(sealed, keyGenerator.generateKey()); throw new AssertionError("Wrong key accepted"); }
         catch (java.security.GeneralSecurityException expected) { /* Wrong key rejected. */ }
         System.out.println("PASS: encrypted session round trip, random IV, tampering and wrong-key rejection");
-        // Known-answer fixtures independently calculated with Python hashlib.
-        equal("3e4842da101bb5bc351cd54181619d76", NativeSigningV6528.signSerialized("", ""));
-        equal("ebb52189a9553b6cee324ee09817e3b7", NativeSigningV6528.signSerialized("loginCodeexampletelephone13800000000", "example"));
-        equal("b58a68b225b43a4de2bb13cc7d370970", NativeSigningV6528.signSerialized("deviceId42projectId7", "synthetic-key"));
-        equal("7499be138265844d65f1219d5aadff6f", NativeSigningV6528.signSerialized("学校科信", "example"));
-        rejects(() -> NativeSigningV6528.signSerialized(null, "example"));
-        rejects(() -> NativeSigningV6528.signSerialized("x", null));
-        // JDK's writeUTF is an independent implementation of JNI's modified UTF-8 encoding.
-        for (String input : new String[]{"ascii", "\u0000", "学校", "\uD83D\uDCA7", "\uD800", "a\u0000\u07ff\u0800"}) {
-            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-            new DataOutputStream(bytes).writeUTF(input);
-            byte[] reference = Arrays.copyOfRange(bytes.toByteArray(), 2, bytes.size());
-            equal(true, Arrays.equals(reference, NativeSigningV6528.modifiedUtf8(input)));
-        }
-        System.out.println("PASS: signing fixtures and JNI encoding boundaries");
+        // The 6.5.28 recharge signature never shipped a screen: it was removed with the recharge
+        // entry, and its salt is not something this project can hold. Nothing here asserts on it
+        // any more — see docs/security.md for why the capability was dropped instead of kept.
 
         UseSession session = new UseSession();
         rejects(session::requestStart); rejects(session::settlementAcknowledged);
@@ -661,45 +649,10 @@ public final class CoreTests {
             rejects(() -> DailyQuote.forDate(broken));
         System.out.println("PASS: daily quote is stable per date and date arithmetic is zone-independent");
 
-        // Recharge signature: fixed salt, sorted field names, lowercase MD5 (vectors from Python).
-        equal("0767b8783fe2ce35b7510dbc0b1c3b17",
-            RechargeSignature.alipay("abc123", "50", "13800138000"));
-        equal("d3fd54b3f63bb2c52b4bcd1145bbd106",
-            RechargeSignature.alipayFallback("abc123", "50", "13800138000"));
-        // Order of insertion must not matter: only sorted names enter the digest.
-        equal(RechargeSignature.alipay("abc123", "50", "13800138000"),
-            RechargeSignature.sign(fields("telPhone", "13800138000", "rechargeMoney", "50",
-                "payWay", "2", "loginCode", "abc123"), "sign-kailu="));
-        equal(32, RechargeSignature.alipay("abc123", "50", "13800138000").length());
-        equal(true, RechargeSignature.alipay("abc123", "50", "13800138000").matches("[0-9a-f]{32}"));
-        rejects(() -> RechargeSignature.sign(new java.util.LinkedHashMap<String, String>(), "sign-kailu="));
-        rejects(() -> RechargeSignature.sign(null, "sign-kailu="));
-        // Vector checked against the live charge route: sending this digest with a deliberately bogus
-        // loginCode moved the reply from 参数错误 (rejected at validation) to 登录失效 (rejected only
-        // at the session check), which is as far as an unauthenticated request can go. If the sort
-        // order or the salt ever drifts, every real order starts failing again.
-        equal("51edfe981729391720d2fe3ca22d358d",
-            RechargeSignature.alipay("probe", "1", "13800000000"));
-        System.out.println("PASS: recharge signature is deterministic and salt-scoped");
-
-        // Settlement tiers are JSON numbers: the original client hands Gson's "50.0" straight to
-        // the order. Rewriting it to "50" changes both the signed digest and the amount the server
-        // compares against its configured tiers, which is what 157 充值金额错误 looks like.
-        equal("50.0", RechargeSignature.normalizeAmount("50.0"));
-        equal("0.01", RechargeSignature.normalizeAmount("0.01"));
-        equal("1000", RechargeSignature.normalizeAmount("1000"));
-        equal("50", RechargeSignature.normalizeAmount(" 50 "));
-        equal("50", RechargeSignature.displayAmount("50.0"));
-        equal("0.01", RechargeSignature.displayAmount("0.01"));
-        equal("300", RechargeSignature.displayAmount("300"));
-        equal(true, !RechargeSignature.alipay("abc123", "50.0", "13800138000")
-            .equals(RechargeSignature.alipay("abc123", "50", "13800138000")));
-        equal(RechargeSignature.alipay("abc123", "50.0", "13800138000"),
-            RechargeSignature.sign(fields("telPhone", "13800138000", "rechargeMoney", "50.0",
-                "payWay", "2", "loginCode", "abc123"), "sign-kailu="));
-        for (String bad : new String[]{null, "", "0", "0.00", "1001", "50.123", "50.", "-50", "1e3", "abc", "１２"})
-            rejects(() -> RechargeSignature.normalizeAmount(bad));
-        System.out.println("PASS: recharge amounts keep the server tier spelling and stay in range");
+        // Recharge signature and amount-tier normalisation were tested here. Both lived in
+        // RechargeSignature, which is gone: the recharge entry itself was removed in 1.4.x and the
+        // class had no caller left in the app, only tests. Keeping a salted money signature in a
+        // public repository to test a screen nobody can open is the wrong trade.
 
         // Automatic timetable import: 正方 field shapes -> text the shared course parser already reads.
         equal(0, EduTimetable.day("1", ""));
@@ -1614,7 +1567,7 @@ public final class CoreTests {
         String academic =
             "<div role='alert' id='alertBox'>"
             + "某同学&nbsp;同学，您的课程修读情况："
-            + "平均学分绩点（GPA）：<font style=\"color: red;\"> 2.9875 &nbsp;</font>"
+            + "平均学分绩点（GPA）：<font style=\"color: red;\"> 3.5000 &nbsp;</font>"
             + "计划总课程<!-- 计划总课程 -->&nbsp;118&nbsp;门<!-- 门 -->通过<!-- 通过 -->&nbsp;54&nbsp;门<!-- 门 -->，"
             + "未通过<!-- 未通过 -->&nbsp;0&nbsp;门<!-- 门 -->；未修<!-- 未修 -->&nbsp;50&nbsp;门<!-- 门 -->；"
             + "在读&nbsp;14&nbsp;门<!-- 门 -->！ 计划外<!-- 计划外 -->：通过<!-- 通过 -->&nbsp;6&nbsp;门<!-- 门 --></div>"
@@ -1638,7 +1591,7 @@ public final class CoreTests {
         // 体育课组 to prove the order comes from the tree, not from document order.
         String layered =
             "<div role='alert'>某同学&nbsp;同学，您的课程修读情况："
-            + "平均学分绩点（GPA）：<font style=\"color: red;\"> 2.9875 &nbsp;</font>"
+            + "平均学分绩点（GPA）：<font style=\"color: red;\"> 3.5000 &nbsp;</font>"
             + "计划总课程<!-- 计划总课程 -->&nbsp;118&nbsp;门<!-- 门 -->通过<!-- 通过 -->&nbsp;54&nbsp;门<!-- 门 -->，"
             + "未通过<!-- 未通过 -->&nbsp;0&nbsp;门<!-- 门 -->；未修<!-- 未修 -->&nbsp;50&nbsp;门<!-- 门 -->；"
             + "在读&nbsp;14&nbsp;门<!-- 门 -->！ 计划外<!-- 计划外 -->：通过<!-- 通过 -->&nbsp;6&nbsp;门<!-- 门 --></div>"
@@ -1660,7 +1613,7 @@ public final class CoreTests {
             + ".appendTo($(\"#ulZZZ999\"));";
         EduAcademic.Report academicReport = EduAcademic.parse(layered);
         equal(true, academicReport.layered);
-        equal("2.9875", academicReport.gpa);
+        equal("3.5000", academicReport.gpa);
         equal("118", academicReport.plan);
         equal("54", academicReport.passed);
         equal("0", academicReport.failed);
@@ -1772,14 +1725,14 @@ public final class CoreTests {
         String evaluations = "{\"items\":["
             + "{\"jxb_id\":\"A1\",\"kch_id\":\"K1\",\"jgh_id\":\"T1\",\"xsdm\":\"01\","
             + "\"tjzt\":\"-1\",\"tjztmc\":\"未评\",\"pjmbmcb_id\":null,\"sfcjlrjs\":\"1\","
-            + "\"kcmc\":\"传热学\",\"jzgmc\":\"杨新\",\"jxbmc\":\"传热学-0003\",\"xsmc\":\"理论\","
+            + "\"kcmc\":\"传热学\",\"jzgmc\":\"教师丑\",\"jxbmc\":\"传热学-0003\",\"xsmc\":\"理论\","
             + "\"jgmc\":\"水利水电学院\",\"bfzpf\":null},"
             + "{\"jxb_id\":\"A2\",\"kch_id\":\"K2\",\"jgh_id\":\"T2\",\"xsdm\":\"02\","
             + "\"tjzt\":\"0\",\"tjztmc\":\"暂存\",\"pjmbmcb_id\":\"M2\",\"sfcjlrjs\":\"0\","
-            + "\"kcmc\":\"电子技术基础\",\"jzgmc\":\"刘英\",\"jxbmc\":\"电子技术基础-0002A\","
+            + "\"kcmc\":\"电子技术基础\",\"jzgmc\":\"教师庚\",\"jxbmc\":\"电子技术基础-0002A\","
             + "\"xsmc\":\"实验\",\"jgmc\":\"\",\"bfzpf\":\"\"},"
             + "{\"jxb_id\":\"A3\",\"kch_id\":\"K3\",\"jgh_id\":\"T3\",\"xsdm\":\"01\","
-            + "\"tjzt\":\"1\",\"kcmc\":\"工程伦理\",\"jzgmc\":\"闫红艳\",\"jxbmc\":\"工程伦理-0012\","
+            + "\"tjzt\":\"1\",\"kcmc\":\"工程伦理\",\"jzgmc\":\"教师己\",\"jxbmc\":\"工程伦理-0012\","
             + "\"xsmc\":\"理论\",\"jgmc\":\"水利水电学院\",\"bfzpf\":\"95\"},"
             + "{\"kch_id\":\"K4\",\"kcmc\":\"没有教学班号的行\"}"
             + "],\"totalPage\":1}";
@@ -1792,7 +1745,7 @@ public final class CoreTests {
         equal(true, evaluationReport.items.get(1).saved());
         equal(true, evaluationReport.items.get(2).done());
         equal("传热学", evaluationReport.items.get(0).course);
-        equal("杨新", evaluationReport.items.get(0).teacher);
+        equal("教师丑", evaluationReport.items.get(0).teacher);
         equal("A1", evaluationReport.items.get(0).classId);   // the form is keyed by this id verbatim
         equal("01", evaluationReport.items.get(0).studentType);
         equal("", evaluationReport.items.get(0).modelId);     // JSON null is empty, never "null"

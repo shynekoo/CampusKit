@@ -10,6 +10,7 @@
 *.p12
 *.pass
 *.idsig
+*.dex
 local.properties
 .gradle/
 **/build/
@@ -20,11 +21,21 @@ __pycache__/
 /.workbuddy-ai/
 /.workbuddy/
 /.wbapp_*.genie
+
+# 编辑器与本地调试产物：任何一条都可能带出绝对路径、账号或抓包记录
+.idea/
+.vscode/
+*.log
+*.har
+*.pcap
+*.pcapng
+
 /analysis/
 /delivery/*
-# 发布说明是发布记录的一部分（AppChangelog 与更新日志检查都要能查到），必须入库；
-# 旁边同目录的 APK / build.json 仍属构建产物，继续忽略。
+# 发布说明与设计记录是项目文档，必须入库；同目录的 APK / build.json 属构建产物，继续忽略。
+# 白名单按文件名前缀收窄：/delivery/ 下还有几十份逐版本的临时笔记，未审阅前不入库。
 !/delivery/release-*.md
+!/delivery/ui-beautify-*.md
 # The update manifest and its landing page are source for the release channel; the packages
 # beside them are build output and stay out of the repository.
 !/delivery/update/

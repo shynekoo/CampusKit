@@ -18,9 +18,9 @@
 | 匿名统计 | `AnalyticsDay`、`AnalyticsRequest`、`AnalyticsReply` | 北京时间自然日（无 java.time）、两字段请求体与形状校验（UUID/版本号/上限）、应答四判定（记上/重复/拒绝/重试） |
 | 教务学业 | `EduAcademic` | 学生学业情况：GPA/统计/去重学分树解析（含 `appendTo` 层级还原与 `jdkcsx` 端点分流），课程明细 JSON 解析（`parseCourses`） |
 | 教务评价 | `EduEvaluation`、`EduEvaluationForm` | 列表与统计解析：教学班/课程/教师/学时类型、状态码 `-1/0/1` 归一（`stateOf`）、`withState` 分组、`counts`、分页（`pageCount`/`rowCount`/`of`）；问卷片段按学校 `xspj_display.js` 的选择器读成题目/选项（`parse`，切片按**兄弟边界**——线上片段 `<div>` 不闭合，按嵌套切会把 11 题读成 2 题），并把作答还原成学校那套 `modelList[i].xspjList[j].childXspjList[k]` 请求体（每行必带 `pjzbxm_id`/`pfdjdmb_id`/`zsmbmcb_id`，表级再带一个 `pjzbxm_id`，并按必填项是否全答写 `pjzt`）；成败先按学校回话严格分类（`outcome`），最终以回读的 `tjzt` 为准 |
-| 其他 | `DailyQuote`、`AlipayWaterLink`、`PickupCodeLinks`、`RechargeSignature`、`NativeSigningV6528` | 文案、跳转链接、签名/协议辅助 |
+| 其他 | `DailyQuote`、`AlipayWaterLink`、`PickupCodeLinks` | 文案、跳转链接、协议辅助 |
 
-测试：`client/core/test/.../CoreTests.java` —— 当前工作区实跑 1584 项断言（含 `jdkcsx` 课程端点分流、诊断脱敏与统计的日期/请求体/应答判定），涵盖上述状态机、解析与策略。
+测试：`client/core/test/.../CoreTests.java` —— 当前工作区实跑 1554 项断言（含 `jdkcsx` 课程端点分流、诊断脱敏与统计的日期/请求体/应答判定），涵盖上述状态机、解析与策略。
 
 ## client/android — 原生界面与平台适配（83 个文件）
 
@@ -44,7 +44,7 @@
 
 | 脚本 | 检查内容 |
 | :-- | :-- |
-| `scripts/test_core.py` | core 源码 JVM 编译 + `CoreTests`（当前工作区实跑 1584 项） |
+| `scripts/test_core.py` | core 源码 JVM 编译 + `CoreTests`（当前工作区实跑 1554 项） |
 | `scripts/test_build_config.py` | 7 项诊断开关检查（含 `DIAG_BASIC` 恒开） |
 | `scripts/test_diag_privacy.py` | 716 项诊断隐私守卫（调用点字段/文案、已移除入口、导出路径） |
 | `scripts/test_diag_files.py` | 5 组 `DiagFiles` 实跑场景（轮转、1 MB 封顶、行序连续、超限裁剪、清空、7 天清理） |

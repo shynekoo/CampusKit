@@ -12,13 +12,13 @@
 | 当前开发分支 | `feat/diag-2.5.8`（诊断系统改造，**未提交、未合并**） |
 | 最新包 | `delivery/科信小助手-2.5.9.apk`（versionCode 210，已发布，sha256 `b022159d…c82ef605`，`--field-water` 用水版）；`2.5.8.1`/209 因四段版名检查不到更新已被取代 |
 | 发布公告 | `delivery/release-2.5.8.md`（短版 / 长版公告 + 上线记录 + 原始清单） |
-| 最新 tag / Release | `v2.5.9`（[Release](https://github.com/shynekoo/CampusKit/releases/tag/v2.5.9)，附 ASCII 资产 `kexin-xiaozhushou-2.5.9.apk` 与 `update.json`）；`preview` 预发布现为 **2.6.0-beta.9 / 226**（APK + `beta.json`）；Gitee 侧同版本（`gitee.com/sun-heyue/CampusKit`） |
+| 最新 tag / Release | `v2.5.9`（[Release](https://github.com/shynekoo/CampusKit/releases/tag/v2.5.9)，附 ASCII 资产 `kexin-xiaozhushou-2.5.9.apk` 与 `update.json`）；`preview` 预发布现为 **2.6.0-beta.17 / 234**（APK + `beta.json`）；Gitee 侧同版本（`gitee.com/sun-heyue/CampusKit`） |
 | GitHub 登录 | `gh auth login` 已登录 `shynekoo`（ADMIN，repo scope）；按 AGENTS.md，push/tag/Release 仍需用户逐次确认 |
-| 工作区 | `feat/diag-2.5.8` 上未提交；主线 `main` 未改 |
-| 核心断言 | 实测 **1594 项全过**；UI 契约守卫 **377 锚点**；诊断隐私守卫 **717 项**；WebView 守卫 **5 处** |
+| 工作区 | `main` 干净；许可证迁移 `0392cea` 已推送，本次「公开仓库安全整改 + 2.6.0-beta.17」随该分支入库 |
+| 核心断言 | 实测 **1554 项全过**（2026-11-21 删除充值签名器的 40 项断言）；UI 契约守卫 **388 锚点**；诊断隐私守卫 **717 项**；WebView 守卫 **5 处** |
 | 发布状态 | **2.5.8 已发布**：清单、直链、下载站、App 内更新日志已同步；早期 2.5.8.x 开发包未单独发布 |
-| 未发布开发版 | **2.6.0-beta.10 / versionCode 227**（评教接口按真实抓包重做：读表单只发官方那一发、解析改兄弟边界、请求体补三层 id 与 pjzt、写完回读 tjzt；暂存已用真实账号验证，提交未验证），**工作区改动，待构建**；上一包 beta.9 / 226 在 GitHub 与 Gitee 的 `preview` 上；WorkBuddy 站点仍是 beta.5 / 222 |
-| 预览渠道 | `delivery/update/beta.json` 为 2.6.0-beta.9 / 226；**WorkBuddy 站点仍是 beta.5 / 222**（发布被 `SITES_ACCOUNT_MISMATCH` 拒绝，appId 属另一账号）；GitHub 与 Gitee 的 `preview` 均已是 beta.9 / 226 |
+| 未发布开发版 | 无。**2.6.0-beta.17 / 234** 是当前预览包（`--beta --field-water`；许可迁移 MPL-2.0 + 修复 beta.16 上传未签名中间产物导致装不上） |
+| 预览渠道 | `delivery/update/beta.json` 为 2.6.0-beta.17 / 234；**WorkBuddy 站点仍是 beta.5 / 222**（发布被 `SITES_ACCOUNT_MISMATCH` 拒绝，appId `wbapp_g8yY3kLcI8KmEUFM6vdn0h` 属另一账号）；GitHub 与 Gitee 的 `preview` 均已是 beta.17 / 234 |
 
 ## 二、已提交但未发布（2.5.8.1）
 
@@ -342,7 +342,7 @@ UI-3 本轮修 5 处：滚动恢复带 generation 且改为布局后（pre-draw�
 
 ## 三之十七、评教接口按真实抓包重做（2.6.0-beta.10）
 
-- **做法变了**：这次没有改文案、也没有再加一种请求组合。用真实账号（传热学 · 孟鑫）登录学校教务，
+- **做法变了**：这次没有改文案、也没有再加一种请求组合。用实测账号（某专业课 · 任课教师）登录学校教务，
   把官方 `xspj_index.js` 的 `$(panel_content).load("/xspjgl/xspj_cxXspjDisplay.html", {七项})` 逐项复现，
   一次一种形态，记录状态码、字节数与页面种类。
 - **实测矩阵**：
@@ -452,9 +452,24 @@ UI-3 本轮修 5 处：滚动恢复带 generation 且改为布局后（pre-draw�
   `docs/legacy/LICENSE-MIT.txt`（不在根目录，不会被 GitHub 误判为当前许可证）。
 - 未做：**未提交、未推送、未出包、未真机验证**弹窗滚动与深色模式；`delivery/` 里历史 release 说明保持原样。
 
+## 三之二十三、预览包 2.6.0-beta.17 与 beta.16 装不上的事故（2026-11-21）
+
+- **事故**：beta.16 / 233 上传的是 `client/build/preview/aligned.apk`——签名**前**的中间产物，用户安装报
+  「解析软件包时出现问题」。同一次构建还漏了 `--field-water`，包里没有 `WaterActivity` / `LifeWaterActivity`。
+- **处置**：坏包从 GitHub（`gh release delete-asset`）与 Gitee（`DELETE …/attach_files/{id}`）撤下，
+  `delivery/update/` 内副本删除；233 作废不复用。
+- **重出**：`python scripts/build_preview.py --beta --field-water --version-code 234` → `2.6.0-beta.17` /
+  234，`delivery/科信小助手-2.6.0-beta.17.apk` 5,486,527 B，sha256 `cab737846bc59da4…101723`。
+  签名 v2+v3（证书 CN=QZXY Local Preview，`13b96892…`，与历史各版一致）、zipalign OK、两个用水 Activity 在、
+  `res/raw/mpl_license.txt` 16,726 B 在。GitHub 与 Gitee 都已更新，线上 `beta.json` 读到 234；
+  Gitee 下载回来复核 sha256 且 `apksigner verify` 通过。
+- **防复发**：构建脚本中间产物改名 `unsigned-aligned.apk`；`AGENTS.md` §5 与 `build-and-release.md` 第 7 步
+  写明「只签发签名产物 / 预览必带 `--field-water` / 上传前 `apksigner verify` 见 `Verifies`」。
+- **仍未验证**：真机安装与「开源许可」弹窗的滚动 / 深色模式 / 小屏。
+
 ## 四、验证状态（如实）
 
-**已执行**：`test_core` **1539**、`test_build_config` 7、`test_diag_privacy` **691**、`test_diag_files`、`test_webview_policy` 5、`test_ui_contract` **371**，全部通过；2.6.0-beta.10 APK 已构建（5,470,074 B，`versionCode` 227，SHA-256 `c7e5cca4…1e69c83c`）并已发到 GitHub / Gitee 的 `preview`（Gitee 直链复验 200）；2.6.0-beta.9 APK（5,465,978 B，SHA-256 `11cbeab8…0baf5b73`）；Gitee 两个固定 tag 的清单与 APK 已匿名复验；`javac --release 8` 全量编译通过；2.5.8 APK 已构建（5 420 922 B，SHA-256 `ac40b21d…10d806`，v2/v3 验签通过，dex 水控路由 0）；2.5.8.6 / 2.5.8.7 / 2.5.8.8 普通版 APK 已构建并通过 v2/v3 验签（2.5.8.8 的 dex 反查含 `cxJxzxjhxfyqFKcxx` / `planCourses` / `opensCourses`，2.5.8.7 三项均为 0）；真实账号端到端拉取学业数据成功（GPA 2.9875、37 节点 5 层、16 课组 94 门课）；计划外课组按学校 `jdkcsx` 分流端点后复验（人文科学 5 门、自然科学 6 门，与学校页"共 N 门"一致）。
+**已执行**：`test_core` **1539**、`test_build_config` 7、`test_diag_privacy` **691**、`test_diag_files`、`test_webview_policy` 5、`test_ui_contract` **371**，全部通过；2.6.0-beta.10 APK 已构建（5,470,074 B，`versionCode` 227，SHA-256 `c7e5cca4…1e69c83c`）并已发到 GitHub / Gitee 的 `preview`（Gitee 直链复验 200）；2.6.0-beta.9 APK（5,465,978 B，SHA-256 `11cbeab8…0baf5b73`）；Gitee 两个固定 tag 的清单与 APK 已匿名复验；`javac --release 8` 全量编译通过；2.5.8 APK 已构建（5 420 922 B，SHA-256 `ac40b21d…10d806`，v2/v3 验签通过，dex 水控路由 0）；2.5.8.6 / 2.5.8.7 / 2.5.8.8 普通版 APK 已构建并通过 v2/v3 验签（2.5.8.8 的 dex 反查含 `cxJxzxjhxfyqFKcxx` / `planCourses` / `opensCourses`，2.5.8.7 三项均为 0）；实测账号端到端拉取学业数据成功（GPA 与学分树完整解析；37 节点 5 层、16 课组 94 门课，具体成绩不记录）；计划外课组按学校 `jdkcsx` 分流端点后复验（人文科学 5 门、自然科学 6 门，与学校页"共 N 门"一致）。
 
 **未执行**：诊断页真机流程（G6–G17：开关、复现、导出、轮转、崩溃重启、长日志、深色/大字号）；真机验收清单其余全部（含 UI 2.0 的快速连点、滚动恢复与旋转/分屏、返回手势、关动画、320dp）；2.5.8.6 真机覆盖安装与学业页回归；真实支付用水、MobSF、签名轮换、旧版升级兼容。详见 [`known-issues.md`](known-issues.md)。
 

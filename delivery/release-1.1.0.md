@@ -17,12 +17,12 @@
 | 旧路由 | `wallet/recharge/aliPay` @ `wfwapi.china-qzxy.cn` | `RechargeApi` 白名单 |
 | 新路由 | `settlement/alipay/recharge/balance` @ `v3-api.china-qzxy.cn` | 同上 |
 | 请求体 | `payWay=2`、`rechargeMoney`、`signature` + 公共会话字段 | 按 `BaseNetActivity.t0(map,false)` 的字段集补齐 |
-| 签名 | `sj.e0.e(map)`：排序拼接 + `JniUtils.getSk()` + MD5 | `core.RechargeSignature`，盐取自 `libklcxkjencry.so` |
+| 签名 | `sj.e0.e(map)`：排序拼接 + `JniUtils.getSk()` + MD5 | 当时由 `core.RechargeSignature` 实现，盐取自 `libklcxkjencry.so`；该类已于 2026-11-21 删除 |
 
 签名盐的取值：原生 `getSk()` 依赖一个标志位，该标志位由 `checkSignature` 比对原版签名后置 1。
-标志为 1 时返回 `sign-kailu=`，为 0 时返回 `keep&1!`（诱饵）。原版自身运行在标志 1，所以本版默认用
-`sign-kailu=`；若服务器明确返回签名错误，会再用另一个值重试一次——签名不通过时服务器不会建单，
-因此这次重试不会产生第二笔订单。
+标志位决定它返回两个候选字符串中的哪一个，本版默认用「校验通过」那个；若服务器明确返回签名错误，
+会再用另一个值重试一次——签名不通过时服务器不会建单，因此这次重试不会产生第二笔订单。
+（两个盐值的原文已于 2026-11-21 的安全整改中从文档移除，源码侧随之删除，见 `docs/security.md`。）
 
 **钱不在本应用里扣。** 流程是：服务端建单 → 把订单串交给支付宝
 （`alipays://platformapi/startapp?appId=20000067&url=…`）→ 用户自己在支付宝确认付款 → 返回后重新

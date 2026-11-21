@@ -45,7 +45,7 @@ SHA-256：a6c301708b59a3a7cda843cf02e7b3b0b44afd96819f0a18890322e9868abf28
 
 放在 `tools/alipay/`，构建时校验哈希。没有 Gradle，所以 AAR 里的三件事是手工合并的：`classes.jar` 进 javac 与 d8；`AndroidManifest.xml` 里的 6 个 Activity、`org.apache.http.legacy` 与两条权限抄进 `client/android/AndroidManifest.xml`；`res/values` 里那三条字符串抄进 `client/android/res/values/alipay_sdk.xml`，并用 `aapt2 link --extra-packages com.alipay.sdk` 生成 SDK 自己的 `R`。
 
-授权串（`AlipayLogin.AUTH_INFO`）来自慧生活官方 3.1.5 的登录页，是**他们的** appid 与签名，不是本项目的。用它的后果写在 `delivery/release-2.3.2.md` 里。
+授权串（`AlipayLogin.AUTH_INFO`）来自慧生活官方 3.1.5 的登录页，是**他们的** appid 与私钥签名，不是本项目的凭据，也不由本项目控制其有效期。它是客户端固定常量（随官方 APK 公开分发），因此无法被本项目「保管」或「吊销」；能改变它状态的只有慧生活轮换应用私钥。定性、危害边界与为什么暂时保留，见 `docs/security.md`「已知残留风险」。
 
 ## 许可归属需要单独记录的内容
 
