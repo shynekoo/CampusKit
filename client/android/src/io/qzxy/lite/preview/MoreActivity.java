@@ -107,7 +107,7 @@ public final class MoreActivity extends Page {
     }
 
     /**
-     * 更新渠道：WorkBuddy（默认）、GitHub 或 Gitee。三处清单同名同字段，切换只改变「去哪读」，
+     * 更新渠道：国内（默认）、GitHub 或 Gitee。三处清单同名同字段，切换只改变「去哪读」，
      * 不改变校验强度。Gitee 提供是因为 GitHub 的发布 CDN 在国内常常只有几十 KB/s。
      * 选择落盘（{@link UpdateCheck#setSource}），重启后保持，并作废正在飞的检查。
      * 副标题会跟着当前选择变，读者不必点开才知道现在用的是哪一处。
@@ -414,14 +414,14 @@ public final class MoreActivity extends Page {
         // 数据与隐私 从校园页挪到这里：它回答的是「这个应用本身动了什么」，与源码、许可证同类，
         // 而不是像趣智校园/慧生活那样的一项校园服务。
         entry(card, "info", "数据与隐私", "本机存了什么、发到哪里、怎么清除", true, this::openPrivacy);
-        // 匿名统计紧挨着隐私说明：读者刚看完「哪些数据不出本机」，这里就是唯一一处会主动发出去的。
-        analyticsSetting(card, true);
+        // 匿名使用统计入口按读者要求不显示：能力、隐私说明与「数据与隐私」页的删除入口都保留，
+        // 只是「更多」页不再摆这个开关。analyticsSetting 方法留着，恢复时把调用放回来即可。
         // 使用公告不在这里另开一条：它就是《数据与隐私》里那份文本的另一面，从那一页末尾
         // 进去即可，同一份东西摆两个入口只会让人猜哪个才是正的。
         // 更新日志挨着「检查更新」的入口放：想知道这版改了什么的人，先找的通常是这里。
         entry(card, "refresh", "更新日志", "查看版本更新与历史记录", true,
             () -> startActivity(new Intent(this, ChangelogActivity.class)));
-        // 更新渠道挨着更新日志：先看这版改了什么，再决定从 WorkBuddy 还是 GitHub 取下一版。
+        // 更新渠道挨着更新日志：先看这版改了什么，再决定从国内还是 GitHub 取下一版。
         sourceSetting(card, true);
         // 渠道开关紧跟在更新日志后面：先看这版改了什么，再决定要不要提前拿到下一版。
         previewChannel(card, true);

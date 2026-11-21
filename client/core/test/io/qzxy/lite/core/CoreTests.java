@@ -1399,7 +1399,7 @@ public final class CoreTests {
         // a release and a preview list; an absent or unknown value must resolve to WorkBuddy, never
         // to a blank host.
         equal(3, UpdateSources.HOSTS.length);
-        equal("WorkBuddy", UpdateSources.HOSTS[0]);
+        equal("国内", UpdateSources.HOSTS[0]);
         equal("GitHub", UpdateSources.HOSTS[1]);
         equal("Gitee", UpdateSources.HOSTS[2]);
         equal(true, UpdateSources.isWorkBuddy(null));
@@ -1812,6 +1812,15 @@ public final class CoreTests {
         // An unfamiliar state code is shown as the school wrote it instead of being guessed at.
         equal(EduEvaluation.UNKNOWN, EduEvaluation.stateOf("9"));
         equal("9", new EduEvaluation.Item(fields("jxb_id", "C", "tjzt", "9")).label());
+        // 线上 jgh_id 是 256 个字符。截到显示上限（80）后学校回 200 / 6,923 B 的「参数异常」，
+        // 所以 id 必须整串带回去；名字仍然按显示宽度剪。
+        String longTeacher = repeat('a', 200) + repeat('b', 56);
+        EduEvaluation.Item longId = EduEvaluation.parse("{\"items\":[{\"jxb_id\":\"A9\","
+            + "\"kch_id\":\"K9\",\"jgh_id\":\"" + longTeacher + "\",\"xsdm\":\"01\",\"tjzt\":\"-1\""
+            + ",\"kcmc\":\"" + repeat('课', 100) + "\"}]}").items.get(0);
+        equal(256, longId.teacherId.length());
+        equal(longTeacher, longId.teacherId);
+        equal(80, longId.course.length());          // 课程名只用于显示，仍按 80 剪
         rejects(() -> EduEvaluation.parse(null));
         rejects(() -> EduEvaluation.parse(""));
         rejects(() -> EduEvaluation.parse("[]"));
@@ -1986,6 +1995,26 @@ public final class CoreTests {
             + "</tbody></table></div></div>";
         equal(EduEvaluationForm.UNSUPPORTED, EduEvaluationForm.parse(oddSheet).questions().get(0).kind);
         equal(false, EduEvaluationForm.parse(oddSheet).questions().get(0).supported());
+
+        // 已提交的行的答案渲染成纯文本（学校实测 <td><span>良好</span></td> 与
+        // <div class="input-xspj">挺好</div>），没有 radio/textarea：必须回显当时的选择。
+        String submitted = "<div class=\"xspj-body\" data-jxb_id=\"J5\"><div class=\"panel-pjdx\""
+            + " data-pjmbmcb_id=\"MB5\"><table class=\"table-xspj\"><tbody>"
+            + "<tr class=\"tr-xspj\" data-pjzbxm_id=\"ZB6\" data-pfdjdmb_id=\"D6\" data-dtlx=\"2\">"
+            + "<td>言行模范</td><td><span class=\"\">良好&nbsp;</span></td></tr>"
+            + "<tr class=\"tr-xspj zgpjsfxs\" data-pjzbxm_id=\"ZB7\" data-pfdjdmb_id=\"D7\">"
+            + "<td>建议</td><td><div class=\"input-xspj\">挺好</div></td></tr>"
+            + "</tbody></table></div></div>";
+        EduEvaluationForm.Form shown = EduEvaluationForm.parse(submitted);
+        equal(2, shown.count());
+        equal(EduEvaluationForm.SHOWN, shown.questions().get(0).kind);
+        equal(true, shown.questions().get(0).supported());
+        equal(true, shown.questions().get(0).shown());
+        equal("良好", shown.questions().get(0).options.get(0).label);
+        equal("挺好", shown.questions().get(1).options.get(0).label);
+        // 展示型答案永不写回请求：已提交的行学校不再接受修改。
+        String shownBody = EduEvaluationForm.body(shown, shown.answers(), new ArrayList<String>(), true);
+        equal(false, shownBody.contains("childXspjList%5B0%5D.pfdjdmxmb_id"));
 
         // No 评价项 is not an error to hide: the screen says so, so the parser says so.
         String noItems = "<div class=\"xspj-body\" data-jxb_id=\"J4\"></div>";

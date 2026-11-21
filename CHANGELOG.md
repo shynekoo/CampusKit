@@ -21,6 +21,50 @@
 
 ---
 
+## [已构建 · 2.6.0-beta.15] — 提交成功判定 + 两处界面调整（versionCode 232）
+
+- **确认提交后仍不飘字、不返回**：根因不是 id，而是写完的判定顺序。`send()` 先按学校回话把
+  `outcome` 判成 OK（「提交成功」），随后回读列表 `tjzt`；只要回读那一下没读到 1（多页查询、
+  服务端延迟、网络抖动），就把 OK **降级**成 UNCLEAR，`done()` 于是既不飘字也不返回。改为
+  **回话明确成功即生效**：回读只作旁证与诊断，仅当读到「仍是暂存」时才判定提交没完成；
+  `UNKNOWN` 保留回话判定。诊断的 `status` 字段带上回读状态，便于下次真机核对。
+- **「更多」页隐藏匿名使用统计入口**：能力、隐私说明与「数据与隐私」页的删除入口都保留，
+  只是不再摆出开关。日后要恢复，把 `MoreActivity` 里那一行调用放回来即可。
+- **更新渠道显示名**：首个渠道从「WorkBuddy」改成「国内」（二字）；存储 key 仍是
+  `workbuddy`，老用户的渠道选择不受影响，清单地址也不变。
+- `test_core` 1594、`test_ui_contract` **377**（+3）、`test_diag_privacy` **717**（+1）、
+  `test_diag_files` 6650、`test_webview_policy` 5、`test_build_config` 7、
+  `test_analytics` 77（+ Worker 18），全部通过。
+- 产物 `delivery/科信小助手-2.6.0-beta.15.apk`；已发 GitHub + Gitee `preview`。
+
+## [已构建 · 2.6.0-beta.14] — 提交后回读 id 修正 + 已评答案回显（versionCode 231）
+
+- **提交成功没飘字/没返回**：写完回读列表状态时用的是表单 HTML 的 `data-jgh_id`，而学校给列表
+  行的 `jgh_id` 是**另一个** 256 字符值（同一会话实测两者 239 位不同）。`evaluationState` 永远
+  匹配不到 → `UNKNOWN` → 提交成功后仍被判「状态未变」，既不飘字也不返回。改为用打开本页时
+  intent 带过来的列表 id 回读。
+- **已评点进去看不到评价**：学校对已提交的行不发 radio/textarea，而是把答案渲染成
+  `<td><span>良好</span></td>` 或 `<div class=input-xspj>主观文字</div>`。parser 新增
+  `SHOWN`（只读展示题），把当时记下的答案回显出来，且不产生任何请求字段——已提交的行学校
+  不再接受修改。真实账号复现：已评行 11 题全部读出，10 项「良好」+ 主观题「挺好」。
+- `test_core` **1594**（+7）、`test_ui_contract` **374**（+3）、`test_diag_privacy` **716**、
+  `test_diag_files` 6650、`test_webview_policy` 5、`test_build_config` 7，全部通过。
+- 产物 `delivery/科信小助手-2.6.0-beta.14.apk`；已发 GitHub + Gitee `preview`。
+
+## [已构建 · 2.6.0-beta.13] — 答题页飘字反馈与自动返回（versionCode 230）
+
+- 没填完（一个都没选 / 必填项没答全）点「提交」→ **飘字**「请完成所有题目后再提交」，不发请求；
+  「不支持的题型」仍是页面内专门说明，引导到教务网页。
+- 暂存成功 → 飘字「已暂存」并自动返回列表；提交成功 → 飘字「已完成提交」并自动返回列表。
+  Toast 是系统窗口，返回列表后仍会显示完；返回前留 600ms 让飘字先出现，且只在页面未结束时 finish。
+- 承接 beta.12（`id` 截断修复）：线上 `jgh_id` 实测 256 字符，旧代码按显示宽度截到 80 位再发回学校，
+  学校回 200/6,923 B「参数异常」；整串保留后同一会话 A/B 三轮复现，完整 id 稳定回 46,478 B、1 面板 11 题。
+- `test_core` **1587**、`test_build_config` 7、`test_diag_privacy` **716**、`test_diag_files` 6650、
+  `test_webview_policy` 5、`test_ui_contract` **371**、`test_analytics` 77（+ Worker 18），全部通过。
+- 产物：`delivery/科信小助手-2.6.0-beta.13.apk`，5,478,266 B，SHA-256 `a41078b9…f78220e2fca5`；
+  已发 GitHub `preview` 与 Gitee `preview`，Gitee 清单与 APK 直链复验 200 且摘要一致。WorkBuddy
+  下载站因发布账号不匹配未能覆盖（其 `beta.json` 仍停在 beta.5），需切回原账号后补发。
+
 ## [未发布] — 匿名每日活跃统计（可选，默认关闭）
 
 分支 `feat/analytics`。**尚未提交、未发布**；`2.6.0-beta.11`（versionCode `228`）只在本地构建过，
@@ -116,7 +160,7 @@ HMAC 密钥、每日清理 cron 均已就位），但实测 `*.workers.dev` 在�
   `bfzpf=84.00`，评价情况 `{"wpgs":19,"bcgs":1,"tjgs":0}`。暂存是草稿，可继续改。
 - **未验证**：真实提交（`tjzt=1`）与提交后状态同步——这需要用户本人确认后才做，本次没有代提交。
 - `test_core` **1539**（+19：三层 id、`pjzt`、不闭合片段 5 题、`outcome` 八种回话）、`test_ui_contract`
-  **354**、`test_diag_privacy` **691**、`test_diag_files` 6650、`test_webview_policy` 5、`test_build_config` 7，全部通过。
+  **371**、`test_diag_privacy` **716**、`test_diag_files` 6650、`test_webview_policy` 5、`test_build_config` 7，全部通过。
 - **分发**：APK（5,470,074 B，`c7e5cca4…1e69c83c`）已传 GitHub `preview` 与 Gitee `preview`，两侧 `beta.json`
   同步更新为 227（Gitee 直链复验 200）。WorkBuddy 下载站因发布账号不匹配未能覆盖，其 `beta.json` 仍停在
   beta.5；装 beta.9 的手机要收到这一版，需把「更多 → 更新渠道」切到 GitHub 或 Gitee 并打开「接收预览版更新」。

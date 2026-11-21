@@ -33,6 +33,11 @@ public final class EduEvaluationForm {
     public static final int MULTI = 2;
     /** Type something: a 主观题 textarea, or a score field. */
     public static final int TEXT = 3;
+    /**
+     * 学校在已提交/只读页把答案渲染成纯文本（{@code <td><span>良好</span></td>} 或带文本的
+     * {@code div.input-xspj}），没有 radio/textarea。它只用来回显当时的选择，不产生请求字段。
+     */
+    public static final int SHOWN = 4;
     /** The school rendered a control this parser does not recognise; it must not be faked. */
     public static final int UNSUPPORTED = 0;
 
@@ -79,7 +84,10 @@ public final class EduEvaluationForm {
         }
 
         public boolean supported() { return kind != UNSUPPORTED; }
+        /** 展示型题目只回显学校当时记下的答案，不参与「已答」统计，也永不写回请求。 */
+        public boolean shown() { return kind == SHOWN; }
         public boolean answered(Answer answer) {
+            if (kind == SHOWN) return true;
             if (kind == MULTI) return !answer.picks.isEmpty();
             if (kind == CHOICE) return !answer.pick.isEmpty();
             if (kind == TEXT) return !answer.text.trim().isEmpty();
@@ -255,7 +263,9 @@ public final class EduEvaluationForm {
                     out.add(prefix + "pfdjdmb_id", question.levelId);
                     out.add(prefix + "zsmbmcb_id", question.templateId);
                     if (!question.supported()) continue;
-                    if (question.kind == MULTI) {
+                    if (question.shown()) {
+                        // 只读回显题没有可回写的控件，学校也不接受再次提交，绝不带答案字段。
+                    } else if (question.kind == MULTI) {
                         for (String value : answer.picks) out.add(prefix + question.field, value);
                     } else if (question.kind == CHOICE) {
                         if (!answer.pick.isEmpty()) out.add(prefix + question.field, answer.pick);
@@ -454,7 +464,25 @@ public final class EduEvaluationForm {
                 required, contains(body.substring(score[0], score[1]), "readonly"), group, child);
             return question;
         }
+
+        // 6. 已提交的行：学校把答案渲染成第二个 td 里的纯文本，没有可编辑控件。
+        // 只把当时记下的答案回显出来；SHOWN 不写回请求，也不算「未答」。
+        String shown = shownText(body);
+        if (!shown.isEmpty()) {
+            Question question = new Question(itemId, levelId, title, SHOWN, "",
+                required, true, group, child);
+            question.options.add(new Option(shown, shown, true));
+            return question;
+        }
         return new Question(itemId, levelId, title, UNSUPPORTED, "", required, false, group, child);
+    }
+
+    /** The answer cell of a submitted row: the second td, after the question title. */
+    private static String shownText(String body) {
+        List<int[]> cells = blocks(body, "td", null);
+        if (cells.size() < 2) return "";
+        int[] answer = cells.get(cells.size() - 1);
+        return text(body.substring(answer[1], answer[2])).trim();
     }
 
     private static Question filled(String itemId, String levelId, String title, int kind, String field,

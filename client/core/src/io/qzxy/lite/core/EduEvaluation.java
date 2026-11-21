@@ -23,7 +23,10 @@ public final class EduEvaluation {
     /** A term holds a few dozen 教学班; the caps only guard against a surprising reply. */
     public static final int MAX_JSON = 2_000_000;
     public static final int MAX_ROWS = 400;
+    /** Names are cut for display; ids never are, because the school compares them byte for byte. */
     private static final int MAX_TEXT = 80;
+    /** 线上 jgh_id 实测 256 个字符，教学班 / 模板 id 各 32 个，所以上限只防失控、不参与截断。 */
+    private static final int MAX_ID = 512;
 
     /** 未评 — the student has not opened it yet. */
     public static final int UNEVALUATED = -1;
@@ -59,19 +62,21 @@ public final class EduEvaluation {
         public final int state;
 
         Item(Map<String, String> raw) {
-            classId = text(raw.get("jxb_id"));
-            courseId = text(raw.get("kch_id"));
-            teacherId = text(raw.get("jgh_id"));
-            studentType = text(raw.get("xsdm"));
-            modelId = text(raw.get("pjmbmcb_id"));
-            gradeEntry = text(raw.get("sfcjlrjs"));
+            // Ids go back to the school verbatim: jgh_id came back 256 characters long and the
+            // display form answers 「参数异常」 (200, 6,923 B) to even one truncated character.
+            classId = ident(raw.get("jxb_id"));
+            courseId = ident(raw.get("kch_id"));
+            teacherId = ident(raw.get("jgh_id"));
+            studentType = ident(raw.get("xsdm"));
+            modelId = ident(raw.get("pjmbmcb_id"));
+            gradeEntry = ident(raw.get("sfcjlrjs"));
             course = text(raw.get("kcmc"));
             teacher = text(raw.get("jzgmc"));
             className = text(raw.get("jxbmc"));
             department = text(raw.get("jgmc"));
             type = text(raw.get("xsmc"));
             statusWord = text(raw.get("tjztmc"));
-            statusCode = text(raw.get("tjzt"));
+            statusCode = ident(raw.get("tjzt"));
             score = text(raw.get("bfzpf"));
             state = stateOf(statusCode);
         }
@@ -367,5 +372,16 @@ public final class EduEvaluation {
         if (raw == null) return "";
         String value = raw.trim();
         return value.length() <= MAX_TEXT ? value : value.substring(0, MAX_TEXT);
+    }
+
+    /**
+     * An id, kept whole. {@link #MAX_ID} is a guard against a runaway reply, not a display width:
+     * the school's 教职工 id is 256 characters and a single missing character is answered with
+     * 「参数异常」, so nothing here may shorten a value it will later be asked to recognise.
+     */
+    private static String ident(String raw) {
+        if (raw == null) return "";
+        String value = raw.trim();
+        return value.length() <= MAX_ID ? value : value.substring(0, MAX_ID);
     }
 }
