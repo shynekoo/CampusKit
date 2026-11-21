@@ -1,13 +1,13 @@
 {
-  "version": "2.6.0-beta.17",
-  "versionCode": 234,
+  "version": "2.6.0-beta.18",
+  "versionCode": 235,
   "notes": [
-    "修复 beta.16 安装包无法解析的问题：上一次上传的是未签名的中间产物，这次换成正规签名产物（签名证书与之前各版本一致，可直接覆盖安装）",
-    "开源协议从 MIT 迁移到 MPL-2.0：仓库 LICENSE 换成官方全文，自有源码统一标注 MPL-2.0，历史 MIT 版本的原有授权继续有效",
-    "「更多」里的「查看开源许可证」改为「开源许可」，弹窗离线显示 MPL 2.0 全文，上方标注本机版本号和源码地址",
-    "第三方组件（ZXing、PDFBox、Bouncy Castle）的许可证保持各自原文，未并入 MPL；功能、登录、支付、用水、更新下载均未变动"
+    "安全整改：移除已下线的充值签名代码，源码与安装包不再包含该签名常量",
+    "慧生活登录与支付宝授权、扫码用水、教务课表成绩、应用内更新全部保持原样",
+    "新增发布前敏感信息扫描：源码或安装包命中禁用常量就不出包",
+    "本次为安全整改后的重新出包，覆盖 beta.17 安装即可"
   ],
   "bytes": 5486527,
-  "sha256": "cab737846bc59da4d4ebfe02eae549229b64e38cd705a70ae7b3e97824101723",
-  "url": "https://github.com/shynekoo/CampusKit/releases/download/preview/campuskit-2.6.0-beta.17.apk"
+  "sha256": "e6e674bb5ccfea1c4c974c7eff92511b67c3b66685340cdda90378468707bf3e",
+  "url": "https://github.com/shynekoo/CampusKit/releases/download/preview/campuskit-2.6.0-beta.18.apk"
 }

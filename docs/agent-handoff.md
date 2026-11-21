@@ -8,17 +8,18 @@
 | :-- | :-- |
 | 技术栈 | Java + 原生 Android View + Python 构建；无 Kotlin / Compose / Gradle |
 | 线上正式版 | **2.5.9 / versionCode 210**（2026-11-20 发布，`delivery/update/update.json`；修复扫码跳转 + 四段版本号检查不到更新，用水版） |
-| 已提交 HEAD | `00d7bb4`（main：2.5.8 发布，已 push） |
-| 当前开发分支 | `feat/diag-2.5.8`（诊断系统改造，**未提交、未合并**） |
+| 已提交 HEAD | `main`：安全整改收尾 + 2.6.0-beta.18 出包（2026-11-21 提交并推送，`85ef5d4` 之上） |
+| 当前开发分支 | 无。`feat/diag-2.5.8.9` 与 `feat/analytics` 均已并入 `main`（后者含 Cloudflare Worker 统计，线上暂停，见 `docs/security.md`） |
 | 最新包 | `delivery/科信小助手-2.5.9.apk`（versionCode 210，已发布，sha256 `b022159d…c82ef605`，`--field-water` 用水版）；`2.5.8.1`/209 因四段版名检查不到更新已被取代 |
 | 发布公告 | `delivery/release-2.5.8.md`（短版 / 长版公告 + 上线记录 + 原始清单） |
-| 最新 tag / Release | `v2.5.9`（[Release](https://github.com/shynekoo/CampusKit/releases/tag/v2.5.9)，附 ASCII 资产 `kexin-xiaozhushou-2.5.9.apk` 与 `update.json`）；`preview` 预发布现为 **2.6.0-beta.17 / 234**（APK + `beta.json`）；Gitee 侧同版本（`gitee.com/sun-heyue/CampusKit`） |
+| 最新 tag / Release | `v2.5.9`（[Release](https://github.com/shynekoo/CampusKit/releases/tag/v2.5.9)，附 ASCII 资产 `kexin-xiaozhushou-2.5.9.apk` 与 `update.json`）；`preview` 预发布现为 **2.6.0-beta.18 / 235**（APK + `beta.json`）；Gitee `preview` 同为 235（`gitee.com/sun-heyue/CampusKit`）；国内 WorkBuddy 站点仍停在 beta.5 / 222（账号不匹配） |
 | GitHub 登录 | `gh auth login` 已登录 `shynekoo`（ADMIN，repo scope）；按 AGENTS.md，push/tag/Release 仍需用户逐次确认 |
-| 工作区 | `main` 干净；许可证迁移 `0392cea` 已推送，本次「公开仓库安全整改 + 2.6.0-beta.17」随该分支入库 |
+| 工作区 | `main` 与 `origin/main` 同步；许可证迁移 `0392cea`、安全整改与 beta.18 出包均已入库 |
 | 核心断言 | 实测 **1554 项全过**（2026-11-21 删除充值签名器的 40 项断言）；UI 契约守卫 **388 锚点**；诊断隐私守卫 **717 项**；WebView 守卫 **5 处** |
-| 发布状态 | **2.5.8 已发布**：清单、直链、下载站、App 内更新日志已同步；早期 2.5.8.x 开发包未单独发布 |
-| 未发布开发版 | 无。**2.6.0-beta.17 / 234** 是当前预览包（`--beta --field-water`；许可迁移 MPL-2.0 + 修复 beta.16 上传未签名中间产物导致装不上） |
-| 预览渠道 | `delivery/update/beta.json` 为 2.6.0-beta.17 / 234；**WorkBuddy 站点仍是 beta.5 / 222**（发布被 `SITES_ACCOUNT_MISMATCH` 拒绝，appId `wbapp_g8yY3kLcI8KmEUFM6vdn0h` 属另一账号）；GitHub 与 Gitee 的 `preview` 均已是 beta.17 / 234 |
+| 发布状态 | **2.5.9 已发布**：清单、直链、下载站、App 内更新日志已同步；早期 2.5.8.x 开发包未单独发布 |
+| 最新构建 | **2.6.0-beta.18 / 235**（`delivery/科信小助手-2.6.0-beta.18.apk`，5,486,527 B，`sha256 e6e674bb…707bf3e`，v2+v3 签名、证书与历史各版一致）；它把 beta.17 残留的趣智签名盐从 dex 里清掉，类集合只少 `RechargeSignature` / `NativeSigningV6528`，内嵌 URL 53 条与 beta.17 逐条一致。同日清理 `preview` 上 19 个带盐旧包（GitHub 12 / Gitee 7），GitHub secret scanning 与 push protection 已开启。**正式版 2.6.0 的方案见 `tmp/release-2.6.0-plan.md`，未执行。** |
+| 当前线上预览 | **2.6.0-beta.18 / 235**（GitHub 与 Gitee 的 `preview`）：`--beta --field-water`；安全整改后的重新出包，dex 不再含已删除的趣智签名盐。上一版 beta.17 / 234 仍带盐，已从两渠道移除 |
+| 预览渠道 | 仓库内三份清单均为 2.6.0-beta.18 / 235 且各自指向本渠道（`beta.json` → WorkBuddy、`beta-github.json` → GitHub、`beta-gitee.json` → Gitee）；GitHub 与 Gitee 已上线 235；**WorkBuddy 站点仍是 beta.5 / 222**（发布被 `SITES_ACCOUNT_MISMATCH` 拒绝，appId `wbapp_g8yY3kLcI8KmEUFM6vdn0h` 属另一账号），账号切回后重发布即可 |
 
 ## 二、已提交但未发布（2.5.8.1）
 

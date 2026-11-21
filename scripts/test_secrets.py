@@ -14,10 +14,11 @@
 用法：
 
     python scripts/test_secrets.py                 # 扫工作区（默认）
-    python scripts/test_secrets.py --apk PATH ...  # 另外扫构建产物的 dex
+    python scripts/test_secrets.py --apk PATH ...  # 另外扫构建产物（dex / assets / native 库）
 
-`scripts/build_preview.py` 在打包前调用本脚本，并在打包后用它复查 dex——扫描不通过就不出包，
-出包也不可能带着已知盐值。
+`scripts/build_preview.py` 在打包前调用本脚本，并在打包后用它复查产物——dex、assets、资源表与
+native 库都扫（不含 META-INF 签名块）。扫描不通过就不出包，且会删掉刚签好的 APK，所以 Beta
+自动发布拿不到带已知盐值的包。
 """
 
 import argparse
@@ -110,22 +111,47 @@ def scan_text(path, relative):
 
 
 def scan_apk(path):
-    """扫构建产物的 dex：删掉的盐值不允许以任何形式回到 APK 里。
+    """扫构建产物：dex、assets、资源表与 native 库都不允许带回已删除的盐或我方凭据。
 
     dex 的字符串池是「长度前缀 + 原始字节」，所以按形态匹配（不依赖具体值）比按摘要匹配可靠：
     摘要只能命中完整独立字符串，而池里的字符串常常与相邻常量黏在一起。
+
+    assets 与 `.so` 是同样的问题：把盐从 Java 挪进 assets、或塞进本地库，源码扫描看不见。
+    这里对每个条目按 latin-1 与 UTF-16LE 两种视图各跑一遍形态规则（native 代码里的宽字符常量
+    很常见），再对二进制里的可打印串做摘要比对——脚本本身仍然不持有原文。
     """
     failures = []
     if not path.exists():
         return ["产物不存在：%s" % path]
     with zipfile.ZipFile(path) as package:
         for name in package.namelist():
-            if not name.endswith(".dex"):
+            if name.endswith("/"):
                 continue
-            text = package.read(name).decode("latin-1")
-            for pattern, label in CREDENTIAL_PATTERNS:
-                if pattern.search(text):
-                    failures.append("%s!%s：疑似%s" % (path.name, name, label))
+            raw = package.read(name)
+            if name.endswith(".dex"):
+                text = raw.decode("latin-1")
+                for pattern, label in CREDENTIAL_PATTERNS:
+                    if pattern.search(text):
+                        failures.append("%s!%s：疑似%s" % (path.name, name, label))
+                # 形态规则挡不住「盐值被拼进更长的常量」这种写法，摘要再兜一层。
+                for match in re.finditer(rb"[\x20-\x7e]{4,400}", raw):
+                    if hashlib.sha256(match.group(0)).hexdigest() in BANNED_LITERALS:
+                        failures.append("%s!%s：出现已知禁用字面量（与应用内容一致）" % (path.name, name))
+                        break
+                continue
+            # 非 dex：签名块（META-INF 下的 .SF/.RSA）是 Base64 的证书与摘要，不含源码常量。
+            if name.startswith("META-INF/") and name.upper().endswith((".SF", ".RSA", ".DSA", ".EC")):
+                continue
+            views = (("latin-1", raw.decode("latin-1")),
+                     ("utf-16le", raw.decode("utf-16-le", errors="ignore")))
+            for encoding, text in views:
+                for pattern, label in CREDENTIAL_PATTERNS:
+                    if pattern.search(text):
+                        failures.append("%s!%s[%s]：疑似%s" % (path.name, name, encoding, label))
+            for match in re.finditer(rb"[\x20-\x7e]{4,400}", raw):
+                if hashlib.sha256(match.group(0)).hexdigest() in BANNED_LITERALS:
+                    failures.append("%s!%s：出现已知禁用字面量（与应用内容一致）" % (path.name, name))
+                    break
     return failures
 
 

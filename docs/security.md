@@ -76,12 +76,26 @@
 
 - 源码侧 `RechargeSignature` / `NativeSigningV6528` 已删除：两者在应用中**没有调用方**（充值入口早在 1.4.x 移除），只被测试引用。
 - 该盐值此前已随公开发布的 APK 扩散，删除源码**不能**使已泄露的副本失效；但继续把它留在仓库里没有任何收益。
-- **不得重新引入**：`scripts/test_secrets.py` 对这两个盐值做硬阻断，源码或 APK 里出现即构建失败。
+- **分发面清理（2026-11-21）**：GitHub `preview` 删除 12 个、Gitee `preview` 删除 7 个带盐旧预览包，两个渠道的 `preview` 现只剩 `2.6.0-beta.18` 与清单；正式版 Release 与两个 `preview` Release 本身均保留。**这只是停止继续分发，不等于材料失效**——此前下载过的人手里仍然有可用的值。
+- **仍然带盐的地方**（明列，避免误以为已清干净）：
+  - 8 个正式版 Release 的 APK（`v2.5.0` … `v2.5.8.1`，以及作为当前正式源的 `v2.5.9`）——保留是版本记录与更新渠道的需要；
+  - 14 个 tag 的源码归档（见 R4）；
+  - Git 历史中 125 / 127 个提交；
+  - 下载站目录里仍在提供的 11 个旧 APK（重发布时可剔除，`2.5.9` 必须留到正式版换代）。
+- `2.6.0-beta.18`（235）起产物不再包含该值，类集合比对确认只少了这两个签名类。
+- **不得重新引入**：`scripts/test_secrets.py` 对这两个盐值做硬阻断，源码或 APK 里出现即构建失败；产物扫描不通过时 `build_preview.py` 会删掉刚签好的 APK，避免「构建失败但文件还在」被误传。
 
 ### R3 会话 token 进入 `alipays://` 深链（`AlipayWaterLink`）
 
 - 用水跳转按趣智平台的格式把 `loginCode` 放进 URI query。`alipays` 是隐式 scheme，注册同名 scheme 的应用可以截获整条 URI。
 - 这是平台协议决定的，改格式功能就坏。现有约束：任何路径都不打印该 URI（`DiagRedact` 白名单 + `test_diag_privacy.py` 守卫），不放入剪贴板、不做分享。
+
+### R4 旧 tag 的源码归档与 Git 历史（2026-11-21 决定：不重写）
+
+- GitHub 的 `archive/refs/tags/<tag>.zip`、`…/tar.gz` 与 Gitee 的同类归档**不是我们上传的资产**，无法删除；它们按 tag 指向的提交现场打包。14 个 tag（含 `preview`，指向 `8cf8516`）全部指向删除动作之前的提交，因此归档里仍有那两行常量。
+- Git 历史同样：**125 / 127 个提交**含该值，只有 `d8f7c5d`（删除）与 `85ef5d4` 干净。旧提交里的 `analysis/recharge-integration.md` 也仍可通过 raw 链接读到。
+- **为什么不重写**：值早已在公开 APK 里，重写历史不能让任何一份已下载的副本失效；代价却是 127 个提交哈希全变、14 个 tag 作废、9 个 Release 与 tag 的关联需重建、Gitee 必须同步（只清一边等于没清）。收益接近零、破坏面极大，故不改写、不强制推送。
+- **若将来仍要清**：先 `git bundle create --all` + `clone --mirror` 备份，再 `filter-repo --replace-text`，随后重建全部 tag、逐个 Release 重新挂载资产、Gitee 同步重推，最后全渠道复核。备份与步骤见 `tmp/security-cleanup-plan-2026-11-21.md`。
 
 ### 已检查并确认「不需要改」的项
 

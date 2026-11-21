@@ -21,6 +21,29 @@
 
 ---
 
+## [已发布预览 · 2026-11-21] — 2.6.0-beta.18：安全整改后的重新出包（versionCode 235）
+
+`2.6.0-beta.17`（234）是在删除签名盐**之前**打包的，dex 里仍带该值，且已经发到 GitHub / Gitee 的
+`preview`。同号重发不会推送给已安装用户（versionCode 不增长），因此递增到 235 重新出包。
+
+- 从 `d8f7c5d` 之后的 HEAD 构建，`--beta --field-water`（用水控制 `WaterActivity` / `LifeWaterActivity` 在包内）。
+- 产物 `delivery/科信小助手-2.6.0-beta.18.apk`，5,486,527 B，`sha256 e6e674bb…707bf3e`；
+  v2 + v3 签名，证书指纹与历史各版一致（`CN=QZXY Local Preview`，`13b96892…d4209`），可覆盖安装。
+- **产物扫描通过**：`test_secrets.py --apk` 无命中；与 beta.17 的 dex 比对，类集合 879 → 877，
+  **只少 `RechargeSignature` 与 `NativeSigningV6528`，无新增类**；两侧内嵌 URL 各 53 条、完全一致。
+- 测试：`test_core` 1554、`test_ui_contract` 388、`test_build_config` 7、`test_diag_privacy` 717、
+  `test_diag_files` 6650、`test_webview_policy` 5、`test_analytics` 77（+18）、`test_secrets` 通过。
+- **发布状态（2026-11-21 14:10）**：GitHub 与 Gitee 的 `preview` 均已上线 235。
+  - GitHub：APK `campuskit-2.6.0-beta.18.apk` + 同名 `beta.json`（678 B），直链 206 正常。
+  - Gitee：同一 APK + `beta.json`，完整下载 5,486,527 B / 5.5 s，SHA-256 与清单一致；旧 `beta.json`
+    附件先新后删，未出现清单 404（同名附件下直链会固定解析到最早的一份，因此必须删旧件）。
+  - 国内渠道（WorkBuddy 站点）**未发布**：`SITES_ACCOUNT_MISMATCH`，该目录绑定的应用属另一账号，
+    线上仍是 beta.5 / 222。仓库内三份清单已改为 235，等账号切回后可直接重发布。
+  - 正式版清单（两渠道 `update.json`）未动，仍为 2.5.9 / 210。
+- 真机安装、慧生活登录与实际扫码在本机**未做**（用户明确说自行测试）；只做到签名/对齐/manifest 解析/类与端点比对。
+
+---
+
 ## [未发布] — 公开仓库安全整改（2026-11-21）
 
 按 `tmp/security-audit-public-repo-2026-11-21.md` 的结论执行，**只动仓库，不动功能边界**：
@@ -44,16 +67,33 @@
   我方凭据形态（私钥块 / 云 AccessKey / 平台令牌 / 被删盐值形态）、被跟踪但命中 `.gitignore`
   的文件。`build_preview.py` 打包前**无条件**调用它（`--skip-tests` 跳不过），打包后再用
   `--apk` 复查产物 dex——**扫描不通过就不出包**，Beta 自动发布因此拿不到带盐值的包。
+  产物扫描失败时还会删除刚签好的 APK：只抛异常会留下一个「能装但带盐」的文件，而发布动作按
+  文件名取件，光靠退出码挡不住粗心的上传步骤。
 - `.gitignore`：补 `*.dex`、`.idea/`、`.vscode/`、`*.log`、`*.har`、`*.pcap`；`delivery/` 的文档
-  白名单从 `release-*.md` 放宽到 `*.md`（设计记录也属文档）。
+  白名单保持 `release-*.md`，另加 `ui-beautify-*.md`（放宽到 `*.md` 会把 60 多份未审阅的本地笔记
+  一并纳入跟踪）。
 - `docs/security.md`：新增「已知残留风险」，如实记录慧生活授权串（R1）、已删除的趣智盐值（R2）
   与 token 进深链（R3），并列出「已检查并确认不需要改」的项。
 - CI 增加 `test_secrets.py` 一步；`AGENTS.md` 的测试入口从七个改为八个。
 
+### 分发面清理与仓库防护（2026-11-21 下午）
+
+- **删除带盐旧预览包**：GitHub `preview` 删 12 个（`beta.3`–`beta.17`）、Gitee `preview` 删 7 个
+  （`beta.9`–`beta.17`）。删除前逐份核对清单引用，`beta.18`、`beta.json`、`update.json`
+  与正式版 `2.5.9` 全部保留；两个 `preview` Release 本身、所有 tag、Git 历史均未改动。
+- **GitHub 防护开启**：`secret_scanning` 与 `secret_scanning_push_protection` 由 disabled 改为
+  **enabled**（此前五项全关、`alerts` 返回 404）。`non_provider_patterns` 与 `validity_checks`
+  在当前订阅下不可用，因此**自定义盐值不会被 GitHub 识别**，仍靠 `scripts/test_secrets.py` 兜底。
+- **扫描闸门加固**：产物扫描的 dex 分支补上可打印串 SHA-256 比对（原来只有形态规则，
+  盐值被拼进更长常量时会漏）。负向实测：往 `assets/`、`resources.arsc`、`.so`（窄字符 / UTF-16 宽字符）
+  各塞假形态串，5 条全部检出；`beta.17` 仍判 FAIL、`beta.18` 通过。
+- **副产物**：`docs/build-and-release.md` 的过期测试数字（core 1418 / 诊断隐私 651 / WebView 6 /
+  CI「六个入口」）按实测改为 1554 / 717 / 5 / 八个。
+
 ### 未做（需单独确认）
 
 - Git 历史重写、force push、删除 GitHub Release、Gitee 镜像同步：**未执行**，方案见
-  `tmp/history-rewrite-plan.md`。
+  `tmp/security-cleanup-plan-2026-11-21.md`（`history-rewrite-plan.md` 已并入）。
 - 慧生活支付宝授权串（`AlipayLogin.AUTH_INFO`）：保留。它是慧生活客户端的固定常量，删源码
   不能让它失效，却会让登录与用水对未登录用户停摆。定性见 `docs/security.md` R1。
 

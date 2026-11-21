@@ -347,7 +347,14 @@ def main():
                   "--out", result, aligned])
     run(signer + ["verify", "--verbose", result])
     # 产物级复查：源码扫描只能证明仓库干净，不能证明包里干净（历史 APK 就是这样把盐带出去的）。
-    run([sys.executable, ROOT / "scripts/test_secrets.py", "--apk", result, "--quiet"])
+    # 不通过就把刚签好的包删掉：只抛异常仍会留下一个「能装但带盐」的文件在 delivery/ 里，
+    # 而发布动作是按文件名取件的，光靠退出码挡不住粗心的上传步骤。
+    try:
+        run([sys.executable, ROOT / "scripts/test_secrets.py", "--apk", result, "--quiet"])
+    except subprocess.CalledProcessError:
+        result.unlink(missing_ok=True)
+        print("产物未通过敏感信息扫描，已删除：%s" % result.name, flush=True)
+        raise
     if device_tests:
         print("Device-only test artifact: " + str(result), flush=True)
         return
