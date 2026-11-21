@@ -8,7 +8,7 @@
 - 河北工程大学科信学院学生的第三方 Android 校园助手：教务（课表 / 成绩 / 学业情况 / 空教室 / 学生评价）+ 校园生活（慧生活798 用水、趣智校园余额与使用码、取件与官网快捷入口）。
 - 单 APK、业务无后端、无 Gradle：Java + 原生 View，Python 脚本调官方 `aapt2` / `d8` / `zipalign` / `apksigner` 出包。
 - 仓库里唯一的服务端代码是 `server/analytics-worker/`（Cloudflare Workers + D1，可选的匿名活跃统计，默认关闭且当前未配置地址）。架构文档写「业务无后端」，不要写成绝对「无后端」。
-- 模块：`client/android`（界面）、`client/core`（不依赖 Android 的规则层）、`client/fieldtest`（用水控制 source set，仅 `--field-water` 编入）、`scripts`（构建 / 断言 / 发布辅助）、`docs`（技术文档）、`delivery`（发布说明与更新清单）。
+- 模块：`client/android`（界面）、`client/core`（不依赖 Android 的规则层）、`client/fieldtest`（用水控制 source set，`--field-water` 时整组编入，**正式版即带该开关，故这组文件在正式包内**）、`scripts`（构建 / 断言 / 发布辅助）、`docs`（技术文档）、`delivery`（发布说明与更新清单）。
 - Android 7.0+（API 24），targetSdk 36。**权限 4 项**：网络、网络状态、相机（扫码）、安装 APK。
 - 第三方：ZXing 3.5.3、PDFBox-Android 2.0.27.0、Bouncy Castle 1.72、支付宝 SDK 15.8.42，版本与 SHA-256 固定在构建脚本。
 
@@ -38,9 +38,10 @@
 
 1. **真机验收是发布硬门槛**：`docs/real-device-acceptance.md` 未全部勾选前不得发布。
 2. **预览通道默认关闭**：用户须自选渠道并打开「接收预览版更新」。
-3. **构建开关**：正式版必须用不带 `--field-water` / `--diagnostics` 的普通构建；预览包必须带 `--field-water`。
-4. **签名**：`tools/keys/` 下的密钥与口令不进仓库；换签名会让已装用户无法覆盖安装。
-5. **不要用 `git checkout .` / `reset --hard` 清工作区**，先确认有没有 WIP。
+3. **`LifeProtocolProbe` 在正式包内，待整改**（优先级最高）：它是实验性协议探测，入口在用水页「诊断…」，会发一次带控制效果的开启请求。已记录在 [`docs/known-issues.md`](docs/known-issues.md)，整改需改代码 + 出新包，单独评估后进行。
+4. **构建开关**：**正式版与预览版都必须带 `--field-water`**（不带会静默产出缺用水控制的只读包，2.5.7 就是这样丢过扫码跳转）；`--diagnostics` 只用于内部排障，产出与正式版同名，误传会污染更新通道。
+5. **签名**：`tools/keys/` 下的密钥与口令不进仓库；换签名会让已装用户无法覆盖安装。
+6. **不要用 `git checkout .` / `reset --hard` 清工作区**，先确认有没有 WIP。
 
 ## 五、文档索引
 

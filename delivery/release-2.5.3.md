@@ -11,6 +11,8 @@
   - **查看开源许可证** —— 弹窗内嵌 **MIT License 全文**（可选中复制），不需要联网也能读到；下面注明第三方组件各自的许可证见 `client/THIRD_PARTY.md`。
 - 项目已在仓库根目录加入 `LICENSE`（MIT，`Copyright (c) 2026 shynekoo`），README 同步增加「许可证」一节。
 
+> 后续版本（2.6.0）将许可证改为 MPL-2.0，本文件保留当时的事实。
+
 ## 账号页现状（自上而下）
 
 趣智校园 · 慧生活798 · 数据与隐私 · 意见反馈 · 检查更新 · 更多
@@ -18,5 +20,5 @@
 ## 质量
 
 - 1034 项核心断言通过（`scripts/test_core.py`），v2/v3 签名通过。
-- 构建后校验 dex：存在 `MoreActivity`、`本项目 GitHub 仓库`、`查看开源许可证`、`MIT License`、仓库地址；无 `/api/v1/acc/login/code`、无「图形验证码」。
+- 构建后校验 dex：存在 `MoreActivity`、开源仓库入口与许可证弹窗相关文案；确认不含短信验证码登录的残留入口。
 - 设备端 UI 断言（`--device-tests`）未跑：无连接设备。

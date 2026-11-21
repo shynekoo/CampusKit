@@ -1,6 +1,6 @@
 # 客户端代码
 
-`android/` 为独立原生 Android 客户端，包含短信登录、账号验证、余额查询、相机/图片扫码与只读设备资料查询；`core/` 是不依赖 Android 的会话、二维码协议计算及用水状态模块。真实用水的分阶段实现和现场验收门槛见 `../analysis/implementation-roadmap.md`。
+`android/` 为独立原生 Android 客户端，包含短信登录、账号验证、余额查询、相机/图片扫码与只读设备资料查询；`core/` 是不依赖 Android 的会话、二维码协议计算及用水状态模块。发版形态与现场验收门槛见 [`../docs/build-and-release.md`](../docs/build-and-release.md)。
 
 ## 当前实现
 
@@ -11,7 +11,7 @@
 - `SmsAccountApi` / `AccountProfile` / `DeviceDetails`：固定登录、余额与只读设备资料查询路由，金额按千分之一元换算；未嵌入官方 SDK。当前仅申请 INTERNET 与 CAMERA 权限，不申请蓝牙权限。
 - `QrDecoder`：本机 ZXing 解码，静态图片走尺度金字塔（1.0→0.125，含 0.2/0.16 有效区间），相机帧对 Y 平面做 1/2、1/4、1/6 降采样；启用反色与 TRY_HARDER。真实浴室实体标签只有在降采样后才能解出，屏幕码仍在第一次尝试即命中。
 
-真实账号与余额已有 0.3 真机截图证据；真实浴室二维码已离线解码并通过 `DeviceQr` 回归测试，但尚未在线查询该水表资料或执行真实用水。当前复核与测试见 `analysis/project-review.md`，后续流程见 `analysis/implementation-roadmap.md`。
+真实账号与余额已有 0.3 真机截图证据；真实浴室二维码已离线解码并通过 `DeviceQr` 回归测试，但尚未在线查询该水表资料或执行真实用水。当前已知限制见 [`../docs/known-issues.md`](../docs/known-issues.md)，真机验收项见 [`../docs/real-device-acceptance.md`](../docs/real-device-acceptance.md)。
 
 ## 构建
 
@@ -20,7 +20,7 @@
 ```powershell
 python scripts/bootstrap_android.py
 python scripts/test_core.py
-python scripts/build_preview.py
+python scripts/build_preview.py --field-water
 ```
 
 SDK 仅下载到 `tools/android-sdk`，版本为平台 API 36 与 Build-Tools 36.0.0；校验来源记录在该目录下的 `sources.json`。构建直接调用官方 AAPT2、D8、zipalign 和 apksigner，不依赖全局 Android Studio 或 Gradle。

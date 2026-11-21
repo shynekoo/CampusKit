@@ -18,7 +18,7 @@ python scripts/test_diag_files.py              # 日志轮转/上限/清空/过�
 python scripts/test_webview_policy.py          # WebView 守卫 5 项
 python scripts/test_ui_contract.py             # UI 契约守卫
 python scripts/test_secrets.py                 # 公开仓库红线：禁用盐值 / 我方凭据 / 被跟踪但忽略的文件
-python scripts/build_preview.py                # 普通只读版出包（默认跑前 5 个测试）
+python scripts/build_preview.py --field-water   # 出包（正式与预览都要带，含用水控制）
 ```
 
 `build_preview.py` 默认调用 `test_core` / `test_build_config` / `test_diag_privacy` / `test_diag_files` / `test_webview_policy`；**不调用** `test_ui_contract`，需单独跑（CI 会跑全部）。加 `--skip-tests` 会跳过内置测试，仅用于排障——但 `test_secrets.py` 在打包前**无条件**运行，`--skip-tests` 跳不过；打包后还会用 `--apk` 复查产物（dex、assets、资源表、native 库）。复查不通过时脚本会删掉刚签好的 APK 再退出，避免发布步骤按文件名捡到一个带盐值的包。这是 Beta 自动发布前的最后一道闸门。
@@ -33,7 +33,7 @@ python scripts/build_preview.py                # 普通只读版出包（默认�
 
 | 参数 | 效果 |
 | :-- | :-- |
-| 默认 | `WATER_CONTROL=false`、`DIAGNOSTICS=false` —— 正式只读版 |
+| 默认（不加开关） | `WATER_CONTROL=false`、`DIAGNOSTICS=false` —— 只读版，**不是发版形态**（缺用水控制，扫码跳转分支会被编译期移除） |
 | `--field-water` | 编入 `client/fieldtest` 用水控制；构建后校验控制路由与 `WaterActivity`/`WaterControl` 的 dex 类型描述符**全部出现** |
 | `--diagnostics` | 额外编入高密度诊断事件（手势、渲染、逐次请求）；基础诊断页与白名单事件在所有构建里都有 |
 | （无参数） | `DIAG_BASIC = true`：诊断页存在，运行期默认关，用户主动开启 |

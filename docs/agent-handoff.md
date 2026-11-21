@@ -70,4 +70,4 @@ python scripts/test_core.py && python scripts/test_build_config.py \
 
 ## 五、文档索引
 
-[架构](architecture.md) · [模块](modules.md) · [诊断日志](diagnostics.md) · [构建与发布](build-and-release.md) · [安全约束](security.md) · [UI 与导航](ui-navigation.md) · [数据接口](data-interfaces.md) · [开源许可](licensing.md) · [已知问题](known-issues.md) · [安全审计：网络/SDK](security-audit-network-sdk.md) · [安全审计：支付/用水](security-audit-payment-water.md) · [真机验收](real-device-acceptance.md) · [整改验收](rectification-acceptance.md) · [返回手势](back-gesture.md) · [变更日志](../CHANGELOG.md)
+[架构](architecture.md) · [模块](modules.md) · [诊断日志](diagnostics.md) · [构建与发布](build-and-release.md) · [安全约束](security.md) · [UI 与导航](ui-navigation.md) · [数据接口](data-interfaces.md) · [开源许可](licensing.md) · [已知问题](known-issues.md) · [安全审计：网络/SDK](security-audit-network-sdk.md) · [安全审计：支付/用水](security-audit-payment-water.md) · [真机验收](real-device-acceptance.md) · [返回手势](back-gesture.md) · [变更日志](../CHANGELOG.md)

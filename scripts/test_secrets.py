@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MPL-2.0
 """公开仓库敏感信息守卫。
 
-三道检查，全部针对「受 Git 跟踪的文件」：
+针对「受 Git 跟踪的文件」（或 `--staged` 时的暂存区）做五类检查：
 
 1. **已知禁用字面量**——2026-11-21 审计里删除的趣智校园请求签名盐。这里只存 SHA-256，
    不存原文：守卫脚本自己也不该成为新的泄露点。命中即失败。
@@ -10,10 +10,16 @@
    `docs/security.md`「已知残留风险 R1」。
 3. **被跟踪但命中 .gitignore 的文件**——忽略规则对已跟踪文件无效，这是历史上 APK 与
    分析文档被带进仓库的直接原因。非空即失败。
+4. **材料本身不该入库**——实验产物与签名材料（APK / dex / 抓包 / 日志 / 密钥库）、
+   本机绝对路径、代码里的插桩与反编译工具调用。这些不靠「值」识别，靠形态与路径识别。
+5. **文档里的第三方接口路径**——发布说明与技术文档只写职责与约束，不抄接口路径。
+
+允许清单 `ALLOWLIST` 用于确实必须保留的少数例外，每一条都要写清原因。
 
 用法：
 
-    python scripts/test_secrets.py                 # 扫工作区（默认）
+    python scripts/test_secrets.py                 # 扫工作区（默认，全部跟踪文件）
+    python scripts/test_secrets.py --staged        # 只扫暂存区（提交前用）
     python scripts/test_secrets.py --apk PATH ...  # 另外扫构建产物（dex / assets / native 库）
 
 `scripts/build_preview.py` 在打包前调用本脚本，并在打包后用它复查产物——dex、assets、资源表与
@@ -62,10 +68,64 @@ KNOWN_THIRD_PARTY = (
     (re.compile(r"sign_type=RSA2&target_id="), "慧生活客户端授权常量（见 security.md R1）"),
 )
 
+# ---------------------------------------------------------------- 材料形态检查
+
+# 实验产物与签名材料：一律不入库。历史上曾有 5 个 APK 被提交，忽略规则对已跟踪文件无效，
+# 所以这里按后缀再挡一道。
+FORBIDDEN_SUFFIXES = (
+    ".apk", ".aab", ".dex", ".jar", ".aar", ".so",
+    ".har", ".pcap", ".cap", ".log",
+    ".jks", ".keystore", ".p12", ".pfx", ".pem", ".key",
+)
+
+# 没有后缀或后缀不固定的凭据文件名。
+FORBIDDEN_NAMES = (".env", ".dev.vars", "id_rsa", "id_ed25519", "keystore.properties")
+
+# 本机绝对路径：会把开发机的用户名、目录结构带进公开仓库。
+LOCAL_PATH_PATTERNS = (
+    (re.compile(r"[A-Za-z]:[\\/]{1,2}Users[\\/]", re.I), "Windows 用户目录绝对路径"),
+    # 排除盘符路径里的 /Users/，否则同一条会被 Windows 与 macOS 各命中一次。
+    (re.compile(r"(?<![\w.:/])/home/[A-Za-z0-9_.-]{2,}/"), "Linux 家目录绝对路径"),
+    (re.compile(r"(?<![\w.:/])/Users/[A-Za-z0-9_.-]{2,}/"), "macOS 家目录绝对路径"),
+)
+
+# 插桩、解包、反编译工具的调用特征。只查代码与脚本——文档在叙述审计方法时可能正当地
+# 提到工具名，这里不去管它。
+RESEARCH_TOOL_PATTERNS = (
+    (re.compile(r"\bfrida[-_]server\b", re.I), "frida-server 注入流程"),
+    (re.compile(r"\bfrida\.get_usb_device\b"), "Frida 运行时插桩"),
+    (re.compile(r"\bjadx\b", re.I), "JADX 反编译命令行"),
+    (re.compile(r"\bapktool\b", re.I), "apktool 解包"),
+    (re.compile(r"\bdexdump\b", re.I), "dexdump 解析"),
+)
+
+# 文档里的第三方接口路径：写职责与约束即可，路径以源码为准。
+ENDPOINT_PATTERN = re.compile(r"/api/v\d+/")
+
+# 单文件过大通常意味着产物或归档被带进来了。
+MAX_TEXT_BYTES = 1024 * 1024
+
+# 允许清单：{ (相对路径或目录前缀, 规则标签): 原因 }。只在确实必须保留时添加。
+ALLOWLIST = {}
+
+
+def _allowed(relative, label):
+    for (target, tag), _reason in ALLOWLIST.items():
+        if tag != label:
+            continue
+        if relative == target or relative.startswith(target):
+            return True
+    return False
+
+
 TEXT_SUFFIXES = {
     ".java", ".js", ".py", ".md", ".json", ".xml", ".html", ".css", ".txt",
-    ".yml", ".yaml", ".toml", ".sql", ".gradle", ".properties", ".sh",
+    ".yml", ".yaml", ".toml", ".sql", ".gradle", ".properties", ".sh", ".bat", ".ps1",
 }
+
+# 只在这些后缀里查工具调用特征，避免把叙述审计方法的文档判成工具脚本。
+CODE_SUFFIXES = {".java", ".js", ".py", ".sh", ".yml", ".yaml", ".toml", ".properties",
+                 ".gradle", ".bat", ".ps1"}
 
 # 字符串字面量：把同一个文件里的字面量拼起来再匹配，能挡住 "sign-kai" + "lu=" 这种拆写。
 LITERAL = re.compile(r'"((?:[^"\\\n]|\\.){4,600})"')
@@ -78,6 +138,38 @@ def tracked_files():
     except (OSError, subprocess.CalledProcessError) as error:
         raise SystemExit("无法读取 git 索引：%s" % error)
     return [ROOT / name for name in out.split("\0") if name]
+
+
+def staged_files():
+    try:
+        out = subprocess.run(["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR", "-z"],
+                             cwd=str(ROOT), check=True,
+                             capture_output=True).stdout.decode("utf-8")
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise SystemExit("无法读取暂存区：%s" % error)
+    return [ROOT / name for name in out.split("\0") if name]
+
+
+def check_material(relative, path):
+    """按路径与文件形态判断「这份材料该不该入库」。返回失败项列表。"""
+    failures = []
+    low = relative.lower()
+    suffix = path.suffix.lower()
+    name = path.name.lower()
+    if suffix in FORBIDDEN_SUFFIXES:
+        if not _allowed(relative, "实验产物或签名材料"):
+            failures.append("%s：实验产物或签名材料不入库（后缀 %s）" % (relative, suffix))
+    if name in FORBIDDEN_NAMES:
+        if not _allowed(relative, "凭据文件"):
+            failures.append("%s：凭据文件不入库" % relative)
+    try:
+        size = path.stat().st_size
+    except OSError:
+        size = 0
+    if size > MAX_TEXT_BYTES and suffix in TEXT_SUFFIXES:
+        failures.append("%s：单文件超过 1 MiB（%d 字节），多半是产物或归档误入"
+                        % (relative, size))
+    return failures
 
 
 def scan_text(path, relative):
@@ -107,6 +199,20 @@ def scan_text(path, relative):
     for pattern, label in KNOWN_THIRD_PARTY:
         if any(pattern.search(hay) for hay in haystacks):
             warnings.append("%s：含%s（已知并接受，见 security.md R1）" % (relative, label))
+
+    for pattern, label in LOCAL_PATH_PATTERNS:
+        if pattern.search(text) and not _allowed(relative, label):
+            failures.append("%s：含%s，公开仓库只写相对路径" % (relative, label))
+
+    if path.suffix.lower() in CODE_SUFFIXES:
+        for pattern, label in RESEARCH_TOOL_PATTERNS:
+            if pattern.search(text) and not _allowed(relative, label):
+                failures.append("%s：出现%s，调试工具不随仓库分发" % (relative, label))
+
+    if path.suffix.lower() == ".md" and ENDPOINT_PATTERN.search(text):
+        if not _allowed(relative, "第三方接口路径"):
+            failures.append("%s：文档含第三方接口路径（写职责与约束即可，路径以源码为准）"
+                            % relative)
     return failures, warnings
 
 
@@ -161,26 +267,41 @@ def tracked_but_ignored():
     return [line for line in out.splitlines() if line.strip()]
 
 
+def ignored_among(paths):
+    """暂存区模式下，逐个确认待提交文件没有命中忽略规则。"""
+    names = [p.relative_to(ROOT).as_posix() for p in paths if p.exists()]
+    if not names:
+        return []
+    out = subprocess.run(["git", "check-ignore", "--no-index", "-z", "--stdin"],
+                         cwd=str(ROOT), input="\0".join(names).encode("utf-8"),
+                         capture_output=True)
+    return [n for n in out.stdout.decode("utf-8").split("\0") if n.strip()]
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="公开仓库敏感信息守卫")
     parser.add_argument("--apk", action="append", default=[],
                         help="额外扫描的构建产物（可重复）")
+    parser.add_argument("--staged", action="store_true",
+                        help="只扫暂存区（提交前用）")
     parser.add_argument("--quiet", action="store_true", help="只输出失败项")
     args = parser.parse_args(argv)
 
-    files = tracked_files()
+    files = staged_files() if args.staged else tracked_files()
     failures, warnings, scanned = [], [], 0
     for path in files:
         if path.resolve() == SELF or not path.is_file():
             continue
+        relative = path.relative_to(ROOT).as_posix()
+        failures += check_material(relative, path)
         if path.suffix.lower() not in TEXT_SUFFIXES:
             continue
         scanned += 1
-        found, noted = scan_text(path, path.relative_to(ROOT).as_posix())
+        found, noted = scan_text(path, relative)
         failures += found
         warnings += noted
 
-    ignored = tracked_but_ignored()
+    ignored = ignored_among(files) if args.staged else tracked_but_ignored()
     for name in ignored:
         failures.append("%s：被 Git 跟踪但同时命中 .gitignore（忽略规则对它无效）" % name)
 
@@ -197,8 +318,9 @@ def main(argv=None):
               % (len(failures), scanned, len(args.apk)))
         return 1
 
-    print("PASS: 敏感信息守卫（文本 %d 个文件 / 被跟踪但忽略 %d 个 / 产物 %d 个；已知第三方常量 %d 处）"
-          % (scanned, len(ignored), len(args.apk), len(warnings)))
+    print("PASS: 敏感信息守卫（%s；文本 %d 个文件 / 被跟踪但忽略 %d 个 / 产物 %d 个；已知第三方常量 %d 处）"
+          % ("暂存区" if args.staged else "工作区",
+             scanned, len(ignored), len(args.apk), len(warnings)))
     return 0
 
 

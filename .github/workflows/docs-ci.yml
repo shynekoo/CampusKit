@@ -80,7 +80,6 @@ jobs:
             docs/agent-handoff.md
             docs/back-gesture.md
             docs/real-device-acceptance.md
-            docs/rectification-acceptance.md
             docs/security-audit-network-sdk.md
             docs/security-audit-payment-water.md
             client/THIRD_PARTY.md

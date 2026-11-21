@@ -77,6 +77,7 @@ CI 在 `.github/workflows/docs-ci.yml`：推送 / PR 时自动跑以上八个入
 - **可分发文件只有一个**：`delivery/科信小助手-<version>.apk`（`build_preview.py` 内的签名产物，v2+v3）。`client/build/preview/` 下的 `unsigned*.apk` / `resources.apk` 是中间文件，未签名，传出去用户装不上（报「解析软件包时出现问题」）。上传前必须 `apksigner verify -v` 看到 `Verifies`。
 - **预览包必须带 `--field-water`**，否则会静默缺少用水控制（`WaterActivity` / `LifeWaterActivity`）。
 - **所有 Git 提交与推送必须由用户明确确认**；Agent 不自行 `git commit` / `git push` / 建 tag / 建 Release。
+- **提交前跑一次 `python scripts/test_secrets.py --staged`**：它按「材料该不该入库」判断，而不是只查敏感词——实验产物、签名材料、本机绝对路径、凭据文件与工具调用特征都在提交前拦下；工作区全量由出包流程与 CI 跑。
 - 真机验收清单 [`docs/real-device-acceptance.md`](docs/real-device-acceptance.md) 未全部勾选前不得发布。
 
 ## 6. 许可证维护
